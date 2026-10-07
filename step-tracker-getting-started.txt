@@ -1,0 +1,304 @@
+STEP TRACKER - REACT NATIVE STARTER NOTES
+Reads daily step count from Apple Health (iOS) and Health Connect (Android)
+and saves it locally.
+Last checked: October 2026
+ 
+======================================================================
+1. OVERVIEW
+======================================================================
+ 
+There is no single API for both platforms, so the app uses one library
+per platform behind a shared interface:
+ 
+  iOS      -> HealthKit       via @kingstinct/react-native-healthkit
+  Android  -> Health Connect  via react-native-health-connect
+  Storage  -> AsyncStorage    via @react-native-async-storage/async-storage
+ 
+Notes:
+  - Google Fit APIs are deprecated. Health Connect is the Android route.
+  - Health Connect is built into Android 14+. On Android 9-13 the user
+    must install the Health Connect app from the Play Store.
+  - Neither library works in Expo Go. You need a development build
+    (expo prebuild / expo run) or a bare React Native project.
+  - HealthKit needs a real iPhone for real data. The simulator has no
+    steps unless you add them manually in the Health app.
+ 
+======================================================================
+2. CREATE THE PROJECT
+======================================================================
+ 
+  npx create-expo-app@latest StepTracker
+  cd StepTracker
+ 
+  npx expo install @kingstinct/react-native-healthkit react-native-nitro-modules
+  npx expo install react-native-health-connect expo-build-properties
+  npx expo install @react-native-async-storage/async-storage
+ 
+======================================================================
+3. app.json CONFIG
+======================================================================
+ 
+  {
+    "expo": {
+      "name": "StepTracker",
+      "ios": {
+        "bundleIdentifier": "com.yourname.steptracker",
+        "infoPlist": {
+          "NSHealthShareUsageDescription":
+            "StepTracker reads your step count to show your daily activity."
+        }
+      },
+      "android": {
+        "package": "com.yourname.steptracker",
+        "permissions": ["android.permission.health.READ_STEPS"]
+      },
+      "plugins": [
+        "@kingstinct/react-native-healthkit",
+        "react-native-health-connect",
+        [
+          "expo-build-properties",
+          {
+            "android": {
+              "minSdkVersion": 26,
+              "compileSdkVersion": 35,
+              "targetSdkVersion": 35
+            }
+          }
+        ]
+      ]
+    }
+  }
+ 
+Then generate the native projects and run:
+ 
+  npx expo prebuild --clean
+  npx expo run:ios --device
+  npx expo run:android
+ 
+Notes:
+  - react-native-health-connect v4+ bundles its own Expo plugin. Do NOT
+    also install the old "expo-health-connect" package (the build fails
+    with a duplicate class error).
+  - Bare React Native (no Expo): you must add the permission, the
+    permissions-rationale intent filter, and the permission delegate in
+    MainActivity yourself. See the library's "Get started" docs.
+ 
+======================================================================
+4. SUGGESTED FILE LAYOUT
+======================================================================
+ 
+  src/
+    health/
+      index.ts          <- picks the right platform file
+      steps.ios.ts      <- HealthKit
+      steps.android.ts  <- Health Connect
+    storage/
+      stepStore.ts      <- save / load
+    App.tsx
+ 
+======================================================================
+5. src/health/steps.android.ts
+======================================================================
+ 
+  import {
+    initialize,
+    getSdkStatus,
+    SdkAvailabilityStatus,
+    requestPermission,
+    aggregateRecord,
+  } from 'react-native-health-connect';
+ 
+  export async function requestStepPermission(): Promise<boolean> {
+    const status = await getSdkStatus();
+    if (status !== SdkAvailabilityStatus.SDK_AVAILABLE) {
+      // Health Connect missing or needs an update - send user to Play Store
+      return false;
+    }
+    await initialize();
+    const granted = await requestPermission([
+      { accessType: 'read', recordType: 'Steps' },
+    ]);
+    return granted.some((p) => p.recordType === 'Steps');
+  }
+ 
+  export async function getSteps(start: Date, end: Date): Promise<number> {
+    await initialize();
+    // aggregateRecord de-duplicates overlapping sources (phone + watch).
+    // Do not sum readRecords() results yourself or you will double count.
+    const result = await aggregateRecord({
+      recordType: 'Steps',
+      timeRangeFilter: {
+        operator: 'between',
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+      },
+    });
+    return result.COUNT_TOTAL ?? 0;
+  }
+ 
+======================================================================
+6. src/health/steps.ios.ts
+======================================================================
+ 
+IMPORTANT: this library's function signatures have changed between major
+versions (v8 -> v9 moved to Nitro Modules, later versions changed again).
+The code below follows the newer object-style API. Check the README for
+the version you actually installed and adjust the argument shapes.
+ 
+  import {
+    isHealthDataAvailable,
+    requestAuthorization,
+    queryStatisticsForQuantity,
+  } from '@kingstinct/react-native-healthkit';
+ 
+  const STEPS = 'HKQuantityTypeIdentifierStepCount';
+ 
+  export async function requestStepPermission(): Promise<boolean> {
+    if (!(await isHealthDataAvailable())) return false; // e.g. some iPads
+    await requestAuthorization({ toRead: [STEPS] });
+    // iOS never tells you whether READ access was granted (privacy).
+    // "true" here only means the prompt was shown. If the user declined,
+    // queries simply return no data.
+    return true;
+  }
+ 
+  export async function getSteps(start: Date, end: Date): Promise<number> {
+    // cumulativeSum de-duplicates iPhone + Apple Watch steps.
+    const result = await queryStatisticsForQuantity(
+      STEPS,
+      ['cumulativeSum'],
+      { filter: { date: { startDate: start, endDate: end } }, unit: 'count' }
+    );
+    return Math.round(result.sumQuantity?.quantity ?? 0);
+  }
+ 
+======================================================================
+7. src/health/index.ts
+======================================================================
+ 
+Metro automatically resolves ./steps to steps.ios.ts or steps.android.ts.
+ 
+  export { requestStepPermission, getSteps } from './steps';
+ 
+  export function todayRange() {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    return { start, end: new Date() };
+  }
+ 
+======================================================================
+8. src/storage/stepStore.ts
+======================================================================
+ 
+  import AsyncStorage from '@react-native-async-storage/async-storage';
+ 
+  const KEY = 'steps-by-day';
+  type StepLog = Record<string, number>; // { "2026-10-06": 8421 }
+ 
+  // Local date, not UTC, so "today" matches the user's calendar day.
+  const dayKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-` +
+    `${String(d.getDate()).padStart(2, '0')}`;
+ 
+  export async function loadSteps(): Promise<StepLog> {
+    const raw = await AsyncStorage.getItem(KEY);
+    return raw ? JSON.parse(raw) : {};
+  }
+ 
+  export async function saveSteps(date: Date, steps: number): Promise<void> {
+    const log = await loadSteps();
+    log[dayKey(date)] = steps;
+    await AsyncStorage.setItem(KEY, JSON.stringify(log));
+  }
+ 
+======================================================================
+9. App.tsx
+======================================================================
+ 
+  import { useEffect, useState } from 'react';
+  import { Button, SafeAreaView, Text } from 'react-native';
+  import { getSteps, requestStepPermission, todayRange } from './src/health';
+  import { saveSteps } from './src/storage/stepStore';
+ 
+  export default function App() {
+    const [steps, setSteps] = useState<number | null>(null);
+    const [error, setError] = useState<string | null>(null);
+ 
+    async function refresh() {
+      try {
+        setError(null);
+        const ok = await requestStepPermission();
+        if (!ok) {
+          setError('Health data is not available or permission was denied.');
+          return;
+        }
+        const { start, end } = todayRange();
+        const count = await getSteps(start, end);
+        setSteps(count);
+        await saveSteps(start, count);
+      } catch (e) {
+        setError(String(e));
+      }
+    }
+ 
+    useEffect(() => {
+      refresh();
+    }, []);
+ 
+    return (
+      <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: 48 }}>{steps ?? '--'}</Text>
+        <Text>steps today</Text>
+        {error && <Text style={{ color: 'red' }}>{error}</Text>}
+        <Button title="Refresh" onPress={refresh} />
+      </SafeAreaView>
+    );
+  }
+ 
+======================================================================
+10. GOTCHAS
+======================================================================
+ 
+  - iOS: enable the HealthKit capability for your App ID. The Expo
+    plugin adds the entitlement, but your provisioning profile must
+    include it too.
+  - iOS: a denied read permission looks identical to "zero steps".
+    Show a hint pointing to Settings > Health > Data Access if the
+    count is 0.
+  - Android: after two denials the system stops showing the permission
+    dialog. Use openHealthConnectSettings() from the library to send
+    the user to settings instead.
+  - Android: Health Connect needs a screen lock set on the device.
+  - Android: by default you can only read the last 30 days before the
+    permission was granted. Older data needs the
+    READ_HEALTH_DATA_HISTORY permission.
+  - Both: reading while the app is in the background needs extra setup
+    (HealthKit background delivery / READ_HEALTH_DATA_IN_BACKGROUND).
+    Start with foreground reads only.
+  - Store review: Apple requires a clear purpose string and a privacy
+    policy. Google Play requires a Health Connect data declaration in
+    the Play Console before release.
+ 
+======================================================================
+11. NEXT STEPS
+======================================================================
+ 
+  [ ] Get today's count showing on a real device for each platform
+  [ ] Backfill the last 7 days (loop getSteps over each day)
+  [ ] Show a simple history list from loadSteps()
+  [ ] Refresh when the app returns to the foreground (AppState)
+  [ ] Swap AsyncStorage for SQLite or a backend if you need sync
+ 
+======================================================================
+12. DOCS
+======================================================================
+ 
+  Health Connect library:
+    https://matinzd.github.io/react-native-health-connect/docs/get-started
+  HealthKit library:
+    https://github.com/kingstinct/react-native-healthkit
+  Android Health Connect:
+    https://developer.android.com/health-and-fitness/health-connect
+  Apple HealthKit:
+    https://developer.apple.com/documentation/healthkit
+ 
