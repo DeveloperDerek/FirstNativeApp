@@ -1,0 +1,73 @@
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
+
+import { dayRange, getSteps, type PermissionResult, requestStepPermission } from '@/health';
+import { loadSteps, saveManySteps, type StepLog } from '@/storage/stepStore';
+
+export const HISTORY_DAYS = 7;
+
+type StepsState = {
+  today: number | null;
+  log: StepLog;
+  permission: PermissionResult | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+};
+
+const StepsContext = createContext<StepsState | null>(null);
+
+export function StepsProvider({ children }: { children: ReactNode }) {
+  const [today, setToday] = useState<number | null>(null);
+  const [log, setLog] = useState<StepLog>({});
+  const [permission, setPermission] = useState<PermissionResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await requestStepPermission();
+      setPermission(result);
+      if (result !== 'granted') return;
+
+      // Today plus a backfill of the previous days, saved in one write.
+      const entries = await Promise.all(
+        Array.from({ length: HISTORY_DAYS }, async (_, daysAgo) => {
+          const { start, end } = dayRange(daysAgo);
+          return [start, await getSteps(start, end)] as [Date, number];
+        })
+      );
+      setToday(entries[0][1]);
+      setLog(await saveManySteps(entries));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Show cached history immediately, then fetch fresh numbers.
+    loadSteps().then(setLog).catch(() => {});
+    refresh();
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
+    return () => sub.remove();
+  }, [refresh]);
+
+  return (
+    <StepsContext.Provider value={{ today, log, permission, loading, error, refresh }}>
+      {children}
+    </StepsContext.Provider>
+  );
+}
+
+export function useSteps() {
+  const ctx = useContext(StepsContext);
+  if (!ctx) throw new Error('useSteps must be used inside <StepsProvider>');
+  return ctx;
+}
