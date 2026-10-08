@@ -1,6 +1,8 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
+import { syncSteps } from '@/api/steps';
+import { useAuth } from '@/auth/AuthProvider';
 import { dayRange, getSteps, type PermissionResult, requestStepPermission } from '@/health';
 import { loadSteps, saveManySteps, type StepLog } from '@/storage/stepStore';
 
@@ -23,6 +25,10 @@ export function StepsProvider({ children }: { children: ReactNode }) {
   const [permission, setPermission] = useState<PermissionResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { session, profile } = useAuth();
+  const userId = session?.user.id;
+  // Only upload once the user has agreed on the consent screen.
+  const sharing = Boolean(profile?.sharing_consent_at);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -41,12 +47,18 @@ export function StepsProvider({ children }: { children: ReactNode }) {
       );
       setToday(entries[0][1]);
       setLog(await saveManySteps(entries));
+
+      if (userId && sharing) {
+        await syncSteps(userId, entries).catch((e) => {
+          throw new Error(`Couldn't upload steps: ${e instanceof Error ? e.message : String(e)}`);
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userId, sharing]);
 
   useEffect(() => {
     // Show cached history immediately, then fetch fresh numbers.

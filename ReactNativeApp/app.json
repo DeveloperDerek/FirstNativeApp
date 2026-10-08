@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.yourname.steptracker"
+      "bundleIdentifier": "com.derekho.steptracker"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +19,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.yourname.steptracker",
+      "package": "com.derekho.steptracker",
       "permissions": [
         "android.permission.health.READ_STEPS"
       ]
@@ -41,7 +41,7 @@
       [
         "@kingstinct/react-native-healthkit",
         {
-          "NSHealthShareUsageDescription": "StepTracker reads your step count to show your daily activity.",
+          "NSHealthShareUsageDescription": "StepTracker reads your step count to show your daily activity and, if you choose, to compare totals with your friends and groups.",
           "NSHealthUpdateUsageDescription": false,
           "background": false
         }

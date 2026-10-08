@@ -27,6 +27,15 @@ export default function AppTabs() {
           <TabTrigger name="history" href="/history" asChild>
             <TabButton>History</TabButton>
           </TabTrigger>
+          <TabTrigger name="friends" href="/friends" asChild>
+            <TabButton>Friends</TabButton>
+          </TabTrigger>
+          <TabTrigger name="groups" href="/groups" asChild>
+            <TabButton>Groups</TabButton>
+          </TabTrigger>
+          <TabTrigger name="profile" href="/profile" asChild>
+            <TabButton>Profile</TabButton>
+          </TabTrigger>
         </CustomTabList>
       </TabList>
     </Tabs>
@@ -49,7 +58,7 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
 
 export function CustomTabList(props: TabListProps) {
   const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
 
   return (
     <View {...props} style={styles.tabListContainer}>

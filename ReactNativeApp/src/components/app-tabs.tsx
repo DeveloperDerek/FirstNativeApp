@@ -1,11 +1,11 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/native-tabs';
 import { useColorScheme } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 
 export default function AppTabs() {
   const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
 
   return (
     <NativeTabs
@@ -26,6 +26,21 @@ export default function AppTabs() {
           src={require('@/assets/images/tabIcons/explore.png')}
           renderingMode="template"
         />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="friends">
+        <NativeTabs.Trigger.Label>Friends</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="person.2" md="group" />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="groups">
+        <NativeTabs.Trigger.Label>Groups</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="trophy" md="trophy" />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="profile">
+        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="person.crop.circle" md="account_circle" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

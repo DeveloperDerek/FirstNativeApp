@@ -1,0 +1,1100 @@
+ROJECT CONTINUATION CONTEXT
+=============================
+
+PROJECT:
+StepTracker
+
+PURPOSE:
+iOS/Android step-tracking app that reads daily steps from HealthKit /
+Health Connect and allows users to compare steps with friends and groups.
+
+CURRENT PHASE:
+Part 2 — Accounts, Friends, Groups, and Leaderboards
+
+ROLE OF THIS DOCUMENT:
+This document is the current project memory and implementation guide.
+Use it to continue the project rather than redesigning it from scratch.
+
+
+STEP TRACKER - PART 2: ACCOUNTS, FRIENDS, GROUPS
+Adds sign-up (email, Apple, Google), friends, groups, and step
+leaderboards on top of step-tracker-getting-started.txt.
+Last checked: October 2026
+
+OUTPUT AFTER EACH TASK:
+- Completed
+- Files changed
+- Important implementation details
+- Tests/verification performed
+- Known issues
+- Recommended next step
+
+======================================================================
+1. WHAT CHANGES
+======================================================================
+
+Part 1 kept steps on the phone only. To compare steps between people
+you need a backend that stores accounts and everyone's daily totals.
+
+This guide uses Supabase (hosted Postgres + auth). Why:
+  - Friends and groups are relational data; SQL joins and sums make
+    leaderboards one query.
+  - Built-in email, Apple, and Google sign-in.
+  - Row Level Security (RLS) lets the database enforce "you can only
+    see steps of your friends and group members", so you do not need
+    to write your own API server.
+  - Free tier is enough to build and test.
+
+Firebase would also work; the structure below maps over, but the
+security rules and leaderboard queries are more work there.
+
+New flow:
+  1. User signs in.
+  2. App reads steps from HealthKit / Health Connect (Part 1 code).
+  3. App upserts one row per day to the daily_steps table.
+  4. Friends and group screens read other users' rows via RLS.
+
+AsyncStorage from Part 1 can stay as an offline cache, or be removed.
+
+======================================================================
+2. INSTALL
+======================================================================
+
+  npx expo install @supabase/supabase-js react-native-url-polyfill
+  npx expo install expo-apple-authentication
+  npx expo install @react-native-google-signin/google-signin
+  npx expo install expo-crypto
+
+Add to the "plugins" array in app.json:
+
+  "expo-apple-authentication",
+  [
+    "@react-native-google-signin/google-signin",
+    { "iosUrlScheme": "com.googleusercontent.apps.YOUR_IOS_CLIENT_ID" }
+  ]
+
+Add under "ios" in app.json:
+
+  "usesAppleSignIn": true
+
+Create a .env file (do not commit it):
+
+  EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+  EXPO_PUBLIC_SUPABASE_KEY=your-publishable-or-anon-key
+  EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=xxxx.apps.googleusercontent.com
+  EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=yyyy.apps.googleusercontent.com
+
+Then: npx expo prebuild --clean
+
+Never put the Supabase service_role / secret key in the app. Only the
+publishable (anon) key belongs on the client; RLS is what protects data.
+
+======================================================================
+3. DASHBOARD SETUP (ONE TIME)
+======================================================================
+
+Supabase (supabase.com):
+  [ ] Create a project, copy the URL and publishable key into .env
+  [ ] Authentication > Providers: enable Email, Apple, Google
+  [ ] Apple provider: add your iOS bundle ID as a Client ID
+  [ ] Google provider: add BOTH your web and iOS client IDs
+
+Apple Developer account:
+  [ ] Enable "Sign in with Apple" capability on your App ID
+
+Google Cloud Console (APIs & Services > Credentials):
+  [ ] Create an OAuth client of type "Web application"
+  [ ] Create an OAuth client of type "iOS" (your bundle ID)
+  [ ] Create an OAuth client of type "Android" (package name + SHA-1)
+      - only needed once you build for Android
+
+======================================================================
+4. DATABASE SCHEMA
+======================================================================
+
+Paste into Supabase > SQL Editor and run.
+
+  -- ---------- PROFILES ----------
+  create table public.profiles (
+    id           uuid primary key references auth.users(id) on delete cascade,
+    username     text unique not null,
+    display_name text,
+    created_at   timestamptz not null default now()
+  );
+
+  -- Auto-create a profile row whenever someone signs up
+  create function public.handle_new_user()
+  returns trigger language plpgsql security definer set search_path = ''
+  as $$
+  begin
+    insert into public.profiles (id, username, display_name)
+    values (
+      new.id,
+      'user_' || substr(new.id::text, 1, 8),
+      coalesce(new.raw_user_meta_data->>'full_name',
+               split_part(new.email, '@', 1))
+    );
+    return new;
+  end;
+  $$;
+
+  create trigger on_auth_user_created
+    after insert on auth.users
+    for each row execute function public.handle_new_user();
+
+  -- ---------- DAILY STEPS ----------
+  create table public.daily_steps (
+    user_id    uuid not null references public.profiles(id) on delete cascade,
+    day        date not null,
+    steps      integer not null check (steps >= 0),
+    updated_at timestamptz not null default now(),
+    primary key (user_id, day)
+  );
+
+  -- ---------- FRIENDSHIPS ----------
+  create table public.friendships (
+    id           uuid primary key default gen_random_uuid(),
+    requester_id uuid not null references public.profiles(id) on delete cascade,
+    addressee_id uuid not null references public.profiles(id) on delete cascade,
+    status       text not null default 'pending'
+                 check (status in ('pending', 'accepted')),
+    created_at   timestamptz not null default now(),
+    check (requester_id <> addressee_id)
+  );
+
+  -- One row per pair, regardless of who sent the request
+  create unique index friendships_pair_idx on public.friendships (
+    least(requester_id, addressee_id),
+    greatest(requester_id, addressee_id)
+  );
+
+  -- ---------- GROUPS ----------
+  create table public.groups (
+    id          uuid primary key default gen_random_uuid(),
+    name        text not null,
+    owner_id    uuid not null references public.profiles(id) on delete cascade,
+    invite_code text unique not null
+                default substr(md5(gen_random_uuid()::text), 1, 8),
+    created_at  timestamptz not null default now()
+  );
+
+  create table public.group_members (
+    group_id  uuid not null references public.groups(id) on delete cascade,
+    user_id   uuid not null references public.profiles(id) on delete cascade,
+    joined_at timestamptz not null default now(),
+    primary key (group_id, user_id)
+  );
+
+  -- Owner automatically becomes a member
+  create function public.add_owner_as_member()
+  returns trigger language plpgsql security definer set search_path = ''
+  as $$
+  begin
+    insert into public.group_members (group_id, user_id)
+    values (new.id, new.owner_id);
+    return new;
+  end;
+  $$;
+
+  create trigger on_group_created
+    after insert on public.groups
+    for each row execute function public.add_owner_as_member();
+
+======================================================================
+5. SECURITY (ROW LEVEL SECURITY)
+======================================================================
+
+This is the part that keeps strangers from reading someone's steps.
+Run after section 4.
+
+  -- Helper functions. "security definer" lets them check membership
+  -- without triggering RLS on the tables they read (avoids the
+  -- "infinite recursion in policy" error).
+
+  create function public.is_friend(other uuid)
+  returns boolean language sql stable security definer set search_path = ''
+  as $$
+    select exists (
+      select 1 from public.friendships
+      where status = 'accepted'
+        and ((requester_id = auth.uid() and addressee_id = other)
+          or (addressee_id = auth.uid() and requester_id = other))
+    );
+  $$;
+
+  create function public.is_group_member(gid uuid)
+  returns boolean language sql stable security definer set search_path = ''
+  as $$
+    select exists (
+      select 1 from public.group_members
+      where group_id = gid and user_id = auth.uid()
+    );
+  $$;
+
+  create function public.shares_group(other uuid)
+  returns boolean language sql stable security definer set search_path = ''
+  as $$
+    select exists (
+      select 1
+      from public.group_members me
+      join public.group_members them on them.group_id = me.group_id
+      where me.user_id = auth.uid() and them.user_id = other
+    );
+  $$;
+
+  alter table public.profiles      enable row level security;
+  alter table public.daily_steps   enable row level security;
+  alter table public.friendships   enable row level security;
+  alter table public.groups        enable row level security;
+  alter table public.group_members enable row level security;
+
+  -- PROFILES: any signed-in user can look people up; edit only your own
+  create policy "profiles read" on public.profiles
+    for select to authenticated using (true);
+  create policy "profiles update own" on public.profiles
+    for update to authenticated
+    using (id = auth.uid()) with check (id = auth.uid());
+
+  -- DAILY STEPS: read your own, your friends', your group mates'
+  create policy "steps read" on public.daily_steps
+    for select to authenticated
+    using (user_id = auth.uid()
+           or public.is_friend(user_id)
+           or public.shares_group(user_id));
+  create policy "steps insert own" on public.daily_steps
+    for insert to authenticated with check (user_id = auth.uid());
+  create policy "steps update own" on public.daily_steps
+    for update to authenticated
+    using (user_id = auth.uid()) with check (user_id = auth.uid());
+  create policy "steps delete own" on public.daily_steps
+    for delete to authenticated using (user_id = auth.uid());
+
+  -- FRIENDSHIPS
+  create policy "friendships read" on public.friendships
+    for select to authenticated
+    using (auth.uid() in (requester_id, addressee_id));
+  create policy "friendships request" on public.friendships
+    for insert to authenticated
+    with check (requester_id = auth.uid() and status = 'pending');
+  create policy "friendships accept" on public.friendships
+    for update to authenticated
+    using (addressee_id = auth.uid())
+    with check (addressee_id = auth.uid());
+  create policy "friendships remove" on public.friendships
+    for delete to authenticated
+    using (auth.uid() in (requester_id, addressee_id));
+
+  -- GROUPS
+  create policy "groups read" on public.groups
+    for select to authenticated
+    using (owner_id = auth.uid() or public.is_group_member(id));
+  create policy "groups create" on public.groups
+    for insert to authenticated with check (owner_id = auth.uid());
+  create policy "groups update" on public.groups
+    for update to authenticated
+    using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+  create policy "groups delete" on public.groups
+    for delete to authenticated using (owner_id = auth.uid());
+
+  -- GROUP MEMBERS (joining goes through join_group() below)
+  create policy "members read" on public.group_members
+    for select to authenticated using (public.is_group_member(group_id));
+  create policy "members leave or kick" on public.group_members
+    for delete to authenticated
+    using (user_id = auth.uid()
+           or exists (select 1 from public.groups g
+                      where g.id = group_id and g.owner_id = auth.uid()));
+
+  -- Join a group with an invite code
+  create function public.join_group(code text)
+  returns uuid language plpgsql security definer set search_path = ''
+  as $$
+  declare gid uuid;
+  begin
+    select id into gid from public.groups where invite_code = code;
+    if gid is null then raise exception 'Invalid invite code'; end if;
+    insert into public.group_members (group_id, user_id)
+    values (gid, auth.uid())
+    on conflict do nothing;
+    return gid;
+  end;
+  $$;
+
+  -- Leaderboards. Run as the caller, so RLS above still applies.
+  create function public.group_leaderboard(gid uuid, from_day date, to_day date)
+  returns table (user_id uuid, display_name text, total_steps bigint)
+  language sql stable
+  as $$
+    select p.id, p.display_name, coalesce(sum(s.steps), 0)::bigint
+    from public.group_members m
+    join public.profiles p on p.id = m.user_id
+    left join public.daily_steps s
+      on s.user_id = m.user_id and s.day between from_day and to_day
+    where m.group_id = gid
+    group by p.id, p.display_name
+    order by 3 desc;
+  $$;
+
+  create function public.friends_leaderboard(from_day date, to_day date)
+  returns table (user_id uuid, display_name text, total_steps bigint)
+  language sql stable
+  as $$
+    select p.id, p.display_name, coalesce(sum(s.steps), 0)::bigint
+    from public.profiles p
+    left join public.daily_steps s
+      on s.user_id = p.id and s.day between from_day and to_day
+    where p.id = auth.uid() or public.is_friend(p.id)
+    group by p.id, p.display_name
+    order by 3 desc;
+  $$;
+
+======================================================================
+6. SUGGESTED FILE LAYOUT (ADDITIONS)
+======================================================================
+
+  src/
+    lib/
+      supabase.ts        <- client
+    auth/
+      AuthProvider.tsx   <- session state
+      signIn.ts          <- email / Apple / Google
+    api/
+      steps.ts           <- sync steps
+      friends.ts         <- friend CRUD
+      groups.ts          <- group CRUD + leaderboards
+      consent.ts         <- step-sharing consent (section 14)
+      account.ts         <- delete account (section 13)
+    screens/
+      SignInScreen.tsx
+      ConsentScreen.tsx  <- shown once before first upload
+      HomeScreen.tsx     <- today's steps (Part 1 UI)
+      FriendsScreen.tsx
+      GroupsScreen.tsx
+      GroupDetailScreen.tsx
+      ProfileScreen.tsx  <- edit name, sign out, delete account
+
+======================================================================
+7. src/lib/supabase.ts
+======================================================================
+
+  import 'react-native-url-polyfill/auto';
+  import AsyncStorage from '@react-native-async-storage/async-storage';
+  import { createClient } from '@supabase/supabase-js';
+
+  export const supabase = createClient(
+    process.env.EXPO_PUBLIC_SUPABASE_URL!,
+    process.env.EXPO_PUBLIC_SUPABASE_KEY!,
+    {
+      auth: {
+        storage: AsyncStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+      },
+    }
+  );
+
+======================================================================
+8. src/auth/signIn.ts
+======================================================================
+
+  import { Platform } from 'react-native';
+  import * as AppleAuthentication from 'expo-apple-authentication';
+  import * as Crypto from 'expo-crypto';
+  import { GoogleSignin } from '@react-native-google-signin/google-signin';
+  import { supabase } from '../lib/supabase';
+
+  GoogleSignin.configure({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  });
+
+  // ---------- EMAIL ----------
+  export async function signUpWithEmail(email: string, password: string) {
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
+    // By default Supabase sends a confirmation email before the
+    // account can sign in. Tell the user to check their inbox.
+  }
+
+  export async function signInWithEmail(email: string, password: string) {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+  }
+
+  // ---------- APPLE (iOS only) ----------
+  export async function signInWithApple() {
+    if (Platform.OS !== 'ios') throw new Error('Apple sign-in is iOS only');
+
+    // Apple gets the hashed nonce, Supabase gets the raw one.
+    const rawNonce = Crypto.randomUUID();
+    const hashedNonce = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      rawNonce
+    );
+
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+      nonce: hashedNonce,
+    });
+    if (!credential.identityToken) throw new Error('No identity token');
+
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: 'apple',
+      token: credential.identityToken,
+      nonce: rawNonce,
+    });
+    if (error) throw error;
+
+    // Apple only returns the name on the FIRST sign-in. Save it now.
+    const name = credential.fullName;
+    if (name?.givenName) {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        await supabase
+          .from('profiles')
+          .update({
+            display_name: [name.givenName, name.familyName]
+              .filter(Boolean)
+              .join(' '),
+          })
+          .eq('id', data.user.id);
+      }
+    }
+  }
+
+  // ---------- GOOGLE ----------
+  export async function signInWithGoogle() {
+    await GoogleSignin.hasPlayServices(); // no-op on iOS
+    const response = await GoogleSignin.signIn();
+    // Response shape differs by library version; newer versions
+    // return { type, data }. Check the docs for the one you installed.
+    const idToken = response.data?.idToken;
+    if (!idToken) throw new Error('No ID token (sign-in cancelled?)');
+
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: 'google',
+      token: idToken,
+    });
+    if (error) throw error;
+  }
+
+  // ---------- SIGN OUT ----------
+  export async function signOut() {
+    await supabase.auth.signOut();
+  }
+
+Google + iOS nonce note: if Supabase rejects the Google token with a
+nonce error on iOS, either pass a nonce as described in the
+react-native-google-signin "Security" docs, or turn on "Skip nonce
+checks" for the Google provider in the Supabase dashboard.
+
+======================================================================
+9. src/auth/AuthProvider.tsx
+======================================================================
+
+  import { createContext, useContext, useEffect, useState } from 'react';
+  import type { Session } from '@supabase/supabase-js';
+  import { supabase } from '../lib/supabase';
+
+  const AuthContext = createContext<{ session: Session | null; loading: boolean }>(
+    { session: null, loading: true }
+  );
+
+  export function AuthProvider({ children }: { children: React.ReactNode }) {
+    const [session, setSession] = useState<Session | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      supabase.auth.getSession().then(({ data }) => {
+        setSession(data.session);
+        setLoading(false);
+      });
+      const { data: sub } = supabase.auth.onAuthStateChange((_event, s) =>
+        setSession(s)
+      );
+      return () => sub.subscription.unsubscribe();
+    }, []);
+
+    return (
+      <AuthContext.Provider value={{ session, loading }}>
+        {children}
+      </AuthContext.Provider>
+    );
+  }
+
+  export const useAuth = () => useContext(AuthContext);
+
+In App.tsx: wrap everything in <AuthProvider>, then show SignInScreen
+when session is null and the main tabs when it is not.
+
+======================================================================
+10. src/api/steps.ts
+======================================================================
+
+  import { supabase } from '../lib/supabase';
+  import { getSteps } from '../health';
+
+  // Local calendar day, same helper idea as Part 1
+  export const dayKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-` +
+    `${String(d.getDate()).padStart(2, '0')}`;
+
+  // Re-sync the last N days so late-arriving watch data gets picked up
+  export async function syncSteps(userId: string, days = 7) {
+    const rows = [];
+    for (let i = 0; i < days; i++) {
+      const start = new Date();
+      start.setDate(start.getDate() - i);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setHours(23, 59, 59, 999);
+      rows.push({
+        user_id: userId,
+        day: dayKey(start),
+        steps: await getSteps(start, end),
+        updated_at: new Date().toISOString(),
+      });
+    }
+    const { error } = await supabase
+      .from('daily_steps')
+      .upsert(rows, { onConflict: 'user_id,day' });
+    if (error) throw error;
+  }
+
+Call syncSteps() after sign-in and whenever the app returns to the
+foreground (AppState "active").
+
+======================================================================
+11. src/api/friends.ts  (CRUD)
+======================================================================
+
+  import { supabase } from '../lib/supabase';
+
+  // Search users to add
+  export async function searchUsers(query: string) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, username, display_name')
+      .ilike('username', `%${query}%`)
+      .limit(20);
+    if (error) throw error;
+    return data;
+  }
+
+  // CREATE - send request
+  export async function sendFriendRequest(myId: string, otherId: string) {
+    const { error } = await supabase
+      .from('friendships')
+      .insert({ requester_id: myId, addressee_id: otherId });
+    if (error) throw error;
+  }
+
+  // READ - friends and pending requests
+  export async function listFriendships() {
+    const { data, error } = await supabase
+      .from('friendships')
+      .select(`
+        id, status, requester_id, addressee_id,
+        requester:profiles!friendships_requester_id_fkey(id, username, display_name),
+        addressee:profiles!friendships_addressee_id_fkey(id, username, display_name)
+      `);
+    if (error) throw error;
+    return data;
+  }
+
+  // UPDATE - accept
+  export async function acceptFriendRequest(friendshipId: string) {
+    const { error } = await supabase
+      .from('friendships')
+      .update({ status: 'accepted' })
+      .eq('id', friendshipId);
+    if (error) throw error;
+  }
+
+  // DELETE - decline, cancel, or unfriend
+  export async function removeFriendship(friendshipId: string) {
+    const { error } = await supabase
+      .from('friendships')
+      .delete()
+      .eq('id', friendshipId);
+    if (error) throw error;
+  }
+
+  // Compare
+  export async function friendsLeaderboard(fromDay: string, toDay: string) {
+    const { data, error } = await supabase.rpc('friends_leaderboard', {
+      from_day: fromDay,
+      to_day: toDay,
+    });
+    if (error) throw error;
+    return data; // [{ user_id, display_name, total_steps }]
+  }
+
+======================================================================
+12. src/api/groups.ts  (CRUD)
+======================================================================
+
+  import { supabase } from '../lib/supabase';
+
+  // CREATE
+  export async function createGroup(ownerId: string, name: string) {
+    const { data, error } = await supabase
+      .from('groups')
+      .insert({ name, owner_id: ownerId })
+      .select()
+      .single();
+    if (error) throw error;
+    return data; // includes invite_code to share
+  }
+
+  // READ
+  export async function listMyGroups() {
+    const { data, error } = await supabase
+      .from('groups')
+      .select('id, name, owner_id, invite_code')
+      .order('created_at');
+    if (error) throw error;
+    return data; // RLS returns only groups you belong to
+  }
+
+  // UPDATE (owner only)
+  export async function renameGroup(groupId: string, name: string) {
+    const { error } = await supabase
+      .from('groups').update({ name }).eq('id', groupId);
+    if (error) throw error;
+  }
+
+  // DELETE (owner only)
+  export async function deleteGroup(groupId: string) {
+    const { error } = await supabase.from('groups').delete().eq('id', groupId);
+    if (error) throw error;
+  }
+
+  // Join / leave
+  export async function joinGroup(inviteCode: string) {
+    const { data, error } = await supabase.rpc('join_group', { code: inviteCode });
+    if (error) throw error;
+    return data as string; // group id
+  }
+
+  export async function leaveGroup(groupId: string, userId: string) {
+    const { error } = await supabase
+      .from('group_members')
+      .delete()
+      .eq('group_id', groupId)
+      .eq('user_id', userId);
+    if (error) throw error;
+  }
+
+  // Compare
+  export async function groupLeaderboard(
+    groupId: string, fromDay: string, toDay: string
+  ) {
+    const { data, error } = await supabase.rpc('group_leaderboard', {
+      gid: groupId,
+      from_day: fromDay,
+      to_day: toDay,
+    });
+    if (error) throw error;
+    return data; // [{ user_id, display_name, total_steps }]
+  }
+
+======================================================================
+13. APP STORE REQUIREMENT 1: IN-APP ACCOUNT DELETION
+======================================================================
+
+Apple requires that any app with account creation lets the user
+delete the account from inside the app (not just "email us").
+
+Deleting an auth user needs the secret key, which must never be in the
+app. So the app calls a Supabase Edge Function, and the function does
+the delete on the server. Because every table uses "on delete cascade",
+removing the auth user also removes their profile, steps, friendships,
+group memberships, and any groups they own.
+
+--- 13a. Set up the Supabase CLI (one time) ---
+
+  npm install supabase --save-dev
+  npx supabase login
+  npx supabase init
+  npx supabase link --project-ref YOUR_PROJECT_REF
+  npx supabase functions new delete-account
+
+--- 13b. supabase/functions/delete-account/index.ts ---
+
+  import { createClient } from 'npm:@supabase/supabase-js@2';
+
+  Deno.serve(async (req) => {
+    if (req.method !== 'POST') {
+      return new Response('Method not allowed', { status: 405 });
+    }
+
+    // The app sends the signed-in user's token automatically
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+    const token = authHeader.replace('Bearer ', '');
+
+    // These two env vars are provided to Edge Functions by Supabase
+    const admin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
+    // Work out WHO is calling from the token. Never accept a user id
+    // from the request body, or anyone could delete anyone.
+    const { data, error } = await admin.auth.getUser(token);
+    if (error || !data.user) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+
+    const { error: deleteError } = await admin.auth.admin.deleteUser(
+      data.user.id
+    );
+    if (deleteError) {
+      return new Response(JSON.stringify({ error: deleteError.message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ deleted: true }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+
+Deploy it:
+
+  npx supabase functions deploy delete-account
+
+--- 13c. src/api/account.ts ---
+
+  import AsyncStorage from '@react-native-async-storage/async-storage';
+  import { GoogleSignin } from '@react-native-google-signin/google-signin';
+  import { supabase } from '../lib/supabase';
+
+  export async function deleteAccount() {
+    const { error } = await supabase.functions.invoke('delete-account', {
+      method: 'POST',
+    });
+    if (error) throw error;
+
+    // Disconnect Google so the next sign-in asks for consent again
+    try {
+      await GoogleSignin.revokeAccess();
+    } catch {
+      // not signed in with Google - ignore
+    }
+
+    await AsyncStorage.clear();          // local step cache from Part 1
+    await supabase.auth.signOut({ scope: 'local' });
+  }
+
+--- 13d. Button on ProfileScreen.tsx ---
+
+  import { Alert, Button } from 'react-native';
+  import { deleteAccount } from '../api/account';
+
+  function DeleteAccountButton() {
+    const confirm = () =>
+      Alert.alert(
+        'Delete account?',
+        'This permanently deletes your account, step history, friends, ' +
+          'and any groups you own. This cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await deleteAccount();
+              } catch (e) {
+                Alert.alert('Could not delete account', String(e));
+              }
+            },
+          },
+        ]
+      );
+    return <Button title="Delete account" color="red" onPress={confirm} />;
+  }
+
+--- 13e. What reviewers check ---
+
+  [ ] The delete option is easy to find (Profile / Settings), not
+      buried or hidden behind a support email
+  [ ] It deletes the account and its data, not just deactivates it
+  [ ] The confirmation says clearly what will be removed
+
+--- 13f. Still to do: Sign in with Apple token revocation ---
+
+Apple also expects apps that use Sign in with Apple to revoke the
+user's Apple token when the account is deleted. This is NOT in the
+function above. It needs:
+  - a "Sign in with Apple" key (.p8) from your Apple Developer account
+  - a client secret JWT signed with that key
+  - the user's Apple refresh token (exchange the authorizationCode
+    from signInAsync() at sign-in time and store it server-side)
+  - a POST to https://appleid.apple.com/auth/revoke in the function
+See Apple's "Revoke tokens" doc in section 17. Add this before you
+submit for review.
+
+--- 13g. Google Play (for later) ---
+
+Google Play has the same in-app rule and additionally requires a web
+URL where users can request deletion without the app installed. A
+simple web page with a form or instructions is enough.
+
+======================================================================
+14. APP STORE REQUIREMENT 2: HEALTH DATA CONSENT + PRIVACY POLICY
+======================================================================
+
+Apple's HealthKit rules: you must tell users how their health data is
+used, get their agreement before sharing it with anyone else, never
+use it for advertising, and publish a privacy policy.
+
+The iOS Health permission prompt only covers READING steps on the
+phone. Uploading them and showing them to friends needs its own
+separate, explicit consent screen.
+
+--- 14a. Database: record consent and enforce it ---
+
+Run in the Supabase SQL Editor. With this in place the database itself
+refuses step uploads from anyone who has not agreed, even if the app
+has a bug.
+
+  alter table public.profiles
+    add column sharing_consent_at timestamptz;
+
+  create function public.has_sharing_consent()
+  returns boolean language sql stable security definer set search_path = ''
+  as $$
+    select exists (
+      select 1 from public.profiles
+      where id = auth.uid() and sharing_consent_at is not null
+    );
+  $$;
+
+  drop policy "steps insert own" on public.daily_steps;
+  drop policy "steps update own" on public.daily_steps;
+
+  create policy "steps insert own" on public.daily_steps
+    for insert to authenticated
+    with check (user_id = auth.uid() and public.has_sharing_consent());
+
+  create policy "steps update own" on public.daily_steps
+    for update to authenticated
+    using (user_id = auth.uid())
+    with check (user_id = auth.uid() and public.has_sharing_consent());
+
+--- 14b. src/api/consent.ts ---
+
+  import { supabase } from '../lib/supabase';
+
+  export async function hasConsented(userId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('sharing_consent_at')
+      .eq('id', userId)
+      .single();
+    if (error) throw error;
+    return data.sharing_consent_at !== null;
+  }
+
+  export async function giveConsent(userId: string) {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ sharing_consent_at: new Date().toISOString() })
+      .eq('id', userId);
+    if (error) throw error;
+  }
+
+  // Withdrawing consent also removes what was already uploaded
+  export async function withdrawConsent(userId: string) {
+    const { error: e1 } = await supabase
+      .from('daily_steps').delete().eq('user_id', userId);
+    if (e1) throw e1;
+    const { error: e2 } = await supabase
+      .from('profiles')
+      .update({ sharing_consent_at: null })
+      .eq('id', userId);
+    if (e2) throw e2;
+  }
+
+--- 14c. src/screens/ConsentScreen.tsx ---
+
+Show this once after first sign-in, BEFORE calling syncSteps().
+
+  import { Button, Linking, SafeAreaView, Text } from 'react-native';
+  import { giveConsent } from '../api/consent';
+
+  const PRIVACY_URL = 'https://yourdomain.com/privacy';
+
+  export function ConsentScreen({
+    userId, onDone,
+  }: { userId: string; onDone: (agreed: boolean) => void }) {
+    return (
+      <SafeAreaView style={{ flex: 1, padding: 24, justifyContent: 'center' }}>
+        <Text style={{ fontSize: 24, marginBottom: 16 }}>
+          Share your steps?
+        </Text>
+        <Text style={{ marginBottom: 12 }}>
+          To compare with friends, StepTracker uploads your daily step
+          totals to our servers.
+        </Text>
+        <Text>- Only daily totals are uploaded, nothing else from Health</Text>
+        <Text>- Friends you accept and members of groups you join can see them</Text>
+        <Text>- We never use your health data for advertising or sell it</Text>
+        <Text style={{ marginBottom: 12 }}>
+          - You can stop sharing or delete your account any time in Profile
+        </Text>
+        <Text
+          style={{ color: 'blue', marginBottom: 24 }}
+          onPress={() => Linking.openURL(PRIVACY_URL)}
+        >
+          Read the privacy policy
+        </Text>
+        <Button
+          title="Agree and share my steps"
+          onPress={async () => {
+            await giveConsent(userId);
+            onDone(true);
+          }}
+        />
+        <Button title="Not now" onPress={() => onDone(false)} />
+      </SafeAreaView>
+    );
+  }
+
+Rules for this screen:
+  - No pre-ticked boxes; the user must tap to agree.
+  - "Not now" must leave the app usable. Show their own steps from
+    the phone (Part 1) and hide friends/groups until they agree.
+  - Add a "Stop sharing my steps" switch on ProfileScreen that calls
+    withdrawConsent().
+
+--- 14d. Gate the upload ---
+
+In the place you call syncSteps() (after sign-in / on foreground):
+
+  if (await hasConsented(session.user.id)) {
+    await syncSteps(session.user.id);
+  }
+
+--- 14e. Update the Health permission text in app.json ---
+
+  "NSHealthShareUsageDescription":
+    "StepTracker reads your step count to show your daily activity and, if you choose, to compare totals with your friends and groups."
+
+--- 14f. Privacy policy: what it must say ---
+
+Host it at a public URL. You need that URL in two places: the App
+Store Connect listing and inside the app (ConsentScreen + Profile).
+
+  [ ] What you collect: email, name, username, daily step totals,
+      friend and group connections
+  [ ] Where steps come from: Apple Health / Health Connect, read only
+      with the user's permission
+  [ ] Why: to show the user's activity and compare with friends
+  [ ] Who can see it: accepted friends and members of shared groups
+  [ ] Who processes it: Supabase (hosting), Apple and Google (sign-in)
+  [ ] What you do NOT do: no advertising use, no selling, no sharing
+      of health data with data brokers
+  [ ] How long you keep it: until the user stops sharing or deletes
+      the account
+  [ ] How to delete: in-app Delete account, plus a contact email
+  [ ] Contact details and the date the policy was last updated
+
+This checklist is a starting point, not legal advice. If you expect
+users in the EU, UK, or California, have someone qualified review it.
+
+--- 14g. App Store Connect "App Privacy" answers ---
+
+When you submit, declare at least:
+  - Health & Fitness: Health (steps)   - linked to user, app functionality
+  - Contact Info: Email address, Name  - linked to user, app functionality
+  - Identifiers: User ID               - linked to user, app functionality
+  - Tracking: No
+These must match what the privacy policy says.
+
+======================================================================
+15. GOTCHAS
+======================================================================
+
+App Store rules that will get a build rejected:
+  - If you offer Google sign-in, you must also offer Sign in with
+    Apple. (You are, so keep it.)
+  - Account deletion: see section 13.
+  - Health data consent and privacy policy: see section 14.
+
+Privacy:
+  - Anyone with a group invite code can join and see every member's
+    steps. Consider letting the owner regenerate the code.
+  - Profiles are searchable by any signed-in user. Only put things in
+    that table you are fine with strangers seeing.
+
+Technical:
+  - Steps are self-reported by the client, so a determined user can
+    fake them. Fine for friends; a problem if you ever add prizes.
+  - Time zones: the "day" column is each user's local calendar day.
+    Friends in different zones have days that start at different
+    times. Good enough for casual comparison.
+  - Test RLS with two accounts. Sign in as user B and confirm you
+    cannot read user A's steps until the friendship is accepted.
+  - Apple sign-in only works on a real device or a simulator signed
+    in to an Apple ID, and never in Expo Go.
+  - Google sign-in on Android needs the SHA-1 of the signing key
+    registered in Google Cloud, or it fails with DEVELOPER_ERROR.
+
+======================================================================
+16. BUILD ORDER
+======================================================================
+
+  [ ] Supabase project + run SQL from sections 4 and 5
+  [ ] Email sign-up / sign-in working end to end
+  [ ] syncSteps() writing rows you can see in the Supabase table view
+  [ ] Apple sign-in
+  [ ] Google sign-in
+  [ ] Profile screen: edit username / display name, sign out
+  [ ] Friends: search, request, accept, remove, leaderboard
+  [ ] Groups: create, share code, join, leave, leaderboard
+  [ ] Two-account RLS test
+  [ ] Consent: SQL from 14a, ConsentScreen, gate syncSteps, stop-sharing switch
+  [ ] Privacy policy written and hosted at a public URL
+  [ ] Account deletion: Edge Function deployed, button on Profile
+  [ ] Apple token revocation added to the delete function (13f)
+  [ ] App Privacy answers filled in on App Store Connect
+  [ ] Android pass on the emulator
+
+======================================================================
+17. DOCS
+======================================================================
+
+  Apple: offering account deletion in your app:
+    https://developer.apple.com/support/offering-account-deletion-in-your-app/
+  Apple: revoke tokens (Sign in with Apple):
+    https://developer.apple.com/documentation/signinwithapplerestapi/revoke_tokens
+  Apple: App Review Guidelines (5.1.1 data, 5.1.3 health):
+    https://developer.apple.com/app-store/review/guidelines/
+  Apple: App Privacy details:
+    https://developer.apple.com/app-store/app-privacy-details/
+  Supabase Edge Functions:
+    https://supabase.com/docs/guides/functions
+
+  Supabase + Expo quickstart:
+    https://supabase.com/docs/guides/getting-started/tutorials/with-expo-react-native
+  Supabase Row Level Security:
+    https://supabase.com/docs/guides/database/postgres/row-level-security
+  Supabase Apple sign-in:
+    https://supabase.com/docs/guides/auth/social-login/auth-apple
+  Supabase Google sign-in:
+    https://supabase.com/docs/guides/auth/social-login/auth-google
+  expo-apple-authentication:
+    https://docs.expo.dev/versions/latest/sdk/apple-authentication/
+  React Native Google Sign-In:
+    https://react-native-google-signin.github.io/docs/setting-up/expo
