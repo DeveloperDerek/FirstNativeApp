@@ -1,0 +1,542 @@
+STEP TRACKER - PART 3: CUSTOMIZABLE CHARACTERS
+Adds a layered pixel-art character to every profile: skin, hair, face,
+clothing, shoes, hat. Builds on step-tracker-getting-started.txt and
+step-tracker-social-features.txt.
+Last checked: October 2026
+
+======================================================================
+1. HOW IT WORKS
+======================================================================
+
+A character is NOT stored as an image. It is stored as a small list
+of choices, and the app draws it by stacking transparent sprite layers.
+
+  Saved on the profile:
+    { "skin": "#f6c9a0", "hair": "hair_spiky", "hairColor": "#7a4a2a",
+      "face": "face_smile", "top": "top_hoodie_red",
+      "bottom": "bottom_shorts_blue", "shoes": "shoes_white",
+      "hat": null }
+
+  Drawn in the app (back to front):
+    1. hair_back    (long hair behind the body, optional)
+    2. body         (grayscale, tinted with skin color)
+    3. bottom
+    4. shoes
+    5. top
+    6. face         (eyes, mouth)
+    7. hair         (grayscale, tinted with hairColor)
+    8. hat
+
+Why this design:
+  - Tiny to store and sync; friends' characters load with their profile.
+  - New items = new image files + one catalog entry. No DB change.
+  - One grayscale hair drawing gives every hair color for free.
+
+Art must be original. Do not use sprites, characters, or names from
+MapleStory or any other game, including traced or recolored copies.
+
+======================================================================
+2. ART SPEC (GIVE THIS TO WHOEVER DRAWS THE SPRITES)
+======================================================================
+
+Canvas
+  - Every layer is a PNG of exactly 32 x 48 pixels, transparent
+    background. Same canvas for every item, so layers line up with no
+    per-item offsets.
+  - Character faces forward, standing, feet on row 46.
+  - Head takes roughly the top 26 rows (big-head chibi proportions),
+    body and legs the remaining 20.
+
+Style
+  - 1-pixel dark outline (not pure black; e.g. #3a2a2a).
+  - No anti-aliasing, no semi-transparent pixels, no gradients.
+  - Shared palette of about 24 colors across all items.
+  - Light source top-left, one shadow tone per color.
+
+Tintable layers (body and hair)
+  - Draw in grayscale: light gray base, mid-gray shadow, dark outline.
+  - The app multiplies these by the chosen color, so white stays the
+    chosen color and gray becomes its shadow.
+
+Fit rules
+  - Tops must fully cover the torso and arms of the base body.
+  - Hats may hide the top of the hair; draw them to cover it rather
+    than relying on hair being removed.
+  - Long hair is split into two files: hair (front) and hair_back.
+
+File naming
+  <slot>_<name>.png        e.g. top_hoodie_red.png, hair_spiky.png
+  hair_<name>_back.png     only for styles with a back layer
+
+Starter set (enough to make the feature feel real)
+  [ ] body_base            x1  (grayscale)
+  [ ] face_*               x4  (smile, neutral, wink, determined)
+  [ ] hair_*               x5  (grayscale; 2 with back layers)
+  [ ] top_*                x5
+  [ ] bottom_*             x4
+  [ ] shoes_*              x3
+  [ ] hat_*                x3
+  Skin tones: 6 colors in code, no extra art
+  Hair colors: 8 colors in code, no extra art
+
+Tools: Aseprite (paid), LibreSprite or Piskel (free). Export at 1x;
+the app does the scaling.
+
+======================================================================
+3. INSTALL
+======================================================================
+
+  npx expo install @shopify/react-native-skia
+
+Then rebuild the dev client: npx expo prebuild --clean
+
+Why Skia: pixel art must be scaled with nearest-neighbor sampling to
+stay crisp. React Native's built-in <Image> smooths when scaling up,
+which blurs it. Skia lets you set the sampling and tint layers.
+
+======================================================================
+4. FILE LAYOUT (ADDITIONS)
+======================================================================
+
+  assets/
+    avatar/
+      body_base.png
+      face_smile.png ...
+      hair_spiky.png ...
+      top_hoodie_red.png ...
+  src/
+    avatar/
+      types.ts          <- AvatarConfig type + default
+      catalog.ts        <- every item and its image
+      Avatar.tsx        <- draws a character
+    api/
+      avatar.ts         <- save / load
+    screens/
+      AvatarEditorScreen.tsx
+
+======================================================================
+5. DATABASE CHANGES
+======================================================================
+
+Run in the Supabase SQL Editor.
+
+  alter table public.profiles
+    add column avatar jsonb not null default '{
+      "skin": "#f6c9a0",
+      "hair": "hair_spiky",
+      "hairColor": "#7a4a2a",
+      "face": "face_smile",
+      "top": "top_hoodie_red",
+      "bottom": "bottom_shorts_blue",
+      "shoes": "shoes_white",
+      "hat": null
+    }'::jsonb;
+
+  -- Basic sanity limits so nobody stores junk in the column
+  alter table public.profiles
+    add constraint avatar_is_small_object
+    check (jsonb_typeof(avatar) = 'object'
+           and pg_column_size(avatar) < 2000);
+
+No new security rules needed: the existing "profiles update own"
+policy already lets users change only their own row, and "profiles
+read" lets friends see it.
+
+Leaderboards should return the character too. The return type
+changes, so drop and recreate both functions from Part 2:
+
+  drop function public.group_leaderboard(uuid, date, date);
+  drop function public.friends_leaderboard(date, date);
+
+  create function public.group_leaderboard(gid uuid, from_day date, to_day date)
+  returns table (user_id uuid, display_name text, avatar jsonb, total_steps bigint)
+  language sql stable
+  as $$
+    select p.id, p.display_name, p.avatar, coalesce(sum(s.steps), 0)::bigint
+    from public.group_members m
+    join public.profiles p on p.id = m.user_id
+    left join public.daily_steps s
+      on s.user_id = m.user_id and s.day between from_day and to_day
+    where m.group_id = gid
+    group by p.id, p.display_name, p.avatar
+    order by 4 desc;
+  $$;
+
+  create function public.friends_leaderboard(from_day date, to_day date)
+  returns table (user_id uuid, display_name text, avatar jsonb, total_steps bigint)
+  language sql stable
+  as $$
+    select p.id, p.display_name, p.avatar, coalesce(sum(s.steps), 0)::bigint
+    from public.profiles p
+    left join public.daily_steps s
+      on s.user_id = p.id and s.day between from_day and to_day
+    where p.id = auth.uid() or public.is_friend(p.id)
+    group by p.id, p.display_name, p.avatar
+    order by 4 desc;
+  $$;
+
+======================================================================
+6. src/avatar/types.ts
+======================================================================
+
+  export type AvatarConfig = {
+    skin: string;          // hex color
+    hair: string | null;   // item id, null = bald
+    hairColor: string;     // hex color
+    face: string;
+    top: string;
+    bottom: string;
+    shoes: string;
+    hat: string | null;
+  };
+
+  export const DEFAULT_AVATAR: AvatarConfig = {
+    skin: '#f6c9a0',
+    hair: 'hair_spiky',
+    hairColor: '#7a4a2a',
+    face: 'face_smile',
+    top: 'top_hoodie_red',
+    bottom: 'bottom_shorts_blue',
+    shoes: 'shoes_white',
+    hat: null,
+  };
+
+  export const SKIN_TONES = [
+    '#fde0c8', '#f6c9a0', '#e0a878', '#c68655', '#a86b45', '#6f4428',
+  ];
+
+  export const HAIR_COLORS = [
+    '#2a1a1a', '#7a4a2a', '#c98a3c', '#f2d16b',
+    '#d9534f', '#f48fb1', '#5b8def', '#e8e8e8',
+  ];
+
+======================================================================
+7. src/avatar/catalog.ts
+======================================================================
+
+Metro needs every require() written out literally; you cannot build
+the path from a string at runtime. So each item is listed once here.
+
+  type Item = { id: string; label: string; image: number; back?: number };
+
+  export const BODY = require('../../assets/avatar/body_base.png');
+
+  export const CATALOG: Record<
+    'face' | 'hair' | 'top' | 'bottom' | 'shoes' | 'hat', Item[]
+  > = {
+    face: [
+      { id: 'face_smile',   label: 'Smile',
+        image: require('../../assets/avatar/face_smile.png') },
+      { id: 'face_neutral', label: 'Neutral',
+        image: require('../../assets/avatar/face_neutral.png') },
+    ],
+    hair: [
+      { id: 'hair_spiky', label: 'Spiky',
+        image: require('../../assets/avatar/hair_spiky.png') },
+      { id: 'hair_long',  label: 'Long',
+        image: require('../../assets/avatar/hair_long.png'),
+        back:  require('../../assets/avatar/hair_long_back.png') },
+    ],
+    top: [
+      { id: 'top_hoodie_red', label: 'Red hoodie',
+        image: require('../../assets/avatar/top_hoodie_red.png') },
+    ],
+    bottom: [
+      { id: 'bottom_shorts_blue', label: 'Blue shorts',
+        image: require('../../assets/avatar/bottom_shorts_blue.png') },
+    ],
+    shoes: [
+      { id: 'shoes_white', label: 'White sneakers',
+        image: require('../../assets/avatar/shoes_white.png') },
+    ],
+    hat: [
+      { id: 'hat_beanie_teal', label: 'Teal beanie',
+        image: require('../../assets/avatar/hat_beanie_teal.png') },
+    ],
+  };
+
+  export function findItem(slot: keyof typeof CATALOG, id: string | null) {
+    if (!id) return undefined;
+    return CATALOG[slot].find((i) => i.id === id);
+  }
+
+======================================================================
+8. src/avatar/Avatar.tsx
+======================================================================
+
+The Skia API moves between versions. This follows the documented
+Image "sampling" prop and color-filter children; check the docs for
+the version you install if something does not compile.
+
+  import {
+    BlendColor, Canvas, FilterMode, Image, MipmapMode, useImage,
+  } from '@shopify/react-native-skia';
+  import { BODY, findItem } from './catalog';
+  import type { AvatarConfig } from './types';
+
+  const SPRITE_W = 32;
+  const SPRITE_H = 48;
+  const CRISP = { filter: FilterMode.Nearest, mipmap: MipmapMode.None };
+
+  // One sprite layer. tint multiplies a grayscale sprite by a color.
+  function Layer({
+    source, scale, tint,
+  }: { source: number | undefined; scale: number; tint?: string }) {
+    // useImage must be called every render, so pass null when empty
+    const image = useImage(source ?? null);
+    if (!image) return null;
+    return (
+      <Image
+        image={image}
+        x={0}
+        y={0}
+        width={SPRITE_W * scale}
+        height={SPRITE_H * scale}
+        fit="fill"
+        sampling={CRISP}
+      >
+        {tint ? <BlendColor color={tint} mode="modulate" /> : null}
+      </Image>
+    );
+  }
+
+  // scale must be a whole number (2, 3, 4...) or pixels look uneven
+  export function Avatar({
+    config, scale = 4,
+  }: { config: AvatarConfig; scale?: number }) {
+    const hair = findItem('hair', config.hair);
+    return (
+      <Canvas style={{ width: SPRITE_W * scale, height: SPRITE_H * scale }}>
+        <Layer source={hair?.back} scale={scale} tint={config.hairColor} />
+        <Layer source={BODY} scale={scale} tint={config.skin} />
+        <Layer source={findItem('bottom', config.bottom)?.image} scale={scale} />
+        <Layer source={findItem('shoes', config.shoes)?.image} scale={scale} />
+        <Layer source={findItem('top', config.top)?.image} scale={scale} />
+        <Layer source={findItem('face', config.face)?.image} scale={scale} />
+        <Layer source={hair?.image} scale={scale} tint={config.hairColor} />
+        <Layer source={findItem('hat', config.hat)?.image} scale={scale} />
+      </Canvas>
+    );
+  }
+
+Note on tinting the body: "modulate" tints every pixel of the layer,
+including the outline. That is why the body and hair sprites are
+grayscale with a dark outline (dark stays dark). Keep eyes and mouth
+on the separate face layer so they are not tinted.
+
+======================================================================
+9. src/api/avatar.ts
+======================================================================
+
+  import { supabase } from '../lib/supabase';
+  import { DEFAULT_AVATAR, type AvatarConfig } from '../avatar/types';
+
+  export async function loadAvatar(userId: string): Promise<AvatarConfig> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('avatar')
+      .eq('id', userId)
+      .single();
+    if (error) throw error;
+    // Merge with defaults so old rows still work after you add slots
+    return { ...DEFAULT_AVATAR, ...(data.avatar ?? {}) };
+  }
+
+  export async function saveAvatar(userId: string, avatar: AvatarConfig) {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ avatar })
+      .eq('id', userId);
+    if (error) throw error;
+  }
+
+======================================================================
+10. src/screens/AvatarEditorScreen.tsx
+======================================================================
+
+  import { useEffect, useState } from 'react';
+  import {
+    Button, Pressable, SafeAreaView, ScrollView, Text, View,
+  } from 'react-native';
+  import { Avatar } from '../avatar/Avatar';
+  import { CATALOG } from '../avatar/catalog';
+  import {
+    DEFAULT_AVATAR, HAIR_COLORS, SKIN_TONES, type AvatarConfig,
+  } from '../avatar/types';
+  import { loadAvatar, saveAvatar } from '../api/avatar';
+
+  const SLOTS = ['face', 'hair', 'top', 'bottom', 'shoes', 'hat'] as const;
+  const OPTIONAL = new Set(['hair', 'hat']); // can be set to "None"
+
+  function Swatches({
+    colors, value, onPick,
+  }: { colors: string[]; value: string; onPick: (c: string) => void }) {
+    return (
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {colors.map((c) => (
+          <Pressable
+            key={c}
+            onPress={() => onPick(c)}
+            accessibilityLabel={`Color ${c}`}
+            style={{
+              width: 36, height: 36, backgroundColor: c,
+              borderWidth: value === c ? 3 : 1, borderColor: '#3a2a2a',
+            }}
+          />
+        ))}
+      </View>
+    );
+  }
+
+  export function AvatarEditorScreen({ userId }: { userId: string }) {
+    const [avatar, setAvatar] = useState<AvatarConfig>(DEFAULT_AVATAR);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+      loadAvatar(userId).then(setAvatar).catch(console.warn);
+    }, [userId]);
+
+    const set = (patch: Partial<AvatarConfig>) =>
+      setAvatar((a) => ({ ...a, ...patch }));
+
+    return (
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={{ alignItems: 'center', padding: 16 }}>
+          <Avatar config={avatar} scale={6} />
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+          <Text>Skin</Text>
+          <Swatches colors={SKIN_TONES} value={avatar.skin}
+                    onPick={(skin) => set({ skin })} />
+
+          <Text>Hair color</Text>
+          <Swatches colors={HAIR_COLORS} value={avatar.hairColor}
+                    onPick={(hairColor) => set({ hairColor })} />
+
+          {SLOTS.map((slot) => (
+            <View key={slot}>
+              <Text>{slot}</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {OPTIONAL.has(slot) && (
+                  <Button title="None" onPress={() => set({ [slot]: null })} />
+                )}
+                {CATALOG[slot].map((item) => (
+                  <Button
+                    key={item.id}
+                    title={(avatar[slot] === item.id ? '* ' : '') + item.label}
+                    onPress={() => set({ [slot]: item.id })}
+                  />
+                ))}
+              </View>
+            </View>
+          ))}
+
+          <Button
+            title={saving ? 'Saving...' : 'Save'}
+            disabled={saving}
+            onPress={async () => {
+              setSaving(true);
+              try {
+                await saveAvatar(userId, avatar);
+              } finally {
+                setSaving(false);
+              }
+            }}
+          />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+This uses plain buttons so you can test the logic first. Replace them
+with thumbnail tiles (a small <Avatar> preview per option) once the
+art exists.
+
+======================================================================
+11. SHOWING CHARACTERS ELSEWHERE
+======================================================================
+
+Leaderboard row (data from the updated functions in section 5):
+
+  import { DEFAULT_AVATAR } from '../avatar/types';
+
+  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <Avatar config={{ ...DEFAULT_AVATAR, ...row.avatar }} scale={2} />
+    <Text>{row.display_name}</Text>
+    <Text>{row.total_steps.toLocaleString()}</Text>
+  </View>
+
+Other places worth adding it: profile header, friend list, friend
+request cards, the home screen next to today's step count.
+
+======================================================================
+12. LATER: UNLOCK ITEMS BY WALKING
+======================================================================
+
+Not needed for the first version. When you want it:
+
+  create table public.user_items (
+    user_id     uuid references public.profiles(id) on delete cascade,
+    item_id     text not null,
+    unlocked_at timestamptz not null default now(),
+    primary key (user_id, item_id)
+  );
+
+  - Add "unlock: { steps: 50000 }" to catalog entries.
+  - Grant items in a database function that checks the user's total
+    in daily_steps, so unlocks cannot be faked from the app.
+  - The editor greys out locked items and shows the requirement.
+  - If you ever SELL items, Apple requires In-App Purchase for it.
+
+======================================================================
+13. GOTCHAS
+======================================================================
+
+  - Blurry sprites: the scale is not a whole number, or the sampling
+    prop is missing. Use 2, 3, 4, 6... only.
+  - Layers misaligned: a sprite was exported cropped. Every PNG must
+    be the full 32 x 48 canvas.
+  - Faint halo around tinted layers: the sprite has semi-transparent
+    edge pixels. Pixels must be fully opaque or fully transparent.
+  - Long lists: one Skia canvas per row is fine for a few dozen rows.
+    For hundreds, draw each character once to an image and cache it.
+  - Removed items: if you delete an item from the catalog, users who
+    wear it get nothing in that slot. Keep old ids or map them to a
+    replacement in loadAvatar().
+  - Unknown ids: the avatar column accepts any text, so always look
+    items up through findItem() and fall back to the default.
+  - Accessibility: add an accessibilityLabel to the Avatar wrapper
+    (e.g. "Sam's character") so screen readers do not skip it.
+  - App size: 30 sprites at 32 x 48 is a few hundred KB at most, so
+    bundling them in the app is fine. Move to Supabase Storage only
+    when you want to add items without shipping an app update.
+
+======================================================================
+14. BUILD ORDER
+======================================================================
+
+  [ ] Install Skia, rebuild dev client
+  [ ] Make placeholder sprites (flat colored shapes are enough)
+  [ ] Avatar.tsx drawing the default character, crisp at scale 4
+  [ ] Skin and hair tinting working
+  [ ] SQL from section 5
+  [ ] Editor screen saving and reloading
+  [ ] Characters on leaderboards and friend list
+  [ ] Replace placeholders with real art from the spec in section 2
+  [ ] Thumbnail tiles in the editor
+  [ ] Privacy policy: mention that the character is visible to other
+      signed-in users
+
+======================================================================
+15. DOCS
+======================================================================
+
+  React Native Skia - images and sampling:
+    https://shopify.github.io/react-native-skia/docs/images/
+  React Native Skia - color filters:
+    https://shopify.github.io/react-native-skia/docs/color-filters/
+  React Native Skia - installation:
+    https://shopify.github.io/react-native-skia/docs/getting-started/installation/
+  Supabase JSON columns:
+    https://supabase.com/docs/guides/database/json

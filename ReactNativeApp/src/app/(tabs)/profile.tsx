@@ -1,17 +1,19 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Linking, Pressable, Switch } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { deleteAccount } from '@/api/account';
 import { withdrawConsent } from '@/api/consent';
 import { isValidUsername, normalizeUsername, type Profile, updateProfile } from '@/api/profile';
 import { useAuth } from '@/auth/AuthProvider';
 import { signOut } from '@/auth/signIn';
+import { Avatar } from '@/avatar/Avatar';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Row, Section } from '@/components/ui/section';
 import { TextField } from '@/components/ui/text-field';
+import { Spacing } from '@/constants/theme';
 import { errorMessage } from '@/lib/error-message';
 import { privacyUrl } from '@/lib/supabase';
 
@@ -71,6 +73,20 @@ export default function ProfileScreen() {
 
   return (
     <Screen title="Profile" subtitle={session?.user.email}>
+      {profile && (
+        <Section title="Your character">
+          <View style={styles.character}>
+            <Avatar config={profile.avatar} scale={3} accessibilityLabel="Your character" />
+            <View style={styles.characterText}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Friends and group members see your character on leaderboards.
+              </ThemedText>
+              <Button title="Customize" size="small" onPress={() => router.push('/avatar')} />
+            </View>
+          </View>
+        </Section>
+      )}
+
       {profile && <DetailsForm key={profile.id} profile={profile} onSaved={reloadProfile} />}
 
       <Section title="Privacy">
@@ -152,3 +168,16 @@ function DetailsForm({ profile, onSaved }: { profile: Profile; onSaved: () => Pr
     </Section>
   );
 }
+
+const styles = StyleSheet.create({
+  character: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  characterText: {
+    flex: 1,
+    alignItems: 'flex-start',
+    gap: Spacing.three,
+  },
+});

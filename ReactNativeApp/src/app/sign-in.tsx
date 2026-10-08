@@ -12,6 +12,8 @@ import {
   signInWithGoogle,
   signUpWithEmail,
 } from '@/auth/signIn';
+import { Avatar } from '@/avatar/Avatar';
+import { DEFAULT_AVATAR } from '@/avatar/types';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
@@ -84,6 +86,7 @@ export default function SignInScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.form}>
           <View style={styles.header}>
+            <Avatar config={DEFAULT_AVATAR} scale={3} accessibilityLabel="A StepTracker character" />
             <ThemedText type="subtitle">StepTracker</ThemedText>
             <ThemedText themeColor="textSecondary">
               {mode === 'signIn'

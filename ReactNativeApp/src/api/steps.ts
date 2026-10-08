@@ -28,4 +28,10 @@ export function periodRange(period: Period) {
   return { fromDay: dayKey(start), toDay: dayKey(end) };
 }
 
-export type LeaderboardRow = { user_id: string; display_name: string | null; total_steps: number };
+export type LeaderboardRow = {
+  user_id: string;
+  display_name: string | null;
+  /** Raw JSON from the database; run it through normalizeAvatar() before drawing. */
+  avatar: unknown;
+  total_steps: number;
+};

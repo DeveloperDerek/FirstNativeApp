@@ -14,6 +14,8 @@ import {
 } from '@/api/friends';
 import { type LeaderboardRow, type Period, periodRange } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
+import { Avatar } from '@/avatar/Avatar';
+import { normalizeAvatar } from '@/avatar/catalog';
 import { Leaderboard, PeriodPicker } from '@/components/leaderboard';
 import { SharingRequired } from '@/components/sharing-required';
 import { ThemedText } from '@/components/themed-text';
@@ -25,6 +27,15 @@ import { Spacing } from '@/constants/theme';
 import { errorMessage } from '@/lib/error-message';
 
 const name = (p: PublicProfile) => p.display_name || p.username;
+
+/** Small character shown at the start of each person's row. */
+const character = (p: PublicProfile) => (
+  <Avatar
+    config={normalizeAvatar(p.avatar)}
+    scale={1}
+    accessibilityLabel={`${name(p)}'s character`}
+  />
+);
 
 export default function FriendsScreen() {
   const { session, profile } = useAuth();
@@ -120,7 +131,11 @@ export default function FriendsScreen() {
       {incoming.length > 0 && (
         <Section title="Requests">
           {incoming.map((f) => (
-            <Row key={f.id} title={name(f.requester)} detail={`@${f.requester.username}`}>
+            <Row
+              key={f.id}
+              title={name(f.requester)}
+              detail={`@${f.requester.username}`}
+              leading={character(f.requester)}>
               <Button
                 title="Accept"
                 size="small"
@@ -153,7 +168,7 @@ export default function FriendsScreen() {
           </ThemedText>
         )}
         {results?.map((p) => (
-          <Row key={p.id} title={name(p)} detail={`@${p.username}`}>
+          <Row key={p.id} title={name(p)} detail={`@${p.username}`} leading={character(p)}>
             {relatedIds.has(p.id) ? (
               <ThemedText type="small" themeColor="textSecondary">
                 Added
@@ -172,7 +187,11 @@ export default function FriendsScreen() {
       {outgoing.length > 0 && (
         <Section title="Sent requests">
           {outgoing.map((f) => (
-            <Row key={f.id} title={name(f.addressee)} detail="Waiting for them to accept">
+            <Row
+              key={f.id}
+              title={name(f.addressee)}
+              detail="Waiting for them to accept"
+              leading={character(f.addressee)}>
               <Button
                 title="Cancel"
                 size="small"
@@ -191,7 +210,11 @@ export default function FriendsScreen() {
           </ThemedText>
         )}
         {accepted.map((f) => (
-          <Row key={f.id} title={name(other(f))} detail={`@${other(f).username}`}>
+          <Row
+            key={f.id}
+            title={name(other(f))}
+            detail={`@${other(f).username}`}
+            leading={character(other(f))}>
             <Button
               title="Remove"
               size="small"

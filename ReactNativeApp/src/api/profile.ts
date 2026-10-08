@@ -1,3 +1,5 @@
+import { normalizeAvatar } from '@/avatar/catalog';
+import type { AvatarConfig } from '@/avatar/types';
 import { supabase } from '@/lib/supabase';
 
 export type Profile = {
@@ -5,16 +7,17 @@ export type Profile = {
   username: string;
   display_name: string | null;
   sharing_consent_at: string | null;
+  avatar: AvatarConfig;
 };
 
 export async function getMyProfile(userId: string): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, username, display_name, sharing_consent_at')
+    .select('id, username, display_name, sharing_consent_at, avatar')
     .eq('id', userId)
     .single();
   if (error) throw error;
-  return data;
+  return { ...data, avatar: normalizeAvatar(data.avatar) };
 }
 
 /** Usernames are 3-20 characters: lowercase letters, numbers, underscore. */

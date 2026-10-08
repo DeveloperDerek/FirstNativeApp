@@ -1,6 +1,8 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { LeaderboardRow, Period } from '@/api/steps';
+import { Avatar } from '@/avatar/Avatar';
+import { normalizeAvatar } from '@/avatar/catalog';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Section } from '@/components/ui/section';
@@ -56,25 +58,36 @@ export function Leaderboard({ rows, myId }: { rows: LeaderboardRow[]; myId?: str
       {rows.map((r, i) => {
         const steps = Number(r.total_steps); // bigint arrives as a number or string
         const isMe = r.user_id === myId;
+        const name = r.display_name || 'Unnamed';
         return (
-          <View key={r.user_id} style={styles.row}>
-            <View style={styles.rowText}>
-              <ThemedText type={isMe ? 'smallBold' : 'small'} numberOfLines={1} style={styles.name}>
-                {i + 1}. {r.display_name || 'Unnamed'}
-                {isMe ? ' (you)' : ''}
-              </ThemedText>
-              <ThemedText type="smallBold" style={styles.num}>
-                {steps.toLocaleString()}
-              </ThemedText>
+          <View key={r.user_id} style={styles.entry}>
+            <Avatar
+              config={normalizeAvatar(r.avatar)}
+              scale={1}
+              accessibilityLabel={`${name}'s character`}
+            />
+            <View style={styles.row}>
+              <View style={styles.rowText}>
+                <ThemedText
+                  type={isMe ? 'smallBold' : 'small'}
+                  numberOfLines={1}
+                  style={styles.name}>
+                  {i + 1}. {name}
+                  {isMe ? ' (you)' : ''}
+                </ThemedText>
+                <ThemedText type="smallBold" style={styles.num}>
+                  {steps.toLocaleString()}
+                </ThemedText>
+              </View>
+              <ThemedView type="backgroundSelected" style={styles.track}>
+                <View
+                  style={[
+                    styles.bar,
+                    { width: `${(steps / max) * 100}%`, backgroundColor: theme.accent },
+                  ]}
+                />
+              </ThemedView>
             </View>
-            <ThemedView type="backgroundSelected" style={styles.track}>
-              <View
-                style={[
-                  styles.bar,
-                  { width: `${(steps / max) * 100}%`, backgroundColor: theme.accent },
-                ]}
-              />
-            </ThemedView>
           </View>
         );
       })}
@@ -97,7 +110,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     borderRadius: Spacing.four,
   },
+  entry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
   row: {
+    flex: 1,
     gap: Spacing.one,
   },
   rowText: {

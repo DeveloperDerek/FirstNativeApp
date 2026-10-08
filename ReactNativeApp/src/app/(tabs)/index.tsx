@@ -1,6 +1,8 @@
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAuth } from '@/auth/AuthProvider';
+import { Avatar } from '@/avatar/Avatar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, DailyStepGoal, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -11,6 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 export default function TodayScreen() {
   const theme = useTheme();
   const { today, permission, loading, error, refresh } = useSteps();
+  const { profile } = useAuth();
   const progress = Math.min((today ?? 0) / DailyStepGoal, 1);
 
   const blocked = permission === 'denied' || permission === 'unavailable';
@@ -21,6 +24,9 @@ export default function TodayScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.hero}>
+          {profile && (
+            <Avatar config={profile.avatar} scale={3} accessibilityLabel="Your character" />
+          )}
           <ThemedText type="code" themeColor="textSecondary" style={styles.caps}>
             Today
           </ThemedText>

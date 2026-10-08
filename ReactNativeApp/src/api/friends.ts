@@ -1,7 +1,13 @@
 import type { LeaderboardRow } from '@/api/steps';
 import { supabase } from '@/lib/supabase';
 
-export type PublicProfile = { id: string; username: string; display_name: string | null };
+export type PublicProfile = {
+  id: string;
+  username: string;
+  display_name: string | null;
+  /** Raw JSON from the database; run it through normalizeAvatar() before drawing. */
+  avatar: unknown;
+};
 
 export type Friendship = {
   id: string;
@@ -19,7 +25,7 @@ export async function searchUsers(query: string, myId: string): Promise<PublicPr
   if (!term) return [];
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, username, display_name')
+    .select('id, username, display_name, avatar')
     .ilike('username', `%${term}%`)
     .neq('id', myId)
     .limit(20);
@@ -40,8 +46,8 @@ export async function sendFriendRequest(myId: string, otherId: string) {
 export async function listFriendships(): Promise<Friendship[]> {
   const { data, error } = await supabase.from('friendships').select(`
       id, status, requester_id, addressee_id,
-      requester:profiles!friendships_requester_id_fkey(id, username, display_name),
-      addressee:profiles!friendships_addressee_id_fkey(id, username, display_name)
+      requester:profiles!friendships_requester_id_fkey(id, username, display_name, avatar),
+      addressee:profiles!friendships_addressee_id_fkey(id, username, display_name, avatar)
     `);
   if (error) throw error;
   return data as unknown as Friendship[];

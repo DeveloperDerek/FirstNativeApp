@@ -20,7 +20,7 @@ export default function RootLayout() {
 }
 
 // Signed out: only the sign-in screen. Signed in: the tabs, plus the
-// consent screen as a modal.
+// consent screen and character editor as modals.
 function RootNavigator() {
   const { session, loading } = useAuth();
   if (loading) return null; // reading the saved session takes a moment
@@ -30,6 +30,7 @@ function RootNavigator() {
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="consent" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="avatar" options={{ presentation: 'modal' }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="sign-in" />

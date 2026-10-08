@@ -25,14 +25,18 @@ export function Section({ title, children }: { title?: string; children: ReactNo
 export function Row({
   title,
   detail,
+  leading,
   children,
 }: {
   title: string;
   detail?: string;
+  /** Shown before the text, e.g. the person's character. */
+  leading?: ReactNode;
   children?: ReactNode;
 }) {
   return (
     <View style={styles.row}>
+      {leading}
       <View style={styles.rowText}>
         <ThemedText type="small" numberOfLines={1}>
           {title}
