@@ -1,4 +1,14 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
+import { type ConfigPlugin, withEntitlementsPlist } from 'expo/config-plugins';
+
+// Expo applies expo-apple-authentication's plugin automatically whenever the
+// package is installed, and it always adds the Sign in with Apple
+// entitlement. Strip it again while Apple sign-in is turned off.
+const withoutAppleSignIn: ConfigPlugin = (config) =>
+  withEntitlementsPlist(config, (c) => {
+    delete c.modResults['com.apple.developer.applesignin'];
+    return c;
+  });
 
 // Extends app.json. Sign-in providers are only added to the native
 // project when their keys are set in .env, so the app still builds
@@ -19,11 +29,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins.push(['@react-native-google-signin/google-signin', { iosUrlScheme }]);
   }
 
-  return {
+  const result: ExpoConfig = {
     ...config,
     name: config.name ?? 'StepTracker',
     slug: config.slug ?? 'ReactNativeApp',
-    ios: { ...config.ios, usesAppleSignIn: appleSignIn },
+    ios: {
+      ...config.ios,
+      usesAppleSignIn: appleSignIn,
+      // Keeps code signing set up after `prebuild --clean` regenerates ios/.
+      appleTeamId: process.env.APPLE_TEAM_ID || config.ios?.appleTeamId,
+    },
     plugins,
   };
+  return appleSignIn ? result : withoutAppleSignIn(result);
 };
