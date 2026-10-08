@@ -46,3 +46,27 @@ export function Avatar({
     </View>
   );
 }
+
+/** Web fallback for the native PixelSprite. */
+export function PixelSprite({
+  source,
+  width,
+  height,
+  scale = 2,
+  accessibilityLabel,
+}: {
+  source: number;
+  width: number;
+  height: number;
+  scale?: number;
+  accessibilityLabel?: string;
+}) {
+  return (
+    <Image
+      source={source}
+      style={{ width: width * scale, height: height * scale }}
+      contentFit="fill"
+      accessibilityLabel={accessibilityLabel}
+    />
+  );
+}

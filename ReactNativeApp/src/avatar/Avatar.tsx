@@ -96,3 +96,40 @@ export function Avatar({ config, scale = 4, accessibilityLabel = 'Character' }: 
     </Canvas>
   );
 }
+
+/** A single pixel-art image (e.g. the goal flag), scaled crisply. */
+export function PixelSprite({
+  source,
+  width,
+  height,
+  scale = 2,
+  accessibilityLabel,
+}: {
+  source: number;
+  /** Size of the PNG in pixels. */
+  width: number;
+  height: number;
+  /** Whole number, like Avatar. */
+  scale?: number;
+  accessibilityLabel?: string;
+}) {
+  const image = useSprite(source);
+  return (
+    <Canvas
+      style={{ width: width * scale, height: height * scale }}
+      accessible={accessibilityLabel !== undefined}
+      accessibilityLabel={accessibilityLabel}>
+      {image && (
+        <Image
+          image={image}
+          x={0}
+          y={0}
+          width={width * scale}
+          height={height * scale}
+          fit="fill"
+          sampling={CRISP}
+        />
+      )}
+    </Canvas>
+  );
+}

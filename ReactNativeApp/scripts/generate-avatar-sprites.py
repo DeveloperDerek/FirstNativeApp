@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generates the placeholder character sprites in assets/avatar/.
+Generates the placeholder sprites in assets/avatar/ and assets/track/.
 
 Original art drawn in code, following the spec in step-tracker-stage3.txt:
 every layer is a 32 x 48 PNG with a transparent background, feet on row
@@ -76,12 +76,13 @@ class Layer:
             self.px[p] = color
         return self
 
-    def save(self, name):
+    def save(self, name, size=(W, H), folder=None):
         LAYERS[name] = dict(self.px)
+        w, h = size
         rows = []
-        for y in range(H):
+        for y in range(h):
             row = bytearray([0])  # filter type: none
-            for x in range(W):
+            for x in range(w):
                 c = self.px.get((x, y))
                 row += bytes((*c, 255)) if c else bytes(4)
             rows.append(bytes(row))
@@ -93,11 +94,11 @@ class Layer:
 
         png = (
             b'\x89PNG\r\n\x1a\n'
-            + chunk(b'IHDR', struct.pack('>IIBBBBB', W, H, 8, 6, 0, 0, 0))
+            + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0))
             + chunk(b'IDAT', zlib.compress(raw, 9))
             + chunk(b'IEND', b'')
         )
-        with open(os.path.join(OUT, f'{name}.png'), 'wb') as f:
+        with open(os.path.join(folder or OUT, f'{name}.png'), 'wb') as f:
             f.write(png)
 
 
@@ -319,6 +320,23 @@ def hat_crown(name, color):
     layer.save(name)
 
 
+# ---------------------------------------------------------------- step track
+TRACK_OUT = os.path.join(os.path.dirname(__file__), '..', 'assets', 'track')
+FLAG_W, FLAG_H = 12, 24
+
+
+def goal_flag():
+    """12 x 24 goal flag: a pole with a red pennant. Base of the pole on the bottom row."""
+    red = hexc('#e2483d')
+    pole = rect(1, 1, 2, 23)
+    cloth = {(x, y) for y in range(2, 11) for x in range(3, 11) if x - 3 <= 7 - abs(y - 6)}
+    layer = Layer().part(cloth, red, darker(red))
+    layer.part(pole, (0xC8, 0xB0, 0x90), (0x9A, 0x82, 0x66))
+    layer.dots((0xF7, 0xC9, 0x48), [(1, 0), (2, 0)])  # gold tip
+    layer.dots((255, 255, 255), [(5, 5), (6, 5), (5, 6)])  # shine
+    layer.save('flag_goal', size=(FLAG_W, FLAG_H), folder=TRACK_OUT)
+
+
 # ---------------------------------------------------------------- build
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
@@ -354,4 +372,8 @@ if __name__ == '__main__':
     hat_cap('hat_cap_red', '#d9534f')
     hat_crown('hat_crown_gold', '#f2c94c')
 
+    os.makedirs(TRACK_OUT, exist_ok=True)
+    goal_flag()
+
     print(f'Wrote {len(os.listdir(OUT))} sprites to {os.path.normpath(OUT)}')
+    print(f'Wrote {len(os.listdir(TRACK_OUT))} sprites to {os.path.normpath(TRACK_OUT)}')
