@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Generates the placeholder sprites in assets/avatar/ and assets/track/.
+Generates the placeholder sprites in assets/avatar/, assets/track/ and
+assets/village/.
 
 Original art drawn in code, following the spec in step-tracker-stage3.txt:
 every layer is a 32 x 48 PNG with a transparent background, feet on row
@@ -48,11 +49,11 @@ def mirror(points):
 
 
 # ---------------------------------------------------------------- painting
-def shade(mask, base, shadow, outline):
+def shade(mask, base, shadow, outline, size=(W, H)):
     """Outline the edge of a shape and shade its bottom/right inner band."""
     px = {}
     for x, y in mask:
-        if not (0 <= x < W and 0 <= y < H):
+        if not (0 <= x < size[0] and 0 <= y < size[1]):
             continue
         if any((x + dx, y + dy) not in mask for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
             px[(x, y)] = outline
@@ -64,11 +65,12 @@ def shade(mask, base, shadow, outline):
 
 
 class Layer:
-    def __init__(self):
+    def __init__(self, size=(W, H)):
         self.px = {}
+        self.size = size
 
     def part(self, mask, base, shadow, outline=OUTLINE):
-        self.px.update(shade(mask, base, shadow, outline))
+        self.px.update(shade(mask, base, shadow, outline, self.size))
         return self
 
     def dots(self, color, points):
@@ -76,14 +78,15 @@ class Layer:
             self.px[p] = color
         return self
 
-    def save(self, name, size=(W, H), folder=None):
+    def save(self, name, size=None, folder=None, scale=1, suffix=''):
         LAYERS[name] = dict(self.px)
-        w, h = size
+        w, h = size or self.size
+        w, h = w * scale, h * scale
         rows = []
         for y in range(h):
             row = bytearray([0])  # filter type: none
             for x in range(w):
-                c = self.px.get((x, y))
+                c = self.px.get((x // scale, y // scale))  # nearest neighbor
                 row += bytes((*c, 255)) if c else bytes(4)
             rows.append(bytes(row))
         raw = b''.join(rows)
@@ -98,7 +101,7 @@ class Layer:
             + chunk(b'IDAT', zlib.compress(raw, 9))
             + chunk(b'IEND', b'')
         )
-        with open(os.path.join(folder or OUT, f'{name}.png'), 'wb') as f:
+        with open(os.path.join(folder or OUT, f'{name}{suffix}.png'), 'wb') as f:
             f.write(png)
 
 
@@ -337,6 +340,242 @@ def goal_flag():
     layer.save('flag_goal', size=(FLAG_W, FLAG_H), folder=TRACK_OUT)
 
 
+# ---------------------------------------------------------------- village
+# Background for the scrolling step road (step-tracker-stage6.txt, Part 1).
+# Calmer than the characters: softer outlines (never black), lower
+# contrast and saturation. Exported at 2x, 4x and 6x with nearest
+# neighbor as name.png, name@2x.png, name@3x.png.
+VILLAGE_OUT = os.path.join(os.path.dirname(__file__), '..', 'assets', 'village')
+TILE = (256, 80)
+GROUND = 55  # last row of grass; buildings stand on it
+ROAD_TOP = 56  # bottom 24 rows are road
+SOFT = hexc('#6b5a50')  # outline for village art
+
+V = {
+    'grass': hexc('#9cc07a'), 'grass_dark': hexc('#86aa66'),
+    'road': hexc('#c8ad84'), 'road_dark': hexc('#b59a72'), 'curb': hexc('#a98e66'),
+    'wall': hexc('#efe2c6'), 'wall_dark': hexc('#dccdae'),
+    'warm': hexc('#f0d9b5'), 'warm_dark': hexc('#dcc39c'),
+    'timber': hexc('#9a7b5c'),
+    'red': hexc('#c97a6a'), 'blue': hexc('#7f9cc0'), 'green': hexc('#86a87a'),
+    'brown': hexc('#a9805e'), 'slate': hexc('#8c94a0'),
+    'window': hexc('#a9c7d8'), 'door': hexc('#8a6a4a'),
+    'leaf': hexc('#7fae6a'), 'trunk': hexc('#8a6a4a'),
+    'stone': hexc('#bdb6aa'), 'white': hexc('#f3ebe0'),
+    'light': hexc('#f3d98a'), 'gold': hexc('#e2c070'),
+}
+
+
+def ell(cx, cy, rx, ry):
+    """Ellipse for any canvas size (pixel centers inside)."""
+    return {
+        (x, y)
+        for x in range(int(cx - rx) - 1, int(cx + rx) + 2)
+        for y in range(int(cy - ry) - 1, int(cy + ry) + 2)
+        if ((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2 <= 1
+    }
+
+
+def tri(x0, x1, y_base, height):
+    """Gable roof: a triangle from x0..x1 on row y_base rising `height` rows."""
+    pts = set()
+    half = (x1 - x0) / 2
+    cx = (x0 + x1) / 2
+    for r in range(height):
+        w = half * (1 - r / height)
+        pts |= {(x, y_base - r) for x in range(round(cx - w), round(cx + w) + 1)}
+    return pts
+
+
+def vpart(layer, mask, color, f=0.88):
+    return layer.part(mask, color, darker(color, f), SOFT)
+
+
+def house(layer, x0, w, wall_h, roof, warm=False, chimney=False, shop=None):
+    top = GROUND - wall_h + 1
+    wall = V['warm'] if warm else V['wall']
+    if chimney:
+        vpart(layer, rect(x0 + w - 7, top - 9, x0 + w - 5, top - 2), V['stone'])
+    vpart(layer, tri(x0 - 2, x0 + w + 1, top - 1, max(6, w // 2 - 1)), roof)
+    vpart(layer, rect(x0, top, x0 + w - 1, GROUND), wall)
+    # Timber framing
+    mid = top + wall_h // 2
+    layer.dots(V['timber'], [(x, mid) for x in range(x0 + 1, x0 + w - 1)])
+    for x in range(x0 + 5, x0 + w - 3, 7):
+        layer.dots(V['timber'], [(x, y) for y in range(top + 1, mid)])
+    # Door and windows
+    door_x = x0 + w // 2 - 2
+    vpart(layer, rect(door_x, GROUND - 7, door_x + 3, GROUND), V['door'])
+    for wx in (x0 + 2, x0 + w - 6):
+        if abs(wx - door_x) > 4:
+            vpart(layer, rect(wx, mid + 2, wx + 3, mid + 5), V['window'])
+            vpart(layer, rect(wx, top + 2, wx + 3, top + 5), V['window'])
+    if shop:  # striped awning over the front
+        for x in range(x0 - 1, x0 + w + 1):
+            layer.dots(shop if (x // 2) % 2 else V['white'], [(x, mid + 1), (x, mid + 2)])
+        layer.dots(SOFT, [(x, mid + 3) for x in range(x0 - 1, x0 + w + 1) if x % 2])
+
+
+def tree(layer, cx, h=22, r=8):
+    vpart(layer, rect(cx - 1, GROUND - h // 2, cx, GROUND), V['trunk'])
+    vpart(layer, ell(cx + 0.5, GROUND - h + r - 1, r, r - 1), V['leaf'])
+    vpart(layer, ell(cx - 2.5, GROUND - h + r + 2, r - 3, r - 4), V['leaf'], 0.92)
+
+
+def lamp(layer, x):
+    layer.dots(SOFT, [(x, y) for y in range(GROUND - 15, GROUND + 1)])
+    vpart(layer, rect(x - 1, GROUND - 18, x + 1, GROUND - 15), V['light'], 0.95)
+
+
+def fence(layer, x0, x1):
+    for x in range(x0, x1 + 1, 4):
+        vpart(layer, rect(x, GROUND - 6, x + 1, GROUND), V['white'], 0.9)
+    for y in (GROUND - 4, GROUND - 2):
+        layer.dots(V['white'], [(x, y) for x in range(x0, x1 + 2)])
+
+
+def well(layer, cx):
+    vpart(layer, rect(cx - 6, GROUND - 5, cx + 5, GROUND), V['stone'])
+    layer.dots(SOFT, [(x, GROUND - 3) for x in range(cx - 5, cx + 5) if x % 3 == 0])
+    for x in (cx - 5, cx + 4):
+        layer.dots(V['timber'], [(x, y) for y in range(GROUND - 13, GROUND - 5)])
+    vpart(layer, tri(cx - 8, cx + 7, GROUND - 13, 5), V['red'])
+
+
+def stall(layer, x0, color):
+    vpart(layer, rect(x0, GROUND - 6, x0 + 17, GROUND), V['brown'])
+    for x in (x0 + 1, x0 + 16):
+        layer.dots(V['timber'], [(x, y) for y in range(GROUND - 16, GROUND - 6)])
+    for x in range(x0 - 1, x0 + 19):
+        layer.dots(color if (x // 2) % 2 else V['white'], [(x, GROUND - 17), (x, GROUND - 16)])
+    for i, c in enumerate((V['red'], V['gold'], V['green'], V['red'])):
+        vpart(layer, ell(x0 + 4 + i * 3.5, GROUND - 7.5, 1.6, 1.6), c, 0.85)
+
+
+def street_base():
+    layer = Layer(TILE)
+    w, h = TILE
+    layer.dots(V['grass'], [(x, y) for x in range(w) for y in range(GROUND - 3, GROUND + 1)])
+    layer.dots(V['grass_dark'], [(x, GROUND - 3) for x in range(w) if x % 5 in (0, 1)])
+    layer.dots(V['curb'], [(x, ROAD_TOP) for x in range(w)])
+    layer.dots(V['road'], [(x, y) for x in range(w) for y in range(ROAD_TOP + 1, h)])
+    # Sparse pebbles: kept away from the edges so tiles join cleanly
+    for i in range(70):
+        x = 4 + (i * 37 + (i * i) % 23) % (w - 8)
+        y = ROAD_TOP + 3 + (i * 13) % (h - ROAD_TOP - 5)
+        layer.dots(V['road_dark'], [(x, y), (x + 1, y)])
+    return layer
+
+
+def village_tile_a():
+    layer = street_base()
+    tree(layer, 10)
+    house(layer, 22, 30, 24, V['red'], chimney=True)
+    lamp(layer, 60)
+    house(layer, 68, 34, 20, V['blue'], warm=True, shop=V['blue'])
+    fence(layer, 108, 132)
+    tree(layer, 146, h=26, r=9)
+    house(layer, 162, 28, 26, V['green'])
+    well(layer, 206)
+    tree(layer, 232, h=20, r=7)
+    lamp(layer, 248)
+    return layer
+
+
+def village_tile_b():
+    layer = street_base()
+    lamp(layer, 6)
+    house(layer, 16, 32, 22, V['slate'], warm=True, chimney=True)
+    stall(layer, 56, V['red'])
+    tree(layer, 92, h=24, r=8)
+    house(layer, 108, 26, 28, V['red'])
+    fence(layer, 140, 156)
+    house(layer, 166, 36, 20, V['brown'], shop=V['green'])
+    tree(layer, 216, h=22, r=8)
+    stall(layer, 228, V['blue'])
+    return layer
+
+
+# Landmarks: up to 64 x 72, bottom row sits on the road line.
+LANDMARK = (64, 72)
+LB = 71  # bottom row
+
+
+def landmark_gate():
+    layer = Layer(LANDMARK)
+    for x0 in (10, 46):
+        vpart(layer, rect(x0, 30, x0 + 7, LB), V['stone'])
+        layer.dots(SOFT, [(x, y) for x in range(x0 + 1, x0 + 7) for y in range(34, LB, 6)])
+        vpart(layer, rect(x0 + 2, 24, x0 + 5, 29), V['light'], 0.95)  # lantern
+    vpart(layer, tri(6, 57, 17, 8), V['red'])
+    vpart(layer, rect(8, 18, 55, 24), V['timber'], 0.85)
+    vpart(layer, rect(22, 19, 41, 23), V['white'])  # sign board
+    layer.dots(SOFT, [(x, 21) for x in range(25, 39) if x % 3 != 2])
+    return layer
+
+
+def landmark_bakery():
+    layer = Layer(LANDMARK)
+    vpart(layer, rect(42, 12, 46, 30), V['stone'])  # chimney
+    layer.dots(V['white'], [(43, 8), (44, 7), (46, 4), (47, 3), (45, 1)])  # smoke
+    vpart(layer, tri(2, 61, 30, 16), V['brown'])
+    vpart(layer, rect(5, 31, 58, LB), V['warm'])
+    for x in range(4, 60):  # awning
+        layer.dots(V['red'] if (x // 3) % 2 else V['white'], [(x, 46), (x, 47), (x, 48)])
+    vpart(layer, rect(9, 52, 26, 63), V['window'])
+    layer.dots(V['gold'], [(x, 61) for x in range(11, 25)])  # loaves in the window
+    vpart(layer, rect(36, 56, 45, LB), V['door'])
+    vpart(layer, ell(31.5, 39, 6, 4.5), V['gold'], 0.85)  # bread sign
+    layer.dots(V['brown'], [(29, 38), (31, 38), (33, 38)])
+    return layer
+
+
+def landmark_townhall():
+    layer = Layer(LANDMARK)
+    # Clock tower
+    vpart(layer, tri(22, 41, 9, 9), V['blue'])
+    vpart(layer, rect(24, 10, 39, 34), V['stone'])
+    vpart(layer, ell(32, 19, 5, 5), V['white'], 0.95)
+    layer.dots(SOFT, [(32, 16), (32, 17), (32, 18), (33, 19), (34, 19)])
+    layer.dots(V['gold'], [(31, 0), (32, 0), (31, 1), (32, 1)])
+    # Pediment and hall
+    vpart(layer, tri(1, 62, 39, 9), V['blue'])
+    vpart(layer, rect(3, 40, 60, LB - 3), V['wall'])
+    for x in range(6, 58, 8):  # columns
+        vpart(layer, rect(x, 42, x + 3, LB - 4), V['white'], 0.9)
+    vpart(layer, rect(27, 54, 36, LB - 3), V['door'])
+    vpart(layer, rect(1, LB - 2, 62, LB), V['stone'])  # steps
+    layer.dots(SOFT, [(x, LB - 1) for x in range(2, 62) if x % 4 == 0])
+    return layer
+
+
+def landmark_windmill():
+    layer = Layer(LANDMARK)
+    body = set()
+    for y in range(26, LB + 1):
+        inset = (LB - y) // 6
+        body |= {(x, y) for x in range(20 + inset, 44 - inset)}
+    vpart(layer, body, V['wall'])
+    vpart(layer, rect(28, 58, 35, LB), V['door'])
+    vpart(layer, rect(29, 40, 34, 45), V['window'])
+    vpart(layer, tri(21, 42, 27, 8), V['red'])
+    hub = (32, 22)
+    for dx, dy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+        blade = set()
+        for t in range(3, 21):
+            bx, by = hub[0] + dx * t, hub[1] + dy * t
+            blade |= {(bx, by), (bx + dx, by), (bx, by + dy)}
+        vpart(layer, blade, V['timber'], 0.85)
+    vpart(layer, ell(32.5, 22.5, 2.5, 2.5), V['brown'])
+    return layer
+
+
+def save_scaled(layer, name):
+    """2x, 4x and 6x exports so React Native picks the right one per screen."""
+    for scale, suffix in ((2, ''), (4, '@2x'), (6, '@3x')):
+        layer.save(name, folder=VILLAGE_OUT, scale=scale, suffix=suffix)
+
+
 # ---------------------------------------------------------------- build
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
@@ -375,5 +614,14 @@ if __name__ == '__main__':
     os.makedirs(TRACK_OUT, exist_ok=True)
     goal_flag()
 
+    os.makedirs(VILLAGE_OUT, exist_ok=True)
+    save_scaled(village_tile_a(), 'village_tile_a')
+    save_scaled(village_tile_b(), 'village_tile_b')
+    save_scaled(landmark_gate(), 'landmark_gate')
+    save_scaled(landmark_bakery(), 'landmark_bakery')
+    save_scaled(landmark_townhall(), 'landmark_townhall')
+    save_scaled(landmark_windmill(), 'landmark_windmill')
+
     print(f'Wrote {len(os.listdir(OUT))} sprites to {os.path.normpath(OUT)}')
     print(f'Wrote {len(os.listdir(TRACK_OUT))} sprites to {os.path.normpath(TRACK_OUT)}')
+    print(f'Wrote {len(os.listdir(VILLAGE_OUT))} images to {os.path.normpath(VILLAGE_OUT)}')

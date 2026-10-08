@@ -5,60 +5,54 @@ import { describe, test } from 'node:test';
 
 import {
   assignLanes,
+  centerFor,
   formatSteps,
   GOAL,
   pickShown,
-  positionFor,
+  roadWidth,
   scaleMax,
   ticksFor,
 } from './scale.ts';
 
-describe('scaleMax (worked examples from step-tracker-stage5.txt)', () => {
-  const cases: [number, number][] = [
-    [0, 10_000],
-    [10_000, 10_000], // character stands exactly on the flag
-    [10_001, 15_000],
-    [14_999, 15_000],
-    [15_000, 20_000],
-    [23_400, 25_000],
+describe('worked examples from step-tracker-stage6.txt', () => {
+  const cases: [string, number, number][] = [
+    ['scaleMax(0)', scaleMax(0), 10_000],
+    ['scaleMax(10000)', scaleMax(10_000), 10_000], // character stands exactly at the flag
+    ['scaleMax(10001)', scaleMax(10_001), 15_000],
+    ['scaleMax(14999)', scaleMax(14_999), 15_000],
+    ['scaleMax(15000)', scaleMax(15_000), 20_000],
+    ['scaleMax(23400)', scaleMax(23_400), 25_000],
+    ['roadWidth(10000)', roadWidth(10_000), 1128], // 64 + 1000 + 64
+    ['roadWidth(15000)', roadWidth(15_000), 1628],
+    ['centerFor(5000)', centerFor(5_000), 564],
   ];
-  for (const [steps, max] of cases) {
-    test(`scaleMax(${steps}) = ${max}`, () => assert.equal(scaleMax(steps), max));
+  for (const [label, actual, expected] of cases) {
+    test(`${label} = ${expected}`, () => assert.equal(actual, expected));
   }
 });
 
-describe('positionFor', () => {
-  test('0 steps is the left edge, the max is the right edge', () => {
-    assert.equal(positionFor(0, 10_000, 364, 64), 0);
-    assert.equal(positionFor(10_000, 10_000, 364, 64), 300);
+describe('road positions', () => {
+  test('0 steps sits after the start padding', () => {
+    assert.equal(centerFor(0), 64);
   });
-  test('halfway is half of the usable width', () => {
-    assert.equal(positionFor(5_000, 10_000, 364, 64), 150);
+  test('negative counts are clamped to the start', () => {
+    assert.equal(centerFor(-50), 64);
   });
-  test('out-of-range values are clamped', () => {
-    assert.equal(positionFor(-5, 10_000, 364, 64), 0);
-    assert.equal(positionFor(99_999, 10_000, 364, 64), 300);
+  test('nobody moves when the road grows', () => {
+    // Positions depend only on steps, never on the road's length.
+    const before = [0, 5_000, 10_000].map(centerFor);
+    scaleMax(12_000); // the road grows to 15,000...
+    assert.deepEqual([0, 5_000, 10_000].map(centerFor), before); // ...and nobody shifts
   });
-  test('a track narrower than a sprite does not go negative', () => {
-    assert.equal(positionFor(5_000, 10_000, 10, 64), 0);
-  });
-  test('the goal flag slides left when the scale grows to 15,000', () => {
-    const before = positionFor(GOAL, scaleMax(10_000), 364, 64);
-    const after = positionFor(GOAL, scaleMax(12_000), 364, 64);
-    assert.equal(before, 300);
-    assert.equal(after, 200);
+  test('the road end has the same padding as the start', () => {
+    assert.equal(roadWidth(10_000) - centerFor(10_000), 64);
   });
 });
 
 describe('ticksFor', () => {
-  test('2,500 apart up to 10,000', () => {
+  test('every 2,500 steps', () => {
     assert.deepEqual(ticksFor(10_000), [0, 2_500, 5_000, 7_500, 10_000]);
-  });
-  test('5,000 apart up to 40,000', () => {
-    assert.deepEqual(ticksFor(15_000), [0, 5_000, 10_000, 15_000]);
-  });
-  test('10,000 apart beyond 40,000', () => {
-    assert.deepEqual(ticksFor(45_000), [0, 10_000, 20_000, 30_000, 40_000]);
+    assert.deepEqual(ticksFor(15_000), [0, 2_500, 5_000, 7_500, 10_000, 12_500, 15_000]);
   });
   test('the goal is always on a tick', () => {
     for (let steps = 0; steps <= 100_000; steps += 777) {
@@ -68,17 +62,20 @@ describe('ticksFor', () => {
 });
 
 describe('assignLanes', () => {
-  test('far-apart characters share the front row', () => {
-    assert.deepEqual(assignLanes([0, 100, 200], 64), [0, 0, 0]);
+  test('far-apart characters share the front lane', () => {
+    assert.deepEqual(assignLanes([0, 100, 200], 64, 3), [0, 0, 0]);
   });
-  test('two characters at the same count get separate lanes', () => {
-    assert.deepEqual(assignLanes([150, 150], 64), [0, 1]);
+  test('three characters at the same count use three depths', () => {
+    assert.deepEqual(assignLanes([150, 150, 150], 64, 3), [0, 1, 2]);
+  });
+  test('a fourth wraps back to the front lane', () => {
+    assert.deepEqual(assignLanes([150, 150, 150, 150], 64, 3), [0, 1, 2, 0]);
   });
   test('lanes are reused once there is room again', () => {
-    assert.deepEqual(assignLanes([0, 10, 100], 64), [0, 1, 0]);
+    assert.deepEqual(assignLanes([0, 10, 100], 64, 3), [0, 1, 0]);
   });
   test('results follow the input order', () => {
-    assert.deepEqual(assignLanes([100, 0, 10], 64), [0, 0, 1]);
+    assert.deepEqual(assignLanes([100, 0, 10], 64, 3), [0, 0, 1]);
   });
 });
 
@@ -86,11 +83,17 @@ describe('pickShown', () => {
   const w = (id: string, steps: number, isMe = false) => ({ id, steps, isMe });
   test('keeps the top N', () => {
     const shown = pickShown([w('a', 1), w('b', 5), w('c', 3)], 2);
-    assert.deepEqual(shown.map((x) => x.id), ['b', 'c']);
+    assert.deepEqual(
+      shown.map((x) => x.id),
+      ['b', 'c']
+    );
   });
   test('always includes you', () => {
     const shown = pickShown([w('a', 9), w('b', 8), w('me', 1, true)], 2);
-    assert.deepEqual(shown.map((x) => x.id), ['a', 'b', 'me']);
+    assert.deepEqual(
+      shown.map((x) => x.id),
+      ['a', 'b', 'me']
+    );
   });
 });
 

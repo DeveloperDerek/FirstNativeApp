@@ -52,6 +52,21 @@ export async function listOwnedItems(): Promise<Set<string>> {
   return new Set(data.map((r) => r.item_id));
 }
 
+/**
+ * Check-in bonus for opening the app. granted = 0 means "not ready yet".
+ * nextAt = null means the user is not sharing steps (no coins). Calling it
+ * too often is harmless: the database answers "not yet".
+ */
+export async function claimCheckin(): Promise<{ granted: number; nextAt: Date | null }> {
+  const { data, error } = await supabase.rpc('claim_checkin');
+  if (error) throw error;
+  const row = (data as { granted: number; next_at: string | null }[] | null)?.[0];
+  return {
+    granted: row?.granted ?? 0,
+    nextAt: row?.next_at ? new Date(row.next_at) : null,
+  };
+}
+
 const MESSAGES: Record<string, string> = {
   NOT_ENOUGH_COINS: 'You do not have enough coins yet.',
   ALREADY_OWNED: 'You already own this item.',

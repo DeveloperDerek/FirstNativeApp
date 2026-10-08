@@ -15,6 +15,7 @@ import { friendsLeaderboard } from '@/api/friends';
 import { type Group, groupLeaderboard, listMyGroups } from '@/api/groups';
 import type { LeaderboardRow } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
+import { CheckinCountdown } from '@/components/checkin-countdown';
 import { CoinBalance } from '@/components/coin-balance';
 import { Leaderboard } from '@/components/leaderboard';
 import { SharingRequired } from '@/components/sharing-required';
@@ -33,9 +34,10 @@ import { StepTrack, type Walker } from '@/track/StepTrack';
 type Mode = { kind: 'solo' } | { kind: 'friends' } | { kind: 'group'; id: string; name: string };
 
 const modeKey = (m: Mode) => (m.kind === 'group' ? `group:${m.id}` : m.kind);
-// More than this many people on the track gets crowded on a phone; the
-// ranked list underneath always shows everyone.
-const MAX_ON_TRACK = 8;
+// The road scrolls, so up to about 30 characters stay manageable; past
+// that only the top ones (plus you) are drawn. The ranked list underneath
+// always shows everyone.
+const MAX_ON_TRACK = 30;
 
 function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
@@ -61,7 +63,7 @@ export default function TodayScreen() {
   const router = useRouter();
   const { today, permission, loading, error, refresh } = useSteps();
   const { session, profile } = useAuth();
-  const { balance } = useWallet();
+  const { balance, nextCheckin, checkIn } = useWallet();
   const myId = session?.user.id ?? '';
   const sharing = Boolean(profile?.sharing_consent_at);
 
@@ -115,7 +117,7 @@ export default function TodayScreen() {
 
   async function pullToRefresh() {
     setRefreshing(true);
-    await Promise.all([refresh(), loadBoard()]);
+    await Promise.all([refresh(), loadBoard(), checkIn().catch(() => {})]);
     setRefreshing(false);
   }
 
@@ -168,6 +170,7 @@ export default function TodayScreen() {
             <ThemedText type="linkPrimary">Shop</ThemedText>
           </Pressable>
         </View>
+        <CheckinCountdown nextAt={nextCheckin} />
 
         <View style={styles.hero}>
           <ThemedText type="code" themeColor="textSecondary" style={styles.caps}>
@@ -219,7 +222,7 @@ export default function TodayScreen() {
               <>
                 {walkers.length > MAX_ON_TRACK && (
                   <ThemedText type="small" themeColor="textSecondary">
-                    Showing the top {MAX_ON_TRACK} and you on the track. Everyone is listed below.
+                    Showing the top {MAX_ON_TRACK} and you on the road. Everyone is listed below.
                   </ThemedText>
                 )}
                 <Leaderboard rows={ranked} myId={myId} />
