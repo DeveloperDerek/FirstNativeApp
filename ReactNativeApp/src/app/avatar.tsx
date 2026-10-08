@@ -1,9 +1,10 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { saveAvatar } from '@/api/avatar';
+import { coinErrorMessage, listOwnedItems, listShopPrices } from '@/api/coins';
 import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
 import { CATALOG, OPTIONAL_SLOTS, type Slot } from '@/avatar/catalog';
@@ -13,7 +14,6 @@ import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { errorMessage } from '@/lib/error-message';
 
 const SLOTS: { slot: Slot; title: string }[] = [
   { slot: 'hair', title: 'Hair' },
@@ -61,28 +61,40 @@ function Tile({
   preview,
   label,
   selected,
+  lockedPrice,
   onPress,
 }: {
   preview: AvatarConfig;
   label: string;
   selected: boolean;
+  /** Set for shop items the user doesn't own yet. */
+  lockedPrice?: number;
   onPress: () => void;
 }) {
   const theme = useTheme();
+  const locked = lockedPrice !== undefined;
   return (
     <Pressable
       onPress={onPress}
+      disabled={locked}
       accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ selected }}
+      accessibilityLabel={locked ? `${label}, locked, ${lockedPrice} coins in the shop` : label}
+      accessibilityState={{ selected, disabled: locked }}
       style={({ pressed }) => [pressed && styles.pressed]}>
       <ThemedView
         type={selected ? 'backgroundSelected' : 'backgroundElement'}
         style={[styles.tile, { borderColor: selected ? theme.accent : 'transparent' }]}>
-        <Avatar config={preview} scale={2} accessibilityLabel={label} />
+        <View style={locked && styles.locked}>
+          <Avatar config={preview} scale={2} accessibilityLabel={label} />
+        </View>
         <ThemedText type="small" numberOfLines={1} style={styles.tileLabel}>
           {label}
         </ThemedText>
+        {locked && (
+          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+            🔒 {lockedPrice.toLocaleString()}
+          </ThemedText>
+        )}
       </ThemedView>
     </Pressable>
   );
@@ -95,6 +107,21 @@ export default function AvatarEditorScreen() {
   const [avatar, setAvatar] = useState<AvatarConfig>(profile?.avatar ?? DEFAULT_AVATAR);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  const [owned, setOwned] = useState<Set<string>>(new Set());
+
+  // Load prices and owned items, then lock what the user cannot wear.
+  // Reloads when returning from the Shop so new purchases unlock.
+  useFocusEffect(
+    useCallback(() => {
+      listShopPrices().then(setPrices).catch(() => {});
+      listOwnedItems().then(setOwned).catch(() => {});
+    }, [])
+  );
+
+  // Free starter items are not in the shop table at all. Even if this
+  // check had a bug, the database trigger would reject the save.
+  const lockedPrice = (id: string) => (owned.has(id) ? undefined : prices[id]);
 
   const set = (patch: Partial<AvatarConfig>) => setAvatar((a) => ({ ...a, ...patch }));
 
@@ -107,7 +134,7 @@ export default function AvatarEditorScreen() {
       await reloadProfile();
       router.back();
     } catch (e) {
-      setError(errorMessage(e));
+      setError(coinErrorMessage(e, 'Could not save your character. Try again.'));
       setSaving(false);
     }
   }
@@ -160,6 +187,7 @@ export default function AvatarEditorScreen() {
                       label={item.label}
                       preview={{ ...avatar, [slot]: item.id }}
                       selected={avatar[slot] === item.id}
+                      lockedPrice={lockedPrice(item.id)}
                       onPress={() => set({ [slot]: item.id })}
                     />
                   ))}
@@ -167,6 +195,12 @@ export default function AvatarEditorScreen() {
               </ScrollView>
             </View>
           ))}
+
+          <ThemedText type="small" themeColor="textSecondary">
+            Locked items can be bought with coins in the Shop. Each day it offers a different
+            selection.
+          </ThemedText>
+          <Button title="Open the Shop" variant="secondary" onPress={() => router.push('/shop')} />
 
           {error && (
             <ThemedText type="small" themeColor="danger">
@@ -237,6 +271,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  locked: {
+    opacity: 0.35,
   },
   buttons: {
     gap: Spacing.three,

@@ -1,9 +1,11 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
-import { AppState } from 'react-native';
+import { Alert, AppState } from 'react-native';
 
+import { claimDailyRewards } from '@/api/coins';
 import { syncSteps } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
 import { dayRange, getSteps, type PermissionResult, requestStepPermission } from '@/health';
+import { useWallet } from '@/hooks/use-wallet';
 import { loadSteps, saveManySteps, type StepLog } from '@/storage/stepStore';
 
 export const HISTORY_DAYS = 7;
@@ -29,6 +31,7 @@ export function StepsProvider({ children }: { children: ReactNode }) {
   const userId = session?.user.id;
   // Only upload once the user has agreed on the consent screen.
   const sharing = Boolean(profile?.sharing_consent_at);
+  const { refreshBalance } = useWallet();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -52,13 +55,20 @@ export function StepsProvider({ children }: { children: ReactNode }) {
         await syncSteps(userId, entries).catch((e) => {
           throw new Error(`Couldn't upload steps: ${e instanceof Error ? e.message : String(e)}`);
         });
+        // Sync first, then claim: the database pays for the rows just written.
+        // Coins need sharing, so this only runs for users who agreed.
+        const earned = await claimDailyRewards();
+        if (earned > 0) {
+          Alert.alert('Goal reached!', `You earned ${earned} coins. Spend them in the Shop.`);
+          await refreshBalance();
+        }
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [userId, sharing]);
+  }, [userId, sharing, refreshBalance]);
 
   useEffect(() => {
     // Show cached history immediately, then fetch fresh numbers.

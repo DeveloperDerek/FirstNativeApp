@@ -1,19 +1,24 @@
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
+import { CoinBalance } from '@/components/coin-balance';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, DailyStepGoal, MaxContentWidth, Spacing } from '@/constants/theme';
 import { openHealthSettings, permissionHelp } from '@/health';
 import { useSteps } from '@/hooks/use-steps';
 import { useTheme } from '@/hooks/use-theme';
+import { useWallet } from '@/hooks/use-wallet';
 
 export default function TodayScreen() {
   const theme = useTheme();
   const { today, permission, loading, error, refresh } = useSteps();
   const { profile } = useAuth();
+  const { balance } = useWallet();
+  const router = useRouter();
   const progress = Math.min((today ?? 0) / DailyStepGoal, 1);
 
   const blocked = permission === 'denied' || permission === 'unavailable';
@@ -23,6 +28,15 @@ export default function TodayScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
+        <View style={styles.topBar}>
+          <CoinBalance balance={balance} />
+          <Pressable
+            onPress={() => router.push('/shop')}
+            accessibilityRole="button"
+            style={({ pressed }) => pressed && styles.pressed}>
+            <ThemedText type="linkPrimary">Shop</ThemedText>
+          </Pressable>
+        </View>
         <View style={styles.hero}>
           {profile && (
             <Avatar config={profile.avatar} scale={3} accessibilityLabel="Your character" />
@@ -41,6 +55,10 @@ export default function TodayScreen() {
             </ThemedView>
             <ThemedText type="small" themeColor="textSecondary">
               {Math.round(progress * 100)}% of {DailyStepGoal.toLocaleString()} goal
+              {progress >= 1 && profile?.sharing_consent_at ? ' · +100 coins' : ''}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.fineprint}>
+              Manually entered steps and steps from unsupported apps do not count.
             </ThemedText>
           </View>
         </View>
@@ -102,6 +120,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.three,
     gap: Spacing.three,
+  },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: Spacing.two,
+  },
+  fineprint: {
+    textAlign: 'center',
   },
   hero: {
     flex: 1,

@@ -4,6 +4,7 @@ import { useColorScheme } from 'react-native';
 
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { WalletProvider } from '@/hooks/use-wallet';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -12,15 +13,17 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthProvider>
-        <RootNavigator />
-        <AnimatedSplashOverlay />
+        <WalletProvider>
+          <RootNavigator />
+          <AnimatedSplashOverlay />
+        </WalletProvider>
       </AuthProvider>
     </ThemeProvider>
   );
 }
 
 // Signed out: only the sign-in screen. Signed in: the tabs, plus the
-// consent screen and character editor as modals.
+// consent screen, character editor and shop as modals.
 function RootNavigator() {
   const { session, loading } = useAuth();
   if (loading) return null; // reading the saved session takes a moment
@@ -31,6 +34,7 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="consent" options={{ presentation: 'modal' }} />
         <Stack.Screen name="avatar" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="shop" options={{ presentation: 'modal' }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="sign-in" />

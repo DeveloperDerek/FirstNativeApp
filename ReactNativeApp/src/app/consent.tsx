@@ -15,6 +15,7 @@ const POINTS = [
   'Only daily step totals are uploaded, nothing else from Health.',
   'Friends you accept and members of groups you join can see them.',
   'We never use your health data for advertising or sell it.',
+  'Sharing is required to earn coins for the shop.',
   'You can stop sharing or delete your account any time in Profile.',
 ];
 
@@ -68,7 +69,7 @@ export default function ConsentScreen() {
 
       <View style={styles.buttons}>
         <Button title="Agree and share my steps" onPress={agree} loading={saving} />
-        <Button title="Not now" variant="secondary" onPress={() => router.back()} />
+        <Button title="Not now (no coins)" variant="secondary" onPress={() => router.back()} />
       </View>
     </Screen>
   );

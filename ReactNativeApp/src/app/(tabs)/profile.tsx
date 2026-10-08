@@ -30,7 +30,8 @@ export default function ProfileScreen() {
     }
     Alert.alert(
       'Stop sharing your steps?',
-      'Your uploaded step history will be deleted and friends and groups will no longer see your steps.',
+      'Your uploaded step history will be deleted and friends and groups will no longer see your steps. ' +
+        'You keep your coins and items, but stop earning new coins.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -81,7 +82,15 @@ export default function ProfileScreen() {
               <ThemedText type="small" themeColor="textSecondary">
                 Friends and group members see your character on leaderboards.
               </ThemedText>
-              <Button title="Customize" size="small" onPress={() => router.push('/avatar')} />
+              <View style={styles.characterButtons}>
+                <Button title="Customize" size="small" onPress={() => router.push('/avatar')} />
+                <Button
+                  title="Shop"
+                  size="small"
+                  variant="secondary"
+                  onPress={() => router.push('/shop')}
+                />
+              </View>
             </View>
           </View>
         </Section>
@@ -174,6 +183,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
+  },
+  characterButtons: {
+    flexDirection: 'row',
+    gap: Spacing.two,
   },
   characterText: {
     flex: 1,

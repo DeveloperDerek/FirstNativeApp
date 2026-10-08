@@ -11,7 +11,9 @@ export async function syncSteps(userId: string, entries: [Date, number][]) {
   const rows = entries.map(([date, steps]) => ({
     user_id: userId,
     day: dayKey(date),
-    steps,
+    // The database rejects days over 100,000 (an anti-cheat limit). Cap
+    // here so one odd reading can't make the whole upload fail.
+    steps: Math.min(steps, 100_000),
     updated_at: updatedAt,
   }));
   const { error } = await supabase.from('daily_steps').upsert(rows, { onConflict: 'user_id,day' });
