@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,7 +13,9 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useMapTheme } from '@/hooks/use-map-theme';
 import { useTheme } from '@/hooks/use-theme';
+import { THEME_LIST } from '@/track/themes';
 
 const SLOTS: { slot: Slot; title: string }[] = [
   { slot: 'hair', title: 'Hair' },
@@ -61,16 +63,16 @@ function Swatches({
   );
 }
 
-/** A choice shown as a small preview of the character wearing it. The
- * name only appears in the slot heading once the item is picked. */
+/** A choice shown as a small preview, e.g. the character wearing it. The
+ * name only appears in the section heading once it is picked. */
 function Tile({
-  preview,
+  children,
   label,
   selected,
   lockedPrice,
   onPress,
 }: {
-  preview: AvatarConfig;
+  children: ReactNode;
   label: string;
   selected: boolean;
   /** Set for shop items the user doesn't own yet. */
@@ -90,9 +92,7 @@ function Tile({
       <ThemedView
         type={selected ? 'backgroundSelected' : 'backgroundElement'}
         style={[styles.tile, { borderColor: selected ? theme.accent : 'transparent' }]}>
-        <View style={locked && styles.locked}>
-          <Avatar config={preview} scale={2} accessibilityLabel={label} />
-        </View>
+        <View style={locked && styles.locked}>{children}</View>
         {locked && (
           <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
             🔒 {lockedPrice.toLocaleString()}
@@ -100,6 +100,43 @@ function Tile({
         )}
       </ThemedView>
     </Pressable>
+  );
+}
+
+/**
+ * The map drawn behind every page. Unlike the character it is not part of
+ * the autosave: picking one saves it straight away (useMapTheme).
+ */
+function BackgroundPicker({ prices }: { prices: Record<string, number> }) {
+  const { theme, canUse, pickTheme } = useMapTheme();
+  return (
+    <View style={styles.slot}>
+      <ThemedText type="smallBold">
+        Background
+        <ThemedText type="small" themeColor="textSecondary">
+          {'  '}
+          {theme.label}
+        </ThemedText>
+      </ThemedText>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={styles.row}>
+          {THEME_LIST.map((t) => (
+            <Tile
+              key={t.id}
+              label={t.label}
+              selected={t.id === theme.id}
+              lockedPrice={canUse(t.id) ? undefined : prices[t.id]}
+              onPress={() => canUse(t.id) && pickTheme(t.id)}>
+              {/* The map's sky over its ground */}
+              <View style={styles.mapSwatch}>
+                <View style={{ flex: 3, backgroundColor: t.sky }} />
+                <View style={{ flex: 2, backgroundColor: t.ground }} />
+              </View>
+            </Tile>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -211,25 +248,35 @@ export default function AvatarEditorScreen() {
                   {OPTIONAL_SLOTS.has(slot) && (
                     <Tile
                       label="None"
-                      preview={{ ...avatar, ...wear(slot, null) }}
                       selected={avatar[slot] === null}
-                      onPress={() => set(wear(slot, null))}
-                    />
+                      onPress={() => set(wear(slot, null))}>
+                      <Avatar
+                        config={{ ...avatar, ...wear(slot, null) }}
+                        scale={2}
+                        accessibilityLabel="None"
+                      />
+                    </Tile>
                   )}
                   {CATALOG[slot].map((item) => (
                     <Tile
                       key={item.id}
                       label={item.label}
-                      preview={{ ...avatar, ...wear(slot, item.id) }}
                       selected={avatar[slot] === item.id}
                       lockedPrice={lockedPrice(item.id)}
-                      onPress={() => set(wear(slot, item.id))}
-                    />
+                      onPress={() => set(wear(slot, item.id))}>
+                      <Avatar
+                        config={{ ...avatar, ...wear(slot, item.id) }}
+                        scale={2}
+                        accessibilityLabel={item.label}
+                      />
+                    </Tile>
                   ))}
                 </View>
               </ScrollView>
             </View>
           ))}
+
+          <BackgroundPicker prices={prices} />
 
           <ThemedText type="small" themeColor="textSecondary">
             Locked items can be bought with coins in the Shop. Each day it offers a different
@@ -295,6 +342,14 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: Spacing.two,
+  },
+  mapSwatch: {
+    width: 64,
+    height: 64,
+    borderRadius: 6,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#2a1a1a',
   },
   tile: {
     alignItems: 'center',

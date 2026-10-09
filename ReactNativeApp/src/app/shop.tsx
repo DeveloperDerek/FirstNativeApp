@@ -200,7 +200,7 @@ export default function ShopScreen() {
                 <ThemedText>{item.label}</ThemedText>
                 {item.kind === 'map' && (
                   <ThemedText type="small" themeColor="textSecondary">
-                    Change backgrounds in Profile
+                    Change backgrounds in Customize character
                   </ThemedText>
                 )}
                 <ThemedText type="small" themeColor="textSecondary">

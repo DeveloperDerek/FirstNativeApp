@@ -8,7 +8,6 @@ import { isValidUsername, normalizeUsername, type Profile, updateProfile } from 
 import { useAuth } from '@/auth/AuthProvider';
 import { signOut } from '@/auth/signIn';
 import { Avatar } from '@/avatar/Avatar';
-import { MapPicker } from '@/components/map-picker';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -96,9 +95,6 @@ export default function ProfileScreen() {
           </View>
         </Section>
       )}
-
-      {/* The background picker lives here; it changes every page at once */}
-      {profile && <MapPicker />}
 
       {profile && <DetailsForm key={profile.id} profile={profile} onSaved={reloadProfile} />}
 
