@@ -6,6 +6,8 @@ import { type DailyShop, listDailyShop, listOwnedItems, purchaseItem } from '@/a
 import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
 import { CATALOG, type Slot, wear } from '@/avatar/catalog';
+import { Pet } from '@/avatar/Pet';
+import { PETS } from '@/avatar/pets';
 import { DEFAULT_AVATAR } from '@/avatar/types';
 import { CoinBalance } from '@/components/coin-balance';
 import { GroundText } from '@/components/ground-text';
@@ -20,10 +22,11 @@ import { useWallet } from '@/hooks/use-wallet';
 import { errorMessage } from '@/lib/error-message';
 import { THEME_LIST } from '@/track/themes';
 
-// Everything the shop can sell: clothing (remembering each item's slot)
-// and map themes (with the art and sky color for a thumbnail).
+// Everything the shop can sell: clothing (remembering each item's slot),
+// pets, and map themes (with the art and sky color for a thumbnail).
 type Entry =
   | { kind: 'clothing'; id: string; label: string; slot: Slot }
+  | { kind: 'pet'; id: string; label: string }
   | { kind: 'map'; id: string; label: string; tile: number; sky: string };
 
 const ALL_ENTRIES: Entry[] = [
@@ -35,6 +38,7 @@ const ALL_ENTRIES: Entry[] = [
       slot,
     }))
   ),
+  ...PETS.map((p) => ({ kind: 'pet' as const, id: p.id, label: `${p.label} (pet)` })),
   ...THEME_LIST.map((t) => ({
     kind: 'map' as const,
     id: t.id,
@@ -188,6 +192,10 @@ export default function ShopScreen() {
             <View key={item.id} style={styles.item}>
               {item.kind === 'map' ? (
                 <MapThumb entry={item} />
+              ) : item.kind === 'pet' ? (
+                <View style={styles.petThumb}>
+                  <Pet id={item.id} scale={4} />
+                </View>
               ) : (
                 // Preview: your own character wearing this item
                 <Avatar
@@ -244,6 +252,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
+  },
+  // Same footprint as the character previews, the pet at the bottom
+  petThumb: {
+    width: 64,
+    height: 112,
+    justifyContent: 'flex-end',
   },
   thumb: {
     width: 64,

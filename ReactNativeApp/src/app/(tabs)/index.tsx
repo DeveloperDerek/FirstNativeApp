@@ -19,11 +19,12 @@ import { CheckinCountdown } from '@/components/checkin-countdown';
 import { CoinBalance } from '@/components/coin-balance';
 import { Leaderboard } from '@/components/leaderboard';
 import { PlayerCard } from '@/components/player-card';
+import { QuestBanners } from '@/components/quest-banners';
 import { SharingRequired } from '@/components/sharing-required';
 import { ThemedButton } from '@/components/themed-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, DailyStepGoal, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, DailyStepGoal, GameFont, MaxContentWidth, Spacing } from '@/constants/theme';
 import { openHealthSettings, permissionHelp } from '@/health';
 import { useMapTheme } from '@/hooks/use-map-theme';
 import { useSteps } from '@/hooks/use-steps';
@@ -193,6 +194,8 @@ export default function TodayScreen() {
           { paddingBottom: insets.bottom + BottomTabInset + Spacing.three },
         ]}>
         <View style={styles.inner}>
+          {sharing && <QuestBanners />}
+
           <ThemedText type="smallBold" style={ink}>
             Who
           </ThemedText>
@@ -330,7 +333,7 @@ const styles = StyleSheet.create({
   count: {
     fontSize: 48,
     lineHeight: 56,
-    fontWeight: 700,
+    fontFamily: GameFont.bold,
     fontVariant: ['tabular-nums'],
   },
   list: {

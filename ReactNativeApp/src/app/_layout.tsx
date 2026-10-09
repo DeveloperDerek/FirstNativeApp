@@ -6,12 +6,14 @@ import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { MapThemeProvider } from '@/hooks/use-map-theme';
 import { useMarkSeen } from '@/hooks/use-mark-seen';
+import { useWebFonts } from '@/hooks/use-web-fonts';
 import { WalletProvider } from '@/hooks/use-wallet';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  useWebFonts();
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthProvider>
@@ -27,7 +29,7 @@ export default function RootLayout() {
 }
 
 // Signed out: only the sign-in screen. Signed in: the tabs, plus the
-// consent screen, character editor and shop as modals.
+// consent screen, character editor, shop and quest proposal as modals.
 function RootNavigator() {
   const { session, loading } = useAuth();
   useMarkSeen(session?.user.id);
@@ -40,6 +42,7 @@ function RootNavigator() {
         <Stack.Screen name="consent" options={{ presentation: 'modal' }} />
         <Stack.Screen name="avatar" options={{ presentation: 'modal' }} />
         <Stack.Screen name="shop" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="propose-quest" options={{ presentation: 'modal' }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="sign-in" />

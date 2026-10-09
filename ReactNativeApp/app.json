@@ -48,6 +48,12 @@
       ],
       "react-native-health-connect",
       [
+        "expo-font",
+        {
+          "fonts": ["./assets/fonts/Maplestory-Light.ttf", "./assets/fonts/Maplestory-Bold.ttf"]
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {

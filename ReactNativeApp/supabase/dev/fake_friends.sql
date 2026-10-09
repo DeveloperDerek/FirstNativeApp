@@ -7,7 +7,8 @@
 -- Each fake player has:
 --   - an auth user on the reserved .test domain (no password, so nobody
 --     can sign in as them), marked fake in its app metadata
---   - a character and background, with the paid items given to them
+--   - a character and background, with the paid items given to them;
+--     everyone but Marcus also has a pet
 --   - step sharing turned on and 8 days of steps, including today
 --   - a "Last seen" time from just now to yesterday (Ava has none, to
 --     show a card without it); times count back from when you run this
@@ -28,21 +29,21 @@ begin
     -- The first 8 characters of each id must differ: the sign-up trigger
     -- makes a temporary username from them (user_xxxxxxxx).
     ('f4ce0001-0000-4000-8000-000000000001'::uuid, 'sam_rivera', 'Sam Rivera', 'map_forest', 9000,
-     '{"skin":"#e0a878","hairColor":"#d9534f","hair":"hair_ponytail","face":"face_wink","top":"top_jacket_green","bottom":"bottom_jeans_blue","shoes":"shoes_boots_brown","hat":null,"glasses":"glasses_round","cape":null,"hand":null,"outfit":null}'::jsonb),
+     '{"skin":"#e0a878","hairColor":"#d9534f","hair":"hair_ponytail","face":"face_wink","top":"top_jacket_green","bottom":"bottom_jeans_blue","shoes":"shoes_boots_brown","hat":null,"glasses":"glasses_round","cape":null,"hand":null,"outfit":null,"pet":"pet_cat"}'::jsonb),
     ('f4ce0002-0000-4000-8000-000000000002', 'priya_walks', 'Priya Patel', 'map_beach', 12000,
-     '{"skin":"#c68655","hairColor":"#2a1a1a","hair":"hair_long","face":"face_joy","top":"top_tee_white","bottom":"bottom_shorts_blue","shoes":"shoes_sandals","hat":"hat_flowers","glasses":null,"cape":null,"hand":"hand_umbrella","outfit":"outfit_dress"}'),
+     '{"skin":"#c68655","hairColor":"#2a1a1a","hair":"hair_long","face":"face_joy","top":"top_tee_white","bottom":"bottom_shorts_blue","shoes":"shoes_sandals","hat":"hat_flowers","glasses":null,"cape":null,"hand":"hand_umbrella","outfit":"outfit_dress","pet":"pet_mushroom"}'),
     ('f4ce0003-0000-4000-8000-000000000003', 'marcus_c', 'Marcus Chen', 'map_city', 7000,
      '{"skin":"#f6c9a0","hairColor":"#2a1a1a","hair":"hair_short","face":"face_determined","top":"top_varsity","bottom":"bottom_track_red","shoes":"shoes_hightop_black","hat":"hat_headphones","glasses":null,"cape":null,"hand":null,"outfit":null}'),
     ('f4ce0004-0000-4000-8000-000000000004', 'luna_okafor', 'Luna Okafor', 'map_space', 15000,
-     '{"skin":"#6f4428","hairColor":"#2a1a1a","hair":"hair_afro","face":"face_starry","top":"top_puffer_purple","bottom":"bottom_pants_black","shoes":"shoes_gold","hat":null,"glasses":"glasses_star","cape":"wings_fairy","hand":null,"outfit":null}'),
+     '{"skin":"#6f4428","hairColor":"#2a1a1a","hair":"hair_afro","face":"face_starry","top":"top_puffer_purple","bottom":"bottom_pants_black","shoes":"shoes_gold","hat":null,"glasses":"glasses_star","cape":"wings_fairy","hand":null,"outfit":null,"pet":"pet_slime"}'),
     ('f4ce0005-0000-4000-8000-000000000005', 'diego_m', 'Diego Morales', 'map_mountain', 11000,
-     '{"skin":"#a86b45","hairColor":"#7a4a2a","hair":"hair_buzz","face":"face_smile","top":"top_sweater_yellow","bottom":"bottom_cargo_khaki","shoes":"shoes_rain_yellow","hat":"hat_beanie_teal","glasses":null,"cape":null,"hand":"hand_lantern","outfit":null}'),
+     '{"skin":"#a86b45","hairColor":"#7a4a2a","hair":"hair_buzz","face":"face_smile","top":"top_sweater_yellow","bottom":"bottom_cargo_khaki","shoes":"shoes_rain_yellow","hat":"hat_beanie_teal","glasses":null,"cape":null,"hand":"hand_lantern","outfit":null,"pet":"pet_dog"}'),
     ('f4ce0006-0000-4000-8000-000000000006', 'hana_k', 'Hana Kim', 'map_ocean', 6000,
-     '{"skin":"#fde0c8","hairColor":"#f48fb1","hair":"hair_bob","face":"face_cat","top":"top_stripe_navy","bottom":"bottom_skirt_plaid","shoes":"shoes_white","hat":"hat_cat","glasses":null,"cape":null,"hand":"hand_balloon","outfit":null}'),
+     '{"skin":"#fde0c8","hairColor":"#f48fb1","hair":"hair_bob","face":"face_cat","top":"top_stripe_navy","bottom":"bottom_skirt_plaid","shoes":"shoes_white","hat":"hat_cat","glasses":null,"cape":null,"hand":"hand_balloon","outfit":null,"pet":"pet_snail"}'),
     ('f4ce0007-0000-4000-8000-000000000007', 'theo_b', 'Theo Bennett', 'map_dungeon', 13000,
-     '{"skin":"#e0a878","hairColor":"#5b8def","hair":"hair_mohawk","face":"face_determined","top":"top_hoodie_red","bottom":"bottom_jeans_blue","shoes":"shoes_boots_brown","hat":null,"glasses":"glasses_eyepatch","cape":"cape_red","hand":"hand_sword","outfit":"outfit_knight"}'),
+     '{"skin":"#e0a878","hairColor":"#5b8def","hair":"hair_mohawk","face":"face_determined","top":"top_hoodie_red","bottom":"bottom_jeans_blue","shoes":"shoes_boots_brown","hat":null,"glasses":"glasses_eyepatch","cape":"cape_red","hand":"hand_sword","outfit":"outfit_knight","pet":"pet_stump"}'),
     ('f4ce0008-0000-4000-8000-000000000008', 'ava_rossi', 'Ava Rossi', 'map_village', 3500,
-     '{"skin":"#f6c9a0","hairColor":"#f2d16b","hair":"hair_twintails","face":"face_sleepy","top":"top_tee_white","bottom":"bottom_shorts_blue","shoes":"shoes_white","hat":null,"glasses":null,"cape":null,"hand":"hand_lollipop","outfit":"outfit_pajamas"}')
+     '{"skin":"#f6c9a0","hairColor":"#f2d16b","hair":"hair_twintails","face":"face_sleepy","top":"top_tee_white","bottom":"bottom_shorts_blue","shoes":"shoes_white","hat":null,"glasses":null,"cape":null,"hand":"hand_lollipop","outfit":"outfit_pajamas","pet":"pet_pig"}')
   ) as t(id, username, display_name, map_theme, typical_steps, avatar);
 
   -- Auth users. The on_auth_user_created trigger makes their profiles.

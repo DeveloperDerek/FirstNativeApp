@@ -7,6 +7,10 @@ import type { AvatarConfig } from './types';
 const SPRITE_W = 32;
 const SPRITE_H = 56; // includes 8 rows of headroom, like Avatar.tsx
 export const HEADROOM = 8;
+// Browsers smooth images when scaling them up. global.css keeps anything
+// marked with this crisp, one solid block per sprite pixel. expo-image on
+// web passes dataSet on as data-* attributes, but its types leave it out.
+const PIXEL_ART = { dataSet: { pixelart: 'true' } } as object;
 
 // Web fallback: Skia on web needs CanvasKit loaded first, which this app
 // doesn't set up. Stack the layers as plain images instead. Body and hair
@@ -47,6 +51,7 @@ export function Avatar({
             source={source}
             style={[size, { position: 'absolute' }]}
             contentFit="fill"
+            {...PIXEL_ART}
           />
         ) : null
       )}
@@ -73,6 +78,7 @@ export function PixelSprite({
       source={source}
       style={{ width: width * scale, height: height * scale }}
       contentFit="fill"
+      {...PIXEL_ART}
       accessibilityLabel={accessibilityLabel}
     />
   );

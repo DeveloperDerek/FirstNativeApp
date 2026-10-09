@@ -55,6 +55,18 @@ export const Fonts = Platform.select({
   },
 });
 
+/**
+ * The MapleStory font by NEXON, built into the app (expo-font plugin in
+ * app.json; web loads it in use-web-fonts.web.ts). iOS knows a font by the
+ * name inside the file, Android and web by its file name. Each weight is
+ * its own family, so don't add fontWeight on top: Android would fall back
+ * to the system font.
+ */
+export const GameFont = Platform.select({
+  ios: { light: 'MaplestoryLight', bold: 'MaplestoryBold' },
+  default: { light: 'Maplestory-Light', bold: 'Maplestory-Bold' },
+});
+
 export const Spacing = {
   half: 2,
   one: 4,

@@ -1,6 +1,6 @@
 import { StyleSheet, TextInput, type TextInputProps } from 'react-native';
 
-import { Spacing } from '@/constants/theme';
+import { GameFont, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export function TextField({ style, ...props }: TextInputProps) {
@@ -24,5 +24,6 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.three,
     paddingHorizontal: Spacing.three,
     fontSize: 16,
+    fontFamily: GameFont.light,
   },
 });

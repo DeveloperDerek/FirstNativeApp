@@ -12,6 +12,7 @@ export type AvatarConfig = {
   cape: string | null; // capes and wings
   hand: string | null; // held item
   outfit: string | null; // one-piece, drawn instead of top and bottom
+  pet: string | null; // walks beside the character (see pets.ts); null = none
 };
 
 export const DEFAULT_AVATAR: AvatarConfig = {
@@ -27,6 +28,7 @@ export const DEFAULT_AVATAR: AvatarConfig = {
   cape: null,
   hand: null,
   outfit: null,
+  pet: null,
 };
 
 export const SKIN_TONES = ['#fde0c8', '#f6c9a0', '#e0a878', '#c68655', '#a86b45', '#6f4428'];

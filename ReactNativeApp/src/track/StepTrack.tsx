@@ -10,7 +10,6 @@ import {
 
 import { Avatar, HEADROOM, PixelSprite } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
-import { ThemedButton } from '@/components/themed-button';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 
@@ -70,11 +69,14 @@ function landmarksFor(theme: MapTheme, max: number) {
 }
 
 function WalkerSprite({ walker, x, lane }: { walker: Walker; x: number; lane: number }) {
+  // Stop on whole points: 0.1 point per step would leave the pixel art
+  // between screen pixels, where it is drawn blurry
+  const snapped = Math.round(x);
   // Walk to the new spot whenever the step count changes
-  const [anim] = useState(() => new Animated.Value(x));
+  const [anim] = useState(() => new Animated.Value(snapped));
   useEffect(() => {
-    Animated.timing(anim, { toValue: x, duration: 600, useNativeDriver: true }).start();
-  }, [anim, x]);
+    Animated.timing(anim, { toValue: snapped, duration: 600, useNativeDriver: true }).start();
+  }, [anim, snapped]);
 
   const name = walker.isMe ? 'You' : walker.name;
   return (
@@ -125,13 +127,6 @@ export function StepTrack({ walkers, theme }: { walkers: Walker[]; theme: MapThe
   const xs = baseXs.map((x, i) => x + LANE_SHIFT[lanes[i]]);
 
   const me = walkers.find((w) => w.isMe);
-  const leader = walkers.reduce<Walker | undefined>(
-    (best, w) => (!best || w.steps > best.steps ? w : best),
-    undefined
-  );
-
-  const scrollToSteps = (steps: number, animated = true) =>
-    scrollRef.current?.scrollTo({ x: Math.max(0, centerFor(steps) - viewport / 2), animated });
 
   // Open centered on me, and follow my count as it loads, until the
   // person scrolls themselves.
@@ -234,17 +229,6 @@ export function StepTrack({ walkers, theme }: { walkers: Walker[]; theme: MapThe
         </ScrollView>
       </View>
 
-      {/* Jump buttons sit on the ground color */}
-      <View style={[styles.buttons, { backgroundColor: theme.ground }]}>
-        {me && (
-          <ThemedButton theme={theme} title="Find me" onPress={() => scrollToSteps(me.steps)} />
-        )}
-        {leader && leader.id !== me?.id && (
-          <ThemedButton theme={theme} title="Leader" onPress={() => scrollToSteps(leader.steps)} />
-        )}
-        <ThemedButton theme={theme} title="Start" onPress={() => scrollToSteps(0)} />
-      </View>
-
       {max > GOAL && (
         <ThemedText
           type="small"
@@ -306,12 +290,6 @@ const styles = StyleSheet.create({
   tickLabel: {
     fontSize: 11,
     lineHeight: 16,
-  },
-  buttons: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.two,
   },
   extended: {
     paddingHorizontal: Spacing.three,

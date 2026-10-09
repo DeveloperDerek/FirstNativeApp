@@ -1,5 +1,5 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Share } from 'react-native';
 
 import {
@@ -10,14 +10,18 @@ import {
   leaveGroup,
   renameGroup,
 } from '@/api/groups';
+import { getGroupQuest, type GroupQuest, markQuestSeen, voteQuest } from '@/api/quests';
 import { type LeaderboardRow, type Period, periodRange } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
 import { Leaderboard, PeriodPicker } from '@/components/leaderboard';
+import { QuestCard } from '@/components/quest-card';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Row, Section } from '@/components/ui/section';
 import { TextField } from '@/components/ui/text-field';
+import { useSteps } from '@/hooks/use-steps';
+import { useWallet } from '@/hooks/use-wallet';
 import { errorMessage } from '@/lib/error-message';
 
 export default function GroupDetailScreen() {
@@ -29,28 +33,86 @@ export default function GroupDetailScreen() {
   const [group, setGroup] = useState<Group | null>(null);
   const [period, setPeriod] = useState<Period>('week');
   const [board, setBoard] = useState<LeaderboardRow[]>([]);
+  const [quest, setQuest] = useState<GroupQuest | null>(null);
+  const [voting, setVoting] = useState(false);
+  const { refresh: refreshSteps, refreshQuests, error: stepsError } = useSteps();
+  const { refreshBalance } = useWallet();
   const [newName, setNewName] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Also moves the quest forward on the server: starts it, ends it, pays it
+  const loadQuest = useCallback(async () => {
+    const q = await getGroupQuest(id);
+    setQuest(q);
+    const mine = q.quest?.settled_at && q.members.find((m) => m.user_id === myId);
+    if (q.quest && mine) {
+      // The result is on screen: stop its banner, and show any coins paid
+      markQuestSeen(q.quest.id).catch(() => {});
+      if (mine.coins_paid) refreshBalance().catch(() => {});
+    }
+    refreshQuests(); // keep the banners in step with the card
+  }, [id, myId, refreshBalance, refreshQuests]);
 
   const load = useCallback(async () => {
     setError(null);
     try {
       const { fromDay, toDay } = periodRange(period);
-      const [g, rows] = await Promise.all([getGroup(id), groupLeaderboard(id, fromDay, toDay)]);
+      const [g, rows] = await Promise.all([
+        getGroup(id),
+        groupLeaderboard(id, fromDay, toDay),
+        loadQuest(),
+      ]);
       setGroup(g);
       setNewName(g.name);
       setBoard(rows);
     } catch (e) {
       setError(errorMessage(e));
     }
-  }, [id, period]);
+  }, [id, period, loadQuest]);
 
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load])
   );
+
+  // While a quest is voting or running, keep the card fresh
+  const live = quest?.quest && !quest.quest.settled_at && quest.quest.status !== 'cancelled';
+  useEffect(() => {
+    if (!live) return;
+    const t = setInterval(() => loadQuest().catch(() => {}), 60_000);
+    return () => clearInterval(t);
+  }, [live, loadQuest]);
+
+  async function vote(accept: boolean) {
+    if (!quest?.quest) return;
+    setVoting(true);
+    setError(null);
+    try {
+      const status = await voteQuest(quest.quest.id, accept);
+      if (status === 'active') {
+        Alert.alert('Everyone accepted!', 'The quest is locked in. Every step in the window counts.');
+      }
+      await loadQuest();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setVoting(false);
+    }
+  }
+
+  function confirmDecline() {
+    Alert.alert('Decline the quest?', 'This cancels it for the whole group.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Decline', style: 'destructive', onPress: () => vote(false) },
+    ]);
+  }
+
+  async function sendSteps() {
+    await refreshSteps(); // reads and uploads my quest steps
+    await loadQuest().catch((e) => setError(errorMessage(e)));
+  }
 
   async function pullToRefresh() {
     setRefreshing(true);
@@ -125,6 +187,25 @@ export default function GroupDetailScreen() {
         <Section>
           <ThemedText type="small" themeColor="danger">
             {error}
+          </ThemedText>
+        </Section>
+      )}
+
+      {quest && (
+        <QuestCard
+          data={quest}
+          myId={myId}
+          busy={voting}
+          onPropose={() => router.push({ pathname: '/propose-quest', params: { groupId: id } })}
+          onVote={(accept) => (accept ? vote(true) : confirmDecline())}
+          onSendSteps={sendSteps}
+        />
+      )}
+
+      {stepsError?.startsWith("Couldn't send quest steps") && (
+        <Section>
+          <ThemedText type="small" themeColor="danger">
+            {stepsError}
           </ThemedText>
         </Section>
       )}

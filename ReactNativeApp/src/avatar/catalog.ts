@@ -1,3 +1,4 @@
+import { findPet } from './pets';
 import { type AvatarConfig, DEFAULT_AVATAR } from './types';
 
 // Metro needs every require() written out literally; you cannot build the
@@ -326,6 +327,31 @@ export function findItem(slot: Slot, id: string | null | undefined) {
   return CATALOG[slot].find((i) => i.id === id);
 }
 
+/**
+ * Every sprite drawn for this character, in no particular order. Keep in
+ * step with the layers in Avatar.tsx.
+ */
+export function wornLayers(config: AvatarConfig): number[] {
+  const hair = findItem('hair', config.hair);
+  const cape = findItem('cape', config.cape);
+  const outfit = findItem('outfit', config.outfit);
+  const layers = [
+    cape?.back,
+    hair?.back,
+    BODY,
+    outfit ? undefined : findItem('bottom', config.bottom)?.image,
+    findItem('shoes', config.shoes)?.image,
+    outfit ? outfit.image : findItem('top', config.top)?.image,
+    findItem('face', config.face)?.image,
+    findItem('glasses', config.glasses)?.image,
+    hair?.image,
+    findItem('hat', config.hat)?.image,
+    cape?.image,
+    findItem('hand', config.hand)?.image,
+  ];
+  return layers.filter((l): l is number => l !== undefined);
+}
+
 const isHex = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
 
 /**
@@ -355,5 +381,6 @@ export function normalizeAvatar(raw: unknown): AvatarConfig {
     cape: pick('cape'),
     hand: pick('hand'),
     outfit: pick('outfit'),
+    pet: typeof a.pet === 'string' && findPet(a.pet) ? a.pet : null,
   };
 }

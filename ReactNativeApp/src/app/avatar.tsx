@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { saveAvatar } from '@/api/avatar';
@@ -8,9 +8,12 @@ import { coinErrorMessage, listOwnedItems, listShopPrices } from '@/api/coins';
 import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
 import { CATALOG, findItem, OPTIONAL_SLOTS, type Slot, wear } from '@/avatar/catalog';
+import { Pet } from '@/avatar/Pet';
+import { findPet, PETS } from '@/avatar/pets';
 import { type AvatarConfig, DEFAULT_AVATAR, HAIR_COLORS, SKIN_TONES } from '@/avatar/types';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { WalkingScene } from '@/components/walking-scene';
 import { Button } from '@/components/ui/button';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useMapTheme } from '@/hooks/use-map-theme';
@@ -143,6 +146,8 @@ function BackgroundPicker({ prices }: { prices: Record<string, number> }) {
 export default function AvatarEditorScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const { theme: mapTheme } = useMapTheme();
   const { session, profile, reloadProfile } = useAuth();
   const [avatar, setAvatar] = useState<AvatarConfig>(profile?.avatar ?? DEFAULT_AVATAR);
   const [saving, setSaving] = useState(false);
@@ -204,13 +209,20 @@ export default function AvatarEditorScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      {/* Big preview stays put while the options scroll underneath */}
-      <ThemedView type="backgroundElement" style={[styles.preview, { paddingTop: Spacing.four }]}>
-        <Avatar config={avatar} scale={4} accessibilityLabel="Your character" />
-        <ThemedText type="small" themeColor="textSecondary" style={styles.status}>
+      {/* Big preview stays put while the options scroll underneath: the
+          character walking through your map, as on the player card */}
+      <WalkingScene
+        theme={mapTheme}
+        avatar={avatar}
+        label="Your character"
+        width={windowWidth}
+        scale={4}
+      />
+      <View style={[styles.status, { backgroundColor: mapTheme.ground }]}>
+        <ThemedText type="small" style={{ color: mapTheme.ink }}>
           {saving ? 'Saving…' : 'Changes save automatically'}
         </ThemedText>
-      </ThemedView>
+      </View>
 
       <ScrollView
         contentContainerStyle={[
@@ -276,6 +288,35 @@ export default function AvatarEditorScreen() {
             </View>
           ))}
 
+          <View style={styles.slot}>
+            <ThemedText type="smallBold">
+              Pet
+              <ThemedText type="small" themeColor="textSecondary">
+                {'  '}
+                {findPet(avatar.pet)?.label ?? 'None'}
+              </ThemedText>
+            </ThemedText>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.row}>
+                <Tile label="No pet" selected={avatar.pet === null} onPress={() => set({ pet: null })}>
+                  <View style={styles.petBox} />
+                </Tile>
+                {PETS.map((p) => (
+                  <Tile
+                    key={p.id}
+                    label={p.label}
+                    selected={avatar.pet === p.id}
+                    lockedPrice={lockedPrice(p.id)}
+                    onPress={() => set({ pet: p.id })}>
+                    <View style={styles.petBox}>
+                      <Pet id={p.id} scale={4} />
+                    </View>
+                  </Tile>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+
           <BackgroundPicker prices={prices} />
 
           <ThemedText type="small" themeColor="textSecondary">
@@ -302,12 +343,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  preview: {
+  petBox: {
+    width: 64,
+    height: 64,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: Spacing.three,
   },
   status: {
-    marginTop: Spacing.two,
+    alignItems: 'center',
+    paddingVertical: Spacing.two,
   },
   content: {
     flexDirection: 'row',

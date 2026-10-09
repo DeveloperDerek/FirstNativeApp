@@ -24,7 +24,7 @@ const CRISP = { filter: FilterMode.Nearest, mipmap: MipmapMode.None };
 // so a leaderboard of 20 people doesn't decode 160 images.
 const decoded = new Map<number, Promise<SkImage | null>>();
 
-function loadSprite(source: number) {
+export function loadSprite(source: number) {
   let promise = decoded.get(source);
   if (!promise) {
     promise = loadData(source, (data) => Skia.Image.MakeImageFromEncoded(data));

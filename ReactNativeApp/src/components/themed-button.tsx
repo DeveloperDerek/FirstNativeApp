@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 
+import { GameFont } from '@/constants/theme';
 import type { MapTheme } from '@/track/themes';
 
 const OUTLINE = '#2a1a1a';
@@ -83,7 +84,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   text: {
-    fontWeight: 'bold',
+    fontFamily: GameFont.bold,
     fontSize: 14,
   },
 });

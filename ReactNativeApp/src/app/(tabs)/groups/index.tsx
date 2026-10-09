@@ -4,12 +4,14 @@ import { Pressable } from 'react-native';
 
 import { createGroup, type Group, joinGroup, listMyGroups } from '@/api/groups';
 import { useAuth } from '@/auth/AuthProvider';
+import { QuestBanners } from '@/components/quest-banners';
 import { SharingRequired } from '@/components/sharing-required';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Row, Section } from '@/components/ui/section';
 import { TextField } from '@/components/ui/text-field';
+import { useSteps } from '@/hooks/use-steps';
 import { errorMessage } from '@/lib/error-message';
 
 export default function GroupsScreen() {
@@ -24,15 +26,17 @@ export default function GroupsScreen() {
   const [busy, setBusy] = useState<'create' | 'join' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { refreshQuests } = useSteps();
 
   const load = useCallback(async () => {
     if (!sharing) return;
     try {
-      setGroups(await listMyGroups());
+      const [list] = await Promise.all([listMyGroups(), refreshQuests()]);
+      setGroups(list);
     } catch (e) {
       setError(errorMessage(e));
     }
-  }, [sharing]);
+  }, [sharing, refreshQuests]);
 
   useFocusEffect(
     useCallback(() => {
@@ -94,6 +98,8 @@ export default function GroupsScreen() {
           </ThemedText>
         </Section>
       )}
+
+      <QuestBanners />
 
       <Section title="Your groups">
         {groups.length === 0 && (
