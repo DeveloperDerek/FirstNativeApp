@@ -43,8 +43,19 @@ export function PeriodPicker({
   );
 }
 
-/** Ranked list of step totals with a bar relative to the leader. */
-export function Leaderboard({ rows, myId }: { rows: LeaderboardRow[]; myId?: string }) {
+/**
+ * Ranked list of step totals with a bar relative to the leader. With
+ * onSelect, each row is a button (with an arrow) that opens that person.
+ */
+export function Leaderboard({
+  rows,
+  myId,
+  onSelect,
+}: {
+  rows: LeaderboardRow[];
+  myId?: string;
+  onSelect?: (row: LeaderboardRow) => void;
+}) {
   const theme = useTheme();
   const max = Math.max(1, ...rows.map((r) => Number(r.total_steps)));
 
@@ -59,8 +70,8 @@ export function Leaderboard({ rows, myId }: { rows: LeaderboardRow[]; myId?: str
         const steps = Number(r.total_steps); // bigint arrives as a number or string
         const isMe = r.user_id === myId;
         const name = r.display_name || 'Unnamed';
-        return (
-          <View key={r.user_id} style={styles.entry}>
+        const entry = (
+          <View style={[styles.entry, onSelect && styles.tappable]}>
             <Avatar
               config={normalizeAvatar(r.avatar)}
               scale={1}
@@ -88,7 +99,26 @@ export function Leaderboard({ rows, myId }: { rows: LeaderboardRow[]; myId?: str
                 />
               </ThemedView>
             </View>
+            {onSelect && (
+              // The usual hint that a row opens something
+              <ThemedText themeColor="textSecondary" style={styles.arrow}>
+                ›
+              </ThemedText>
+            )}
           </View>
+        );
+        return onSelect ? (
+          <Pressable
+            key={r.user_id}
+            onPress={() => onSelect(r)}
+            accessibilityRole="button"
+            accessibilityLabel={`${i + 1}. ${name}${isMe ? ' (you)' : ''}, ${steps.toLocaleString()} steps`}
+            accessibilityHint="Opens their profile"
+            style={({ pressed }) => pressed && styles.pressed}>
+            {entry}
+          </Pressable>
+        ) : (
+          <View key={r.user_id}>{entry}</View>
         );
       })}
     </Section>
@@ -114,6 +144,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
+  },
+  tappable: {
+    minHeight: 56, // easy to hit; keep it above 44
+  },
+  arrow: {
+    fontSize: 24,
+    lineHeight: 28,
+  },
+  pressed: {
+    opacity: 0.6,
   },
   row: {
     flex: 1,

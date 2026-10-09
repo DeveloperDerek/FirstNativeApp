@@ -18,6 +18,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { CheckinCountdown } from '@/components/checkin-countdown';
 import { CoinBalance } from '@/components/coin-balance';
 import { Leaderboard } from '@/components/leaderboard';
+import { PlayerCard } from '@/components/player-card';
 import { SharingRequired } from '@/components/sharing-required';
 import { ThemedButton } from '@/components/themed-button';
 import { ThemedText } from '@/components/themed-text';
@@ -56,6 +57,9 @@ export default function TodayScreen() {
   const [board, setBoard] = useState<{ key: string; rows: LeaderboardRow[] } | null>(null);
   const [boardError, setBoardError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // The person whose profile card is open. Looked up by id each render,
+  // so the step count on an open card stays current when the board refreshes.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // You always see YOUR map, even in Friends and Group modes. It is
   // chosen on the Profile page.
@@ -139,6 +143,7 @@ export default function TodayScreen() {
     .sort((a, b) => b.steps - a.steps)
     .map((w) => ({ user_id: w.id, display_name: w.name, avatar: w.avatar, total_steps: w.steps }));
   const ink = { color: theme.ink };
+  const selected = walkers.find((w) => w.id === selectedId) ?? null;
 
   return (
     // The ground color fills the whole screen, down to the bottom edge
@@ -239,7 +244,10 @@ export default function TodayScreen() {
                   Showing the top {MAX_ON_TRACK} and you on the road. Everyone is listed below.
                 </ThemedText>
               )}
-              <Leaderboard rows={ranked} myId={myId} />
+              <ThemedText type="small" style={ink}>
+                Tap a name to see their profile.
+              </ThemedText>
+              <Leaderboard rows={ranked} myId={myId} onSelect={(r) => setSelectedId(r.user_id)} />
               <ThemedText type="small" style={ink}>
                 Others move when their app syncs. Someone who has not opened StepTracker today
                 shows at 0.
@@ -285,6 +293,13 @@ export default function TodayScreen() {
           </ThemedText>
         </View>
       </ScrollView>
+
+      {/* Opens over the page (and the tab bar) when a ranking row is tapped */}
+      <PlayerCard
+        walker={selected}
+        onClose={() => setSelectedId(null)}
+        onEditMine={() => router.navigate('/profile')}
+      />
     </View>
   );
 }
