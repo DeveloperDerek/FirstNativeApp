@@ -23,7 +23,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { loadPlayerProfile, type PlayerProfile } from '@/api/players';
+import { loadPlayerProfile, type PlayerProfile, timeAgo } from '@/api/players';
 import { Avatar } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
 import type { AvatarConfig } from '@/avatar/types';
@@ -139,6 +139,9 @@ export function PlayerCard({
             <ThemedText style={{ color: ink }}>
               Today: {walker.steps.toLocaleString()} steps
             </ThemedText>
+            {profile?.lastSeen && (
+              <ThemedText style={{ color: ink }}>Last seen {timeAgo(profile.lastSeen)}</ThemedText>
+            )}
             {failed && (
               <ThemedText type="small" style={{ color: ink }}>
                 Could not load the rest of this profile.

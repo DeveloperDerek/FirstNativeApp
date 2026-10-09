@@ -5,6 +5,7 @@ import { useColorScheme } from 'react-native';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { MapThemeProvider } from '@/hooks/use-map-theme';
+import { useMarkSeen } from '@/hooks/use-mark-seen';
 import { WalletProvider } from '@/hooks/use-wallet';
 
 SplashScreen.preventAutoHideAsync();
@@ -29,6 +30,7 @@ export default function RootLayout() {
 // consent screen, character editor and shop as modals.
 function RootNavigator() {
   const { session, loading } = useAuth();
+  useMarkSeen(session?.user.id);
   if (loading) return null; // reading the saved session takes a moment
 
   return (

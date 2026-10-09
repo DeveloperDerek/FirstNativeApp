@@ -9,6 +9,8 @@
 --     can sign in as them), marked fake in its app metadata
 --   - a character and background, with the paid items given to them
 --   - step sharing turned on and 8 days of steps, including today
+--   - a "Last seen" time from just now to yesterday (Ava has none, to
+--     show a card without it); times count back from when you run this
 --   - an accepted friendship with you
 
 do $$
@@ -89,6 +91,20 @@ begin
   from fake_players f
   cross join generate_series(0, 7) as d
   on conflict (user_id, day) do update set steps = excluded.steps;
+
+  -- Last seen, spread out so the card shows each kind of wording
+  insert into public.last_seen (user_id, seen_at)
+  select id, now() - ago
+  from (values
+    ('f4ce0001-0000-4000-8000-000000000001'::uuid, interval '2 minutes'),
+    ('f4ce0002-0000-4000-8000-000000000002', interval '25 minutes'),
+    ('f4ce0003-0000-4000-8000-000000000003', interval '3 hours'),
+    ('f4ce0004-0000-4000-8000-000000000004', interval '20 seconds'),
+    ('f4ce0005-0000-4000-8000-000000000005', interval '26 hours'),
+    ('f4ce0006-0000-4000-8000-000000000006', interval '1 hour'),
+    ('f4ce0007-0000-4000-8000-000000000007', interval '9 hours')
+  ) as t(id, ago)
+  on conflict (user_id) do update set seen_at = excluded.seen_at;
 
   -- Accepted friendships with you (one row per pair, either direction)
   insert into public.friendships (requester_id, addressee_id, status)
