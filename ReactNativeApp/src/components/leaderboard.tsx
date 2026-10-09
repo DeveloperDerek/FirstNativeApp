@@ -1,4 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 
 import type { LeaderboardRow, Period } from '@/api/steps';
 import { Avatar } from '@/avatar/Avatar';
@@ -46,15 +48,18 @@ export function PeriodPicker({
 /**
  * Ranked list of step totals with a bar relative to the leader. With
  * onSelect, each row is a button (with an arrow) that opens that person.
+ * With onRemove, everyone else's row swipes left to show a Remove button.
  */
 export function Leaderboard({
   rows,
   myId,
   onSelect,
+  onRemove,
 }: {
   rows: LeaderboardRow[];
   myId?: string;
   onSelect?: (row: LeaderboardRow) => void;
+  onRemove?: (row: LeaderboardRow) => void;
 }) {
   const theme = useTheme();
   const max = Math.max(1, ...rows.map((r) => Number(r.total_steps)));
@@ -107,7 +112,7 @@ export function Leaderboard({
             )}
           </View>
         );
-        return onSelect ? (
+        const item = onSelect ? (
           <Pressable
             key={r.user_id}
             onPress={() => onSelect(r)}
@@ -120,8 +125,67 @@ export function Leaderboard({
         ) : (
           <View key={r.user_id}>{entry}</View>
         );
+        if (!onRemove || isMe) return item;
+        return (
+          <Swipeable
+            key={r.user_id}
+            friction={2}
+            rightThreshold={40}
+            overshootRight={false}
+            renderRightActions={(progress, _translation, swipeable) => (
+              <RemoveAction
+                progress={progress}
+                name={name}
+                onPress={() => {
+                  swipeable.close();
+                  onRemove(r);
+                }}
+              />
+            )}>
+            {/* Swiping isn't reachable with a screen reader, so offer it as an action too */}
+            <View
+              accessible
+              accessibilityLabel={`${i + 1}. ${name}, ${steps.toLocaleString()} steps`}
+              accessibilityHint="Swipe left to remove from the group"
+              accessibilityActions={[{ name: 'remove', label: 'Remove from group' }]}
+              onAccessibilityAction={(e) => e.nativeEvent.actionName === 'remove' && onRemove(r)}
+              style={styles.swipeRow}>
+              {item}
+            </View>
+          </Swipeable>
+        );
       })}
     </Section>
+  );
+}
+
+/**
+ * The red button a swipe uncovers. It sits behind the row, which has no
+ * background of its own, so it stays invisible until the row moves.
+ */
+function RemoveAction({
+  progress,
+  name,
+  onPress,
+}: {
+  progress: SharedValue<number>;
+  name: string;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  const fade = useAnimatedStyle(() => ({ opacity: Math.min(1, progress.value) }));
+  return (
+    <Animated.View style={fade}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Remove ${name} from the group`}
+        style={[styles.remove, { backgroundColor: theme.danger }]}>
+        <ThemedText type="smallBold" style={styles.removeText}>
+          Remove
+        </ThemedText>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -154,6 +218,20 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.6,
+  },
+  swipeRow: {
+    minHeight: 56, // room to grab the row
+    justifyContent: 'center',
+  },
+  remove: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.four,
+    marginLeft: Spacing.two,
+    borderRadius: Spacing.two,
+  },
+  removeText: {
+    color: '#fff',
   },
   row: {
     flex: 1,

@@ -54,6 +54,11 @@ export async function joinGroup(inviteCode: string): Promise<string> {
 }
 
 export async function leaveGroup(groupId: string, userId: string) {
+  await removeMember(groupId, userId);
+}
+
+// Owner only for anyone but yourself (RLS "members leave or kick")
+export async function removeMember(groupId: string, userId: string) {
   const { error } = await supabase
     .from('group_members')
     .delete()

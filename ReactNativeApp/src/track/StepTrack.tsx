@@ -11,7 +11,6 @@ import {
 import { Avatar, HEADROOM, PixelSprite } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
 
 import { assignLanes, centerFor, formatSteps, GOAL, roadWidth, scaleMax, ticksFor } from './scale';
 import type { MapTheme } from './themes';
@@ -228,14 +227,6 @@ export function StepTrack({ walkers, theme }: { walkers: Walker[]; theme: MapThe
           </View>
         </ScrollView>
       </View>
-
-      {max > GOAL && (
-        <ThemedText
-          type="small"
-          style={[styles.extended, { color: theme.ink, backgroundColor: theme.ground }]}>
-          Road extended to {max.toLocaleString()} steps
-        </ThemedText>
-      )}
     </View>
   );
 }
@@ -290,9 +281,5 @@ const styles = StyleSheet.create({
   tickLabel: {
     fontSize: 11,
     lineHeight: 16,
-  },
-  extended: {
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.two,
   },
 });

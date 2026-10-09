@@ -1,6 +1,7 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { StyleSheet, useColorScheme } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
@@ -15,16 +16,19 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   useWebFonts();
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AuthProvider>
-        <WalletProvider>
-          <MapThemeProvider>
-            <RootNavigator />
-            <AnimatedSplashOverlay />
-          </MapThemeProvider>
-        </WalletProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    // Swipe gestures (leaderboard rows) need this at the root
+    <GestureHandlerRootView style={styles.root}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <AuthProvider>
+          <WalletProvider>
+            <MapThemeProvider>
+              <RootNavigator />
+              <AnimatedSplashOverlay />
+            </MapThemeProvider>
+          </WalletProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -50,3 +54,9 @@ function RootNavigator() {
     </Stack>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});

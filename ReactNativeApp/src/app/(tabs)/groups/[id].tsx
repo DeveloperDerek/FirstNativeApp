@@ -8,6 +8,7 @@ import {
   type Group,
   groupLeaderboard,
   leaveGroup,
+  removeMember,
   renameGroup,
 } from '@/api/groups';
 import { getGroupQuest, type GroupQuest, markQuestSeen, voteQuest } from '@/api/quests';
@@ -157,6 +158,25 @@ export default function GroupDetailScreen() {
     ]);
   }
 
+  function confirmRemove(row: LeaderboardRow) {
+    const name = row.display_name || 'this member';
+    Alert.alert(`Remove ${name}?`, 'They will stop seeing this group. They can rejoin with the invite code.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await removeMember(id, row.user_id);
+            await load();
+          } catch (e) {
+            setError(errorMessage(e));
+          }
+        },
+      },
+    ]);
+  }
+
   function confirmDelete() {
     Alert.alert('Delete group?', 'This removes the group for every member. This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
@@ -211,7 +231,12 @@ export default function GroupDetailScreen() {
       )}
 
       <PeriodPicker value={period} onChange={setPeriod} />
-      <Leaderboard rows={board} myId={myId} />
+      <Leaderboard rows={board} myId={myId} onRemove={isOwner ? confirmRemove : undefined} />
+      {isOwner && board.length > 1 && (
+        <ThemedText type="small" themeColor="textSecondary">
+          Swipe a member left to remove them.
+        </ThemedText>
+      )}
 
       {group && (
         <Section title="Invite">
