@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -7,7 +7,7 @@ import { saveAvatar } from '@/api/avatar';
 import { coinErrorMessage, listOwnedItems, listShopPrices } from '@/api/coins';
 import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
-import { CATALOG, OPTIONAL_SLOTS, type Slot, wear } from '@/avatar/catalog';
+import { CATALOG, findItem, OPTIONAL_SLOTS, type Slot, wear } from '@/avatar/catalog';
 import { type AvatarConfig, DEFAULT_AVATAR, HAIR_COLORS, SKIN_TONES } from '@/avatar/types';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -61,7 +61,8 @@ function Swatches({
   );
 }
 
-/** A choice shown as a small preview of the character wearing it. */
+/** A choice shown as a small preview of the character wearing it. The
+ * name only appears in the slot heading once the item is picked. */
 function Tile({
   preview,
   label,
@@ -92,9 +93,6 @@ function Tile({
         <View style={locked && styles.locked}>
           <Avatar config={preview} scale={2} accessibilityLabel={label} />
         </View>
-        <ThemedText type="small" numberOfLines={1} style={styles.tileLabel}>
-          {label}
-        </ThemedText>
         {locked && (
           <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
             🔒 {lockedPrice.toLocaleString()}
@@ -130,25 +128,51 @@ export default function AvatarEditorScreen() {
 
   const set = (patch: Partial<AvatarConfig>) => setAvatar((a) => ({ ...a, ...patch }));
 
-  async function save() {
-    if (!session) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await saveAvatar(session.user.id, avatar);
-      await reloadProfile();
-      router.back();
-    } catch (e) {
-      setError(coinErrorMessage(e, 'Could not save your character. Try again.'));
-      setSaving(false);
-    }
-  }
+  // Every change saves on its own after a short pause, so tapping through
+  // colors doesn't send one save per tap. Saves run one at a time, in order.
+  const lastSaved = useRef(JSON.stringify(avatar));
+  const pending = useRef<AvatarConfig | null>(null);
+  const queue = useRef(Promise.resolve());
+
+  const flush = useCallback(() => {
+    const next = pending.current;
+    pending.current = null;
+    if (!next || !session) return;
+    queue.current = queue.current.then(async () => {
+      const key = JSON.stringify(next);
+      if (key === lastSaved.current) return;
+      setSaving(true);
+      try {
+        await saveAvatar(session.user.id, next);
+        lastSaved.current = key;
+        setError(null);
+        await reloadProfile();
+      } catch (e) {
+        setError(coinErrorMessage(e, 'Could not save your character. Try again.'));
+      } finally {
+        setSaving(false);
+      }
+    });
+  }, [session, reloadProfile]);
+
+  useEffect(() => {
+    if (JSON.stringify(avatar) === lastSaved.current) return;
+    pending.current = avatar;
+    const timer = setTimeout(flush, 400);
+    return () => clearTimeout(timer);
+  }, [avatar, flush]);
+
+  // Closing the editor before the pause ends still saves the last change.
+  useEffect(() => () => flush(), [flush]);
 
   return (
     <ThemedView style={styles.container}>
       {/* Big preview stays put while the options scroll underneath */}
       <ThemedView type="backgroundElement" style={[styles.preview, { paddingTop: Spacing.four }]}>
         <Avatar config={avatar} scale={4} accessibilityLabel="Your character" />
+        <ThemedText type="small" themeColor="textSecondary" style={styles.status}>
+          {saving ? 'Saving…' : 'Changes save automatically'}
+        </ThemedText>
       </ThemedView>
 
       <ScrollView
@@ -175,7 +199,13 @@ export default function AvatarEditorScreen() {
 
           {SLOTS.map(({ slot, title }) => (
             <View key={slot} style={styles.slot}>
-              <ThemedText type="smallBold">{title}</ThemedText>
+              <ThemedText type="smallBold">
+                {title}
+                <ThemedText type="small" themeColor="textSecondary">
+                  {'  '}
+                  {findItem(slot, avatar[slot])?.label ?? 'None'}
+                </ThemedText>
+              </ThemedText>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.row}>
                   {OPTIONAL_SLOTS.has(slot) && (
@@ -213,8 +243,7 @@ export default function AvatarEditorScreen() {
             </ThemedText>
           )}
           <View style={styles.buttons}>
-            <Button title="Save" onPress={save} loading={saving} />
-            <Button title="Cancel" variant="secondary" onPress={() => router.back()} />
+            <Button title="Done" onPress={() => router.back()} />
           </View>
         </View>
       </ScrollView>
@@ -229,6 +258,9 @@ const styles = StyleSheet.create({
   preview: {
     alignItems: 'center',
     paddingBottom: Spacing.three,
+  },
+  status: {
+    marginTop: Spacing.two,
   },
   content: {
     flexDirection: 'row',
@@ -270,9 +302,6 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.three,
     borderWidth: 2,
     width: 88,
-  },
-  tileLabel: {
-    marginTop: Spacing.one,
   },
   pressed: {
     opacity: 0.7,
