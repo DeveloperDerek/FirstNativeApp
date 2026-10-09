@@ -14,7 +14,9 @@ import { BODY, findItem } from './catalog';
 import type { AvatarConfig } from './types';
 
 export const SPRITE_W = 32;
-export const SPRITE_H = 48;
+// 48 rows of character plus 8 rows of headroom above it for tall hats
+export const SPRITE_H = 56;
+export const HEADROOM = 8;
 // Nearest-neighbor sampling keeps pixel art crisp when scaled up.
 const CRISP = { filter: FilterMode.Nearest, mipmap: MipmapMode.None };
 
@@ -78,6 +80,9 @@ type AvatarProps = {
 
 export function Avatar({ config, scale = 4, accessibilityLabel = 'Character' }: AvatarProps) {
   const hair = findItem('hair', config.hair);
+  const cape = findItem('cape', config.cape);
+  // A one-piece outfit is drawn instead of the top and bottom
+  const outfit = findItem('outfit', config.outfit);
   return (
     <Canvas
       style={{ width: SPRITE_W * scale, height: SPRITE_H * scale }}
@@ -85,14 +90,18 @@ export function Avatar({ config, scale = 4, accessibilityLabel = 'Character' }: 
       accessibilityRole="image"
       accessibilityLabel={accessibilityLabel}>
       {/* Back to front */}
+      <Layer source={cape?.back} scale={scale} />
       <Layer source={hair?.back} scale={scale} tint={config.hairColor} />
       <Layer source={BODY} scale={scale} tint={config.skin} />
-      <Layer source={findItem('bottom', config.bottom)?.image} scale={scale} />
+      {!outfit && <Layer source={findItem('bottom', config.bottom)?.image} scale={scale} />}
       <Layer source={findItem('shoes', config.shoes)?.image} scale={scale} />
-      <Layer source={findItem('top', config.top)?.image} scale={scale} />
+      <Layer source={outfit ? outfit.image : findItem('top', config.top)?.image} scale={scale} />
       <Layer source={findItem('face', config.face)?.image} scale={scale} />
+      <Layer source={findItem('glasses', config.glasses)?.image} scale={scale} />
       <Layer source={hair?.image} scale={scale} tint={config.hairColor} />
       <Layer source={findItem('hat', config.hat)?.image} scale={scale} />
+      <Layer source={cape?.image} scale={scale} />
+      <Layer source={findItem('hand', config.hand)?.image} scale={scale} />
     </Canvas>
   );
 }

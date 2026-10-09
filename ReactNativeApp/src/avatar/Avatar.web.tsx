@@ -5,7 +5,8 @@ import { BODY, findItem } from './catalog';
 import type { AvatarConfig } from './types';
 
 const SPRITE_W = 32;
-const SPRITE_H = 48;
+const SPRITE_H = 56; // includes 8 rows of headroom, like Avatar.tsx
+export const HEADROOM = 8;
 
 // Web fallback: Skia on web needs CanvasKit loaded first, which this app
 // doesn't set up. Stack the layers as plain images instead. Body and hair
@@ -20,15 +21,21 @@ export function Avatar({
   accessibilityLabel?: string;
 }) {
   const hair = findItem('hair', config.hair);
+  const cape = findItem('cape', config.cape);
+  const outfit = findItem('outfit', config.outfit);
   const layers = [
+    cape?.back,
     hair?.back,
     BODY,
-    findItem('bottom', config.bottom)?.image,
+    outfit ? undefined : findItem('bottom', config.bottom)?.image,
     findItem('shoes', config.shoes)?.image,
-    findItem('top', config.top)?.image,
+    outfit ? outfit.image : findItem('top', config.top)?.image,
     findItem('face', config.face)?.image,
+    findItem('glasses', config.glasses)?.image,
     hair?.image,
     findItem('hat', config.hat)?.image,
+    cape?.image,
+    findItem('hand', config.hand)?.image,
   ];
   const size = { width: SPRITE_W * scale, height: SPRITE_H * scale };
   return (

@@ -7,7 +7,7 @@ import { saveAvatar } from '@/api/avatar';
 import { coinErrorMessage, listOwnedItems, listShopPrices } from '@/api/coins';
 import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
-import { CATALOG, OPTIONAL_SLOTS, type Slot } from '@/avatar/catalog';
+import { CATALOG, OPTIONAL_SLOTS, type Slot, wear } from '@/avatar/catalog';
 import { type AvatarConfig, DEFAULT_AVATAR, HAIR_COLORS, SKIN_TONES } from '@/avatar/types';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -18,11 +18,16 @@ import { useTheme } from '@/hooks/use-theme';
 const SLOTS: { slot: Slot; title: string }[] = [
   { slot: 'hair', title: 'Hair' },
   { slot: 'face', title: 'Face' },
+  { slot: 'glasses', title: 'Face accessory' },
+  { slot: 'hat', title: 'Hat' },
+  { slot: 'outfit', title: 'Outfit' },
   { slot: 'top', title: 'Top' },
   { slot: 'bottom', title: 'Bottom' },
   { slot: 'shoes', title: 'Shoes' },
-  { slot: 'hat', title: 'Hat' },
+  { slot: 'cape', title: 'Cape and wings' },
+  { slot: 'hand', title: 'Held item' },
 ];
+
 
 function Swatches({
   colors,
@@ -176,19 +181,19 @@ export default function AvatarEditorScreen() {
                   {OPTIONAL_SLOTS.has(slot) && (
                     <Tile
                       label="None"
-                      preview={{ ...avatar, [slot]: null }}
+                      preview={{ ...avatar, ...wear(slot, null) }}
                       selected={avatar[slot] === null}
-                      onPress={() => set({ [slot]: null })}
+                      onPress={() => set(wear(slot, null))}
                     />
                   )}
                   {CATALOG[slot].map((item) => (
                     <Tile
                       key={item.id}
                       label={item.label}
-                      preview={{ ...avatar, [slot]: item.id }}
+                      preview={{ ...avatar, ...wear(slot, item.id) }}
                       selected={avatar[slot] === item.id}
                       lockedPrice={lockedPrice(item.id)}
-                      onPress={() => set({ [slot]: item.id })}
+                      onPress={() => set(wear(slot, item.id))}
                     />
                   ))}
                 </View>

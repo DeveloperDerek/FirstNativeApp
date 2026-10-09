@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 
-import { Avatar, PixelSprite } from '@/avatar/Avatar';
+import { Avatar, HEADROOM, PixelSprite } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
 import { ThemedButton } from '@/components/themed-button';
 import { ThemedText } from '@/components/themed-text';
@@ -277,6 +277,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   walkerLabel: {
+    // Over the sprite's empty headroom, so the name sits just above the
+    // head; drawn on top so a tall hat never hides it
+    marginBottom: -HEADROOM * SCALE,
+    zIndex: 1,
     height: LABEL_H,
     fontSize: 11,
     lineHeight: LABEL_H,

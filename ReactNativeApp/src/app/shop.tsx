@@ -5,7 +5,7 @@ import { Alert, Image, StyleSheet, View } from 'react-native';
 import { type DailyShop, listDailyShop, listOwnedItems, purchaseItem } from '@/api/coins';
 import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
-import { CATALOG, type Slot } from '@/avatar/catalog';
+import { CATALOG, type Slot, wear } from '@/avatar/catalog';
 import { DEFAULT_AVATAR } from '@/avatar/types';
 import { CoinBalance } from '@/components/coin-balance';
 import { GroundText } from '@/components/ground-text';
@@ -191,7 +191,7 @@ export default function ShopScreen() {
               ) : (
                 // Preview: your own character wearing this item
                 <Avatar
-                  config={{ ...character, [item.slot]: item.id }}
+                  config={{ ...character, ...wear(item.slot, item.id) }}
                   scale={2}
                   accessibilityLabel={`Your character wearing ${item.label}`}
                 />

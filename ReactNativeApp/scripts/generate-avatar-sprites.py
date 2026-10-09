@@ -4,8 +4,9 @@ Generates the placeholder sprites in assets/avatar/, assets/track/ and
 assets/maps/ (one folder per map theme).
 
 Original art drawn in code, following the spec in step-tracker-stage3.txt:
-every layer is a 32 x 48 PNG with a transparent background, feet on row
-46, a 1-pixel dark outline, no anti-aliasing (every pixel fully opaque or
+every layer is a 32 x 56 PNG with a transparent background: the 32 x 48
+character, feet on its row 46, plus HEADROOM rows above it for tall hats,
+ears and held items (drawing rows -8 to -1), a 1-pixel dark outline, no anti-aliasing (every pixel fully opaque or
 fully transparent), light from the top-left with one shadow tone per
 color. Body and hair are grayscale so the app can tint them.
 
@@ -19,6 +20,7 @@ import struct
 import zlib
 
 W, H = 32, 48
+HEADROOM = 8  # extra transparent rows above the character in every export
 OUT = os.path.join(os.path.dirname(__file__), '..', 'assets', 'avatar')
 
 OUTLINE = (0x3A, 0x2A, 0x2A)
@@ -49,11 +51,11 @@ def mirror(points):
 
 
 # ---------------------------------------------------------------- painting
-def shade(mask, base, shadow, outline, size=(W, H)):
+def shade(mask, base, shadow, outline, size=(W, H), top=0):
     """Outline the edge of a shape and shade its bottom/right inner band."""
     px = {}
     for x, y in mask:
-        if not (0 <= x < size[0] and 0 <= y < size[1]):
+        if not (0 <= x < size[0] and top <= y < size[1]):
             continue
         if any((x + dx, y + dy) not in mask for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
             px[(x, y)] = outline
@@ -68,9 +70,11 @@ class Layer:
     def __init__(self, size=(W, H)):
         self.px = {}
         self.size = size
+        # Character layers can draw into the headroom (negative rows)
+        self.top = -HEADROOM if size == (W, H) else 0
 
     def part(self, mask, base, shadow, outline=OUTLINE):
-        self.px.update(shade(mask, base, shadow, outline, self.size))
+        self.px.update(shade(mask, base, shadow, outline, self.size, self.top))
         return self
 
     def dots(self, color, points):
@@ -81,12 +85,13 @@ class Layer:
     def save(self, name, size=None, folder=None, scale=1, suffix=''):
         LAYERS[name] = dict(self.px)
         w, h = size or self.size
+        h -= self.top  # headroom rows go above row 0
         w, h = w * scale, h * scale
         rows = []
         for y in range(h):
             row = bytearray([0])  # filter type: none
             for x in range(w):
-                c = self.px.get((x // scale, y // scale))  # nearest neighbor
+                c = self.px.get((x // scale, y // scale + self.top))  # nearest neighbor
                 row += bytes((*c, 255)) if c else bytes(4)
             rows.append(bytes(row))
         raw = b''.join(rows)
@@ -323,6 +328,620 @@ def hat_crown(name, color):
     layer.save(name)
 
 
+# ================================================================ shop collection
+# The bigger item collection: more of every slot, plus four new slots
+# (glasses, cape, hand, outfit). All original designs. Negative rows are
+# the headroom above the head.
+def ring(cx, cy, rx, ry, t=1.4):
+    """Hollow ellipse outline, any canvas."""
+    return ell(cx, cy, rx, ry) - ell(cx, cy, rx - t, ry - t)
+
+
+def band_over_head(y_max=7, t=1.6):
+    """Headband following the top of the head."""
+    return ring(16, 14, 12.6, 12.6, t) & rect(0, -HEADROOM, W - 1, y_max)
+
+
+# ---------------------------------------------------------------- more faces
+TONGUE = hexc('#e87f8f')
+GOLD = hexc('#f2c94c')
+
+
+def face_joy():
+    layer = Layer()
+    for ex in (10, 20):  # ^ ^ eyes
+        layer.dots(EYE_DARK, [(ex - 1, 16), (ex, 15), (ex + 1, 15), (ex + 2, 16)])
+    layer.dots(MOUTH, [(13, 19), (18, 19)] + [(x, 19) for x in range(14, 18)] + [(14, 20), (17, 20), (15, 21), (16, 21)])
+    layer.dots(TONGUE, [(15, 20), (16, 20)])
+    layer.dots(BLUSH, [(8, 18), (9, 18), (22, 18), (23, 18)])
+    layer.save('face_joy')
+
+
+def face_surprised():
+    layer = Layer()
+    for ex in (10, 20):
+        pts, hl = eye(ex, 14)
+        layer.dots(EYE_DARK, pts).dots(WHITE, [hl])
+    layer.dots(OUTLINE, [(9, 11), (10, 10), (11, 10), (20, 10), (21, 10), (22, 11)])
+    layer.dots(MOUTH, [(15, 19), (16, 19), (14, 20), (17, 20), (15, 21), (16, 21)])
+    layer.save('face_surprised')
+
+
+def face_sleepy():
+    layer = Layer()
+    for ex in (10, 20):  # heavy lids
+        layer.dots(EYE_DARK, [(ex - 1, 16), (ex, 16), (ex + 1, 16), (ex + 2, 16), (ex, 17), (ex + 1, 17)])
+    layer.dots(MOUTH, [(15, 20), (16, 20)])
+    layer.dots(hexc('#7fb8e8'), [(25, 10), (26, 10), (26, 11), (25, 12), (26, 12)])  # little z
+    layer.dots(BLUSH, [(8, 18), (9, 18), (22, 18), (23, 18)])
+    layer.save('face_sleepy')
+
+
+def face_starry():
+    layer = Layer()
+    for ex in (10, 20):  # sparkly star eyes
+        star = [(ex, 13), (ex + 1, 13), (ex - 1, 14), (ex, 14), (ex + 1, 14), (ex + 2, 14),
+                (ex, 15), (ex + 1, 15), (ex - 1, 16), (ex + 2, 16)]
+        layer.dots(GOLD, star).dots(WHITE, [(ex, 14)])
+    layer.dots(MOUTH, [(13, 19), (14, 20), (15, 20), (16, 20), (17, 20), (18, 19)])
+    layer.dots(BLUSH, [(8, 18), (9, 18), (22, 18), (23, 18)])
+    layer.save('face_starry')
+
+
+def face_cat():
+    layer = Layer()
+    for ex in (10, 20):
+        pts, hl = eye(ex, 14)
+        layer.dots(EYE_DARK, pts).dots(WHITE, [hl])
+    layer.dots(MOUTH, [(13, 19), (14, 20), (15, 19), (16, 19), (17, 20), (18, 19)])  # w mouth
+    layer.dots(OUTLINE, [(4, 17), (5, 17), (4, 19), (5, 19), (26, 17), (27, 17), (26, 19), (27, 19)])
+    layer.dots(BLUSH, [(8, 18), (9, 18), (22, 18), (23, 18)])
+    layer.save('face_cat')
+
+
+# ---------------------------------------------------------------- more hair (grayscale)
+def hair_bob():
+    fringe = rect(6, 9, 25, 11)  # blunt bangs
+    sides = mirror(rect(3, 8, 6, 20) | rect(4, 21, 7, 21))
+    Layer().part(CAP | fringe | sides, *GRAY).save('hair_bob')
+    back = ell(16, 13, 13.5, 12.5) | rect(3, 13, 28, 21)
+    Layer().part(back, *GRAY).save('hair_bob_back')
+
+
+def hair_twintails():
+    fringe = rect(7, 9, 24, 10) | {(x, 11) for x in range(8, 24) if x % 3}
+    sides = mirror(rect(4, 8, 6, 14))
+    Layer().part(CAP | fringe | sides, *GRAY).save('hair_twintails')
+    tails = ell(16, 12, 13, 11.5) | mirror(ell(3, 12, 3, 3) | ell(2.5, 24, 2.6, 10))
+    Layer().part(tails, *GRAY).save('hair_twintails_back')
+
+
+def hair_afro():
+    puff = ell(16, 8, 15.5, 10.5)
+    front = (puff & rect(0, -HEADROOM, W - 1, 10)) | mirror(puff & rect(0, 0, 4, 18))
+    Layer().part(front, *GRAY).save('hair_afro')
+    Layer().part(ell(16, 10, 15.5, 12), *GRAY).save('hair_afro_back')
+
+
+def hair_mohawk():
+    buzz = ell(16, 13, 12, 11.5) & rect(0, 0, W - 1, 7)
+    # A narrow crest of three spikes down the middle
+    crest = rect(14, 0, 17, 6)
+    for cx, apex in ((13, -3), (16, -7), (19, -4)):
+        crest |= {(x, y) for y in range(apex, 1) for x in range(cx - (y - apex) // 2, cx + 1 + (y - apex) // 2)}
+    layer = Layer().part(buzz | mirror(rect(4, 7, 5, 10)), (230, 230, 230), (200, 200, 200), GRAY_OUTLINE)
+    layer.part(crest & rect(11, -HEADROOM, 20, 6), *GRAY)
+    layer.save('hair_mohawk')
+
+
+def hair_bun():
+    fringe = rect(7, 9, 24, 10) | {(x, 11) for x in range(18, 25)}
+    sides = mirror(rect(4, 8, 6, 14))
+    bun = ell(16, -1, 5.5, 4.5)
+    Layer().part(bun, *GRAY).part(CAP | fringe | sides, *GRAY).save('hair_bun')
+
+
+def hair_wavy():
+    import math
+    fringe = rect(6, 9, 25, 10) | mirror({(x, 11) for x in range(6, 13)})
+    sides = set()
+    for y in range(8, 27):
+        off = round(math.sin(y / 2.5))
+        sides |= {(x + off, y) for x in range(2, 6)}
+    Layer().part(CAP | fringe | mirror(sides), *GRAY).save('hair_wavy')
+    back = ell(16, 13, 13.5, 12.5) | rect(3, 13, 28, 34)
+    for x in range(3, 29):  # wavy ends
+        back |= {(x, 35)} if x % 4 in (0, 1) else set()
+    Layer().part(back, *GRAY).save('hair_wavy_back')
+
+
+# ---------------------------------------------------------------- more tops
+def stripes(color):
+    def detail(layer, c):
+        s = hexc(color)
+        layer.dots(s, [(x, y) for x, y in TOP_BODY | TOP_ARMS if y in (28, 31, 34)
+                       and (x, y) in layer.px and layer.px[(x, y)] != OUTLINE])
+        layer.dots(darker(c), [(x, 26) for x in range(13, 19)])
+    return detail
+
+
+def blazer(layer, c):
+    shirt = {(x, y) for y in range(26, 31) for x in range(15 - (30 - y) // 2, 17 + (30 - y) // 2)}
+    layer.dots(WHITE, shirt)
+    layer.dots(hexc('#c0392b'), [(15, 27), (16, 27), (15, 28), (16, 28), (15, 29), (16, 30), (15, 31), (16, 31)])
+    layer.dots(GOLD, [(13, 33), (13, 35)])
+    layer.dots(darker(c, 0.6), [(12, 30), (13, 31), (19, 30), (18, 31)])  # lapels
+
+
+def tank(name, color):
+    c = hexc(color)
+    mask = rect(11, 27, 20, 37) | rect(11, 26, 12, 26) | rect(19, 26, 20, 26)
+    layer = Layer().part(mask, c, darker(c))
+    layer.dots(darker(c), [(x, 27) for x in range(13, 19)])
+    layer.dots(WHITE, [(x, 32) for x in range(12, 20) if x % 2])
+    layer.save(name)
+
+
+def varsity(name, body_color, sleeve_color, letter='#f2c94c'):
+    b, sl = hexc(body_color), hexc(sleeve_color)
+    layer = Layer().part(TOP_ARMS, sl, darker(sl)).part(TOP_BODY, b, darker(b))
+    layer.dots(WHITE, [(x, 37) for x in range(11, 21)] + [(x, 26) for x in range(13, 19)])
+    layer.dots(hexc(letter), [(13, 29), (13, 30), (13, 31), (14, 29), (14, 31), (14, 33), (13, 33), (14, 32), (13, 32)])
+    layer.save(name)
+
+
+def aloha(layer, c):
+    for i, (x, y) in enumerate(((12, 28), (17, 29), (13, 33), (19, 34), (9, 31), (22, 30), (15, 35))):
+        petal = hexc('#f48fb1') if i % 2 else hexc('#f7c948')
+        layer.dots(petal, [(x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1)])
+        layer.dots(WHITE, [(x, y)])
+    layer.dots(darker(c, 0.7), [(13, 26), (14, 27), (17, 27), (18, 26)])  # open collar
+
+
+def puffer(layer, c):
+    for y in (29, 32, 35):
+        layer.dots(darker(c, 0.82), [(x, y) for x, yy in TOP_BODY | TOP_ARMS if yy == y for x in [x]
+                                     if layer.px.get((x, y)) not in (None, OUTLINE)])
+    layer.dots(OUTLINE, [(15, y) for y in range(27, 37)])
+    layer.dots(WHITE, [(x, 26) for x in range(12, 20)])  # fluffy collar
+
+
+# ---------------------------------------------------------------- more bottoms and shoes
+def cargo(layer_name, color):
+    bottom(layer_name, color, 41)
+    # pockets, added on top of the saved layer
+    layer = Layer()
+    layer.px = dict(LAYERS[layer_name])
+    c = darker(hexc(color), 0.8)
+    layer.dots(c, [(11, 39), (12, 39), (11, 40), (12, 40), (19, 39), (20, 39), (19, 40), (20, 40)])
+    layer.save(layer_name)
+
+
+def skirt_plaid(name, color, line):
+    bottom(name, color, 0, skirt=True)
+    layer = Layer()
+    layer.px = dict(LAYERS[name])
+    l = hexc(line)
+    for (x, y), c in list(layer.px.items()):
+        if c != OUTLINE and (x % 4 == 0 or y == 39):
+            layer.px[(x, y)] = l
+    layer.save(name)
+
+
+def track_pants(name, color):
+    bottom(name, color, 44)
+    layer = Layer()
+    layer.px = dict(LAYERS[name])
+    layer.dots(WHITE, [(11, y) for y in range(37, 45)] + [(20, y) for y in range(37, 45)])
+    layer.save(name)
+
+
+def sandals(name, strap):
+    c = hexc(strap)
+    layer = Layer()
+    for x0 in (9, 17):
+        layer.part(rect(x0, 46, x0 + 5, 46), darker(c, 0.8), darker(c, 0.6), darker(c, 0.5))
+        layer.dots(c, [(x0 + 1, 44), (x0 + 2, 45), (x0 + 3, 45), (x0 + 4, 44)])
+    layer.save(name)
+
+
+def hightops(name, color):
+    shoes(name, color, boots=True, sole='#f2f2f2')
+    layer = Layer()
+    layer.px = dict(LAYERS[name])
+    layer.dots(WHITE, [(11, 43), (12, 43), (19, 43), (20, 43)])
+    layer.save(name)
+
+
+# ---------------------------------------------------------------- more hats
+def hat_bunny(name, color):
+    c = hexc(color)
+    ears = ell(10.5, -1, 2.6, 7.5) | ell(21.5, -1, 2.6, 7.5)
+    layer = Layer().part(ears | band_over_head(6), c, darker(c, 0.85))
+    layer.dots(hexc('#f4a7b9'), [(x, y) for cx in (10, 21) for x in (cx, cx + 1) for y in range(-5, 4)])
+    layer.save(name)
+
+
+def hat_cat(name, color):
+    c = hexc(color)
+    ears = tri(4, 12, 5, 9) | tri(19, 27, 5, 9)
+    layer = Layer().part(ears | band_over_head(6), c, darker(c, 0.85))
+    layer.dots(hexc('#f4a7b9'), [(x, y) for cx in (8, 23) for x in (cx - 1, cx, cx + 1) for y in range(0, 4) if abs(x - cx) <= (y + 1) // 2])
+    layer.save(name)
+
+
+def hat_witch(name, color):
+    c = hexc(color)
+    cone = tri(7, 24, 7, 15)
+    tip = {(25, -7), (26, -7), (24, -8), (25, -8)}
+    layer = Layer().part(cone | tip, c, darker(c))
+    layer.part(rect(1, 7, 30, 9), darker(c, 0.85), darker(c))
+    layer.dots(GOLD, [(x, 5) for x in range(9, 23)] + [(15, 4), (16, 4), (15, 6), (16, 6)])
+    layer.save(name)
+
+
+def hat_tophat(name, color, band='#c0392b'):
+    c = hexc(color)
+    layer = Layer().part(rect(8, -6, 23, 7), c, darker(c, 0.8))
+    layer.part(rect(4, 7, 27, 9), c, darker(c, 0.8))
+    layer.dots(hexc(band), [(x, y) for x in range(9, 23) for y in (4, 5)])
+    layer.dots(WHITE, [(9, -5), (9, -4)])  # shine
+    layer.save(name)
+
+
+def hat_halo(name):
+    layer = Layer().part(ring(16, -3, 9.5, 2.8, 1.6), GOLD, hexc('#e0b030'), hexc('#c09020'))
+    layer.dots(hexc('#fff3b0'), [(10, -5), (11, -5), (12, -6)])
+    layer.save(name)
+
+
+def hat_flowers(name):
+    leaf = hexc('#6fae5a')
+    layer = Layer().part(band_over_head(7, 1.8), leaf, darker(leaf))
+    for i, (cx, cy) in enumerate(((5, 7), (9, 3), (16, 1), (22, 3), (26, 7))):
+        petal = (hexc('#f48fb1'), hexc('#f7f0e0'), hexc('#f7c948'))[i % 3]
+        layer.part(ell(cx + 0.5, cy + 0.5, 2.2, 2.2), petal, darker(petal, 0.9))
+        layer.dots(hexc('#e8a03c'), [(cx, cy)])
+    layer.save(name)
+
+
+def hat_headphones(name, color):
+    c = hexc(color)
+    arc = ring(16, 13, 14, 13.5, 1.6) & rect(0, -HEADROOM, W - 1, 11)
+    layer = Layer().part(arc, hexc('#4a4a55'), hexc('#3b3b45'))
+    layer.part(rect(1, 12, 4, 19), c, darker(c)).part(rect(27, 12, 30, 19), c, darker(c))
+    layer.save(name)
+
+
+def hat_propeller(name):
+    cols = [hexc('#d9534f'), hexc('#f7c948'), hexc('#5b8def'), hexc('#4caf50')]
+    dome = ell(16, 11, 13, 10.5) & rect(0, 0, W - 1, 9)
+    layer = Layer()
+    for i in range(4):
+        part = {(x, y) for x, y in dome if (x * 4) // W == i}
+        layer.part(part, cols[i], darker(cols[i]))
+    layer.part(rect(4, 8, 27, 9), darker(cols[2], 0.8), darker(cols[2], 0.6))
+    layer.dots(OUTLINE, [(16, -1), (16, 0), (15, 0)])
+    layer.part(rect(8, -3, 15, -2), cols[0], darker(cols[0])).part(rect(17, -3, 24, -2), cols[2], darker(cols[2]))
+    layer.save(name)
+
+
+# ---------------------------------------------------------------- glasses (face accessories)
+FRAME = hexc('#3a2a2a')
+
+
+def glasses_round(name, color='#5a4a3a'):
+    f = hexc(color)
+    layer = Layer()
+    for x0 in (8, 18):
+        layer.dots(f, [(x, y) for x, y in rect(x0, 13, x0 + 5, 17)
+                       if x in (x0, x0 + 5) or y in (13, 17)
+                       if not ((x in (x0, x0 + 5)) and (y in (13, 17)))])
+    layer.dots(f, [(14, 14), (15, 14), (16, 14), (17, 14), (6, 14), (7, 14), (24, 14), (25, 14)])
+    layer.save(name)
+
+
+def glasses_shades(name, lens='#2a2a35'):
+    l = hexc(lens)
+    layer = Layer()
+    for x0 in (8, 18):
+        layer.part(rect(x0, 13, x0 + 5, 16), l, darker(l, 0.9), FRAME)
+        layer.dots(hexc('#9fb4d0'), [(x0 + 1, 14), (x0 + 2, 14)])
+    layer.dots(FRAME, [(14, 14), (15, 14), (16, 14), (17, 14), (6, 14), (7, 14), (24, 14), (25, 14)])
+    layer.save(name)
+
+
+def glasses_star(name, color):
+    c = hexc(color)
+    layer = Layer()
+    for cx in (11, 21):
+        star = {(cx, 11), (cx, 12)} | rect(cx - 2, 13, cx + 2, 15) | rect(cx - 3, 13, cx + 3, 13) | {(cx - 2, 16), (cx + 2, 16), (cx - 3, 17), (cx + 3, 17)}
+        layer.part(star, c, darker(c, 0.85), darker(c, 0.55))
+        layer.dots(WHITE, [(cx - 1, 13)])
+    layer.dots(darker(c, 0.55), [(15, 14), (16, 14), (17, 14)])
+    layer.save(name)
+
+
+def glasses_heart(name, color):
+    c = hexc(color)
+    layer = Layer()
+    for x0 in (8, 18):
+        heart = {(x0, 13), (x0 + 1, 13), (x0 + 4, 13), (x0 + 5, 13)} | rect(x0, 14, x0 + 5, 15) | rect(x0 + 1, 16, x0 + 4, 16) | {(x0 + 2, 17), (x0 + 3, 17)}
+        layer.part(heart, c, darker(c, 0.85), darker(c, 0.55))
+        layer.dots(WHITE, [(x0 + 1, 14)])
+    layer.dots(darker(c, 0.55), [(14, 14), (15, 14), (16, 14), (17, 14)])
+    layer.save(name)
+
+
+def glasses_eyepatch(name):
+    layer = Layer()
+    layer.dots(FRAME, [(x, 9 + (x - 4) // 4) for x in range(4, 19)] + [(x, 13 - (x - 24) // 2) for x in range(24, 28)])
+    layer.part(ell(21, 15, 3.2, 3), hexc('#2f2f38'), hexc('#26262e'), FRAME)
+    layer.save(name)
+
+
+def glasses_mask(name, color):
+    c = hexc(color)
+    mask = rect(7, 12, 24, 17) | {(5, 11), (6, 11), (6, 12), (25, 11), (26, 11), (25, 12)}
+    mask -= rect(9, 14, 12, 16) | rect(19, 14, 22, 16)  # eye holes
+    mask -= {(15, 17), (16, 17), (15, 16), (16, 16)}  # nose dip
+    layer = Layer().part(mask, c, darker(c))
+    layer.dots(GOLD, [(x, 12) for x in range(8, 24) if x % 2])
+    layer.save(name)
+
+
+# ---------------------------------------------------------------- capes and wings (behind the body)
+def cape(name, color, trim=None, fur=False):
+    c = hexc(color)
+    back = set()
+    for y in range(25, 45):
+        spread = (y - 25) // 4
+        back |= {(x, y) for x in range(7 - spread, 25 + spread)}
+    layer = Layer().part(back, c, darker(c))
+    if trim:
+        layer.dots(hexc(trim), [(x, y) for x, y in back if y == 44 or (y == 43 and x % 2)])
+    layer.save(f'{name}_back')
+    front = Layer()
+    if fur:
+        front.part(rect(9, 25, 22, 27), (0xF4, 0xF4, 0xF4), (0xD8, 0xD8, 0xD8))
+        front.dots(OUTLINE, [(x, 26) for x in range(10, 22, 3)])
+    else:
+        front.part(rect(10, 25, 21, 26), c, darker(c))
+    front.part(ell(11.5, 27.5, 1.6, 1.6) | ell(20.5, 27.5, 1.6, 1.6), GOLD, darker(GOLD, 0.8))
+    front.save(name)
+
+
+def wings(name, color, shape):
+    c = hexc(color)
+    left = set()
+    if shape == 'feather':
+        # Only the strip beside the body shows, so the wing fills it: a
+        # rounded top and a scalloped, feathered lower edge
+        edge = {19: 4, 20: 2, 21: 1}
+        for y in range(19, 39):
+            e = edge.get(y, 0) if y <= 30 else (y - 30) + (y % 2)
+            left |= {(x, y) for x in range(e, 11)}
+    elif shape == 'bat':
+        left = {(x, y) for y in range(19, 37) for x in range(0, 11) if x >= 10 - (y - 19)}
+        left -= {(x, y) for x in range(0, 11) for y in range(33, 37) if (x // 3) % 2 == 0 and y > 33}
+    elif shape == 'fairy':
+        left = ell(4.5, 23, 4.5, 6.5) | ell(5.5, 34, 3.5, 4.5)
+    layer = Layer().part(mirror(left), c, darker(c, 0.85), darker(c, 0.55))
+    if shape == 'feather':
+        rows = [(x, y) for y in (25, 29, 33) for x in range(1 + max(0, y - 30), 6)]
+        layer.dots(darker(c, 0.82), mirror(rows))
+    if shape == 'fairy':
+        layer.dots(hexc('#f4a7b9'), [(3, 22), (4, 23), (27, 23), (28, 22), (5, 34), (26, 34)])
+    layer.save(f'{name}_back')
+
+
+# ---------------------------------------------------------------- held items (in the hand on the left)
+def hand_balloon(name, color):
+    c = hexc(color)
+    layer = Layer()
+    layer.dots(hexc('#8a8a96'), [(5 + (y > 20) + (y > 30), y) for y in range(4, 37)])
+    heart = ell(3.5, -5, 3, 3) | ell(8.5, -5, 3, 3)
+    heart |= {(x, y) for y in range(-5, 3) for x in range(1 + (y + 5), 12 - (y + 5))}
+    layer.part(heart, c, darker(c))
+    layer.dots(WHITE, [(3, -6), (2, -5)])
+    layer.save(name)
+
+
+def hand_umbrella(name, color):
+    c = hexc(color)
+    layer = Layer()
+    canopy = ell(8, 0, 8, 6) & rect(0, -HEADROOM, 16, -1)
+    layer.dots(hexc('#8a6a4a'), [(8, y) for y in range(-1, 37)] + [(9, 37), (10, 36)])
+    layer.part(canopy, c, darker(c))
+    layer.dots(WHITE, [(x, y) for x, y in canopy if (x // 3) % 2 and layer.px.get((x, y)) != OUTLINE])
+    layer.save(name)
+
+
+def hand_sword(name):
+    steel = hexc('#d8dce6')
+    layer = Layer().part(rect(6, 14, 8, 33) | {(7, 13)}, steel, hexc('#b8bcc8'))
+    layer.part(rect(4, 34, 10, 35), GOLD, darker(GOLD, 0.8))
+    layer.part(rect(6, 36, 8, 39), hexc('#7a4a2a'), hexc('#5a3a20'))
+    layer.save(name)
+
+
+def hand_wand(name, color):
+    c = hexc(color)
+    layer = Layer().part(rect(7, 22, 8, 38), WHITE, (0xD8, 0xD8, 0xD8))
+    star = rect(5, 18, 10, 19) | rect(6, 17, 9, 20) | {(7, 15), (8, 15), (7, 16), (8, 16), (4, 18), (11, 18), (5, 21), (10, 21)}
+    layer.part(star, c, darker(c, 0.85))
+    layer.dots(WHITE, [(6, 18)])
+    layer.save(name)
+
+
+def hand_lollipop(name, color):
+    c = hexc(color)
+    layer = Layer().part(rect(7, 28, 8, 38), WHITE, (0xD8, 0xD8, 0xD8))
+    layer.part(ell(7.5, 24, 4.5, 4.5), c, darker(c))
+    layer.dots(WHITE, [(6, 22), (7, 22), (8, 23), (9, 24), (8, 25), (7, 25), (6, 24)])
+    layer.save(name)
+
+
+def hand_lantern(name):
+    layer = Layer()
+    layer.dots(OUTLINE, [(8, 37), (8, 38)])
+    layer.part(rect(5, 39, 11, 45), GOLD, darker(GOLD, 0.8))
+    layer.dots(hexc('#fff3b0'), rect(7, 41, 9, 43))
+    layer.part(rect(6, 46, 10, 46), darker(GOLD, 0.7), darker(GOLD, 0.6))
+    layer.save(name)
+
+
+# ---------------------------------------------------------------- outfits (replace top and bottom)
+OUTFIT_BODY = TOP_BODY | TOP_ARMS
+
+
+def legs_mask(rows_end):
+    return rect(10, 36, 21, 38) | mirror(rect(10, 38, 15, rows_end))
+
+
+def split_legs(layer, rows_end):
+    for y in range(39, rows_end + 1):
+        layer.px.pop((15, y), None)
+        layer.px.pop((16, y), None)
+        layer.px[(14, y)] = OUTLINE
+        layer.px[(17, y)] = OUTLINE
+
+
+def outfit_sailor(name):
+    white, navy, red = hexc('#f2f2f2'), hexc('#2f3f6a'), hexc('#d9534f')
+    layer = Layer()
+    layer.part(rect(10, 37, 21, 38) | rect(9, 39, 22, 41) | rect(8, 42, 23, 42), navy, darker(navy))
+    layer.dots(darker(navy, 0.7), [(x, y) for x in range(10, 22, 3) for y in range(39, 43)])
+    layer.part(OUTFIT_BODY, white, darker(white, 0.85))
+    layer.part(rect(9, 26, 22, 28), navy, darker(navy))  # collar
+    layer.dots(WHITE, [(x, 27) for x in range(10, 22)])
+    layer.part(rect(14, 29, 17, 31), red, darker(red))  # bow
+    layer.save(name)
+
+
+def outfit_tuxedo(name):
+    black = hexc('#2f2f38')
+    layer = Layer().part(legs_mask(44), black, darker(black, 0.85))
+    split_legs(layer, 44)
+    layer.part(OUTFIT_BODY, black, darker(black, 0.85))
+    shirt = {(x, y) for y in range(26, 34) for x in range(15 - (33 - y) // 3, 17 + (33 - y) // 3)}
+    layer.dots(WHITE, shirt)
+    layer.dots(hexc('#c0392b'), [(14, 27), (15, 28), (16, 28), (17, 27), (14, 28), (17, 28)])
+    layer.dots(OUTLINE, [(15, 30), (15, 32)])
+    layer.save(name)
+
+
+def outfit_wizard(name, color):
+    c = hexc(color)
+    robe = rect(10, 26, 21, 36) | {(x, y) for y in range(37, 46) for x in range(10 - (y - 37) // 3, 22 + (y - 37) // 3)}
+    sleeves = mirror(rect(6, 27, 10, 37) | rect(5, 34, 7, 37))
+    layer = Layer().part(robe | sleeves, c, darker(c))
+    layer.dots(GOLD, [(12, 30), (19, 33), (14, 40), (18, 43), (11, 44), (21, 38), (7, 33), (24, 33)])
+    layer.dots(GOLD, [(x, 26) for x in range(12, 20)] + [(15, y) for y in range(27, 46)])
+    layer.save(name)
+
+
+def outfit_knight(name):
+    steel, blue = hexc('#b8bcc8'), hexc('#3f6fd8')
+    layer = Layer().part(legs_mask(44), steel, darker(steel, 0.85))
+    split_legs(layer, 44)
+    layer.part(OUTFIT_BODY, steel, darker(steel, 0.85))
+    layer.part(rect(13, 27, 18, 38), blue, darker(blue))  # tabard
+    layer.dots(GOLD, [(15, 30), (16, 30), (15, 31), (16, 31), (14, 31), (17, 31), (15, 32), (16, 32)])
+    layer.dots(hexc('#7a4a2a'), [(x, 36) for x in range(10, 22) if not 13 <= x <= 18])
+    layer.dots(WHITE, [(9, 28), (22, 28), (11, 40), (20, 40)])
+    layer.save(name)
+
+
+def outfit_pajamas(name, color):
+    c = hexc(color)
+    layer = Layer().part(legs_mask(44), c, darker(c))
+    split_legs(layer, 44)
+    layer.part(OUTFIT_BODY, c, darker(c))
+    layer.dots(WHITE, [(x, y) for x, y in OUTFIT_BODY | legs_mask(44) if (x + 2 * y) % 5 == 0
+                       and layer.px.get((x, y)) not in (None, OUTLINE)])
+    layer.dots(WHITE, [(13, 26), (14, 27), (17, 27), (18, 26)])
+    layer.save(name)
+
+
+def outfit_dress(name, color):
+    c = hexc(color)
+    skirt = {(x, y) for y in range(33, 43) for x in range(11 - (y - 33) // 2, 21 + (y - 33) // 2)}
+    puffs = mirror(ell(9, 28, 2.5, 2.5))
+    layer = Layer().part(rect(11, 26, 20, 33) | skirt | puffs, c, darker(c))
+    layer.dots(WHITE, [(x, 33) for x in range(11, 21)] + [(x, 42) for x in range(7, 25) if x % 2])
+    layer.dots(WHITE, [(15, 32), (16, 32), (14, 31), (17, 31)])  # bow
+    layer.save(name)
+
+
+def shop_collection():
+    face_joy()
+    face_surprised()
+    face_sleepy()
+    face_starry()
+    face_cat()
+
+    hair_bob()
+    hair_twintails()
+    hair_afro()
+    hair_mohawk()
+    hair_bun()
+    hair_wavy()
+
+    top('top_stripe_navy', '#f2f2f2', stripes('#35548f'))
+    top('top_blazer', '#2f3f6a', blazer)
+    tank('top_tank_orange', '#f08a3c')
+    varsity('top_varsity', '#b3261e', '#f2f2f2')
+    top('top_aloha', '#2a9d8f', aloha)
+    top('top_puffer_purple', '#7b5fc9', puffer)
+
+    cargo('bottom_cargo_khaki', '#b8a27a')
+    skirt_plaid('bottom_skirt_plaid', '#35548f', '#d9534f')
+    track_pants('bottom_track_red', '#c0392b')
+    bottom('bottom_pants_white', '#ececec', 44)
+
+    shoes('shoes_rain_yellow', '#f2c94c', boots=True, sole='#3b3b45')
+    hightops('shoes_hightop_black', '#2f2f38')
+    sandals('shoes_sandals', '#a9805e')
+    shoes('shoes_gold', '#e8c34f', sole='#ffffff')
+
+    hat_bunny('hat_bunny', '#f4f4f4')
+    hat_cat('hat_cat', '#3b3b45')
+    hat_witch('hat_witch', '#6a4c9c')
+    hat_tophat('hat_tophat', '#2f2f38')
+    hat_halo('hat_halo')
+    hat_flowers('hat_flowers')
+    hat_headphones('hat_headphones', '#2a9d8f')
+    hat_propeller('hat_propeller')
+
+    glasses_round('glasses_round')
+    glasses_shades('glasses_shades')
+    glasses_star('glasses_star', '#e85a9a')
+    glasses_heart('glasses_heart', '#e2483d')
+    glasses_eyepatch('glasses_eyepatch')
+    glasses_mask('glasses_mask', '#6a3d9a')
+
+    cape('cape_red', '#c0392b')
+    cape('cape_royal', '#6a3d9a', trim='#f2c94c', fur=True)
+    wings('wings_angel', '#f4f4f4', 'feather')
+    wings('wings_bat', '#4a3a5a', 'bat')
+    wings('wings_fairy', '#a8e6f0', 'fairy')
+
+    hand_balloon('hand_balloon', '#e2483d')
+    hand_umbrella('hand_umbrella', '#f48fb1')
+    hand_sword('hand_sword')
+    hand_wand('hand_wand', '#f2c94c')
+    hand_lollipop('hand_lollipop', '#e85a9a')
+    hand_lantern('hand_lantern')
+
+    outfit_sailor('outfit_sailor')
+    outfit_tuxedo('outfit_tuxedo')
+    outfit_wizard('outfit_wizard', '#3f4f9c')
+    outfit_knight('outfit_knight')
+    outfit_pajamas('outfit_pajamas', '#8fb8e8')
+    outfit_dress('outfit_dress', '#f48fb1')
+
+
 # ---------------------------------------------------------------- step track
 TRACK_OUT = os.path.join(os.path.dirname(__file__), '..', 'assets', 'track')
 FLAG_W, FLAG_H = 12, 24
@@ -333,7 +952,7 @@ def goal_flag():
     red = hexc('#e2483d')
     pole = rect(1, 1, 2, 23)
     cloth = {(x, y) for y in range(2, 11) for x in range(3, 11) if x - 3 <= 7 - abs(y - 6)}
-    layer = Layer().part(cloth, red, darker(red))
+    layer = Layer((FLAG_W, FLAG_H)).part(cloth, red, darker(red))
     layer.part(pole, (0xC8, 0xB0, 0x90), (0x9A, 0x82, 0x66))
     layer.dots((0xF7, 0xC9, 0x48), [(1, 0), (2, 0)])  # gold tip
     layer.dots((255, 255, 255), [(5, 5), (6, 5), (5, 6)])  # shine
@@ -1765,6 +2384,8 @@ if __name__ == '__main__':
     hat_beanie('hat_beanie_teal', '#2a9d8f')
     hat_cap('hat_cap_red', '#d9534f')
     hat_crown('hat_crown_gold', '#f2c94c')
+
+    shop_collection()
 
     os.makedirs(TRACK_OUT, exist_ok=True)
     goal_flag()
