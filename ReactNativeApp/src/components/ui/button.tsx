@@ -1,8 +1,5 @@
-import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
-
-import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { ThemedButton } from '@/components/themed-button';
+import { useMapTheme } from '@/hooks/use-map-theme';
 
 type ButtonProps = {
   title: string;
@@ -13,6 +10,11 @@ type ButtonProps = {
   disabled?: boolean;
 };
 
+/**
+ * The app-wide button: a ThemedButton in the user's map colors, so every
+ * screen matches the step road. Secondary buttons use the swapped colors;
+ * danger stays red on every map.
+ */
 export function Button({
   title,
   onPress,
@@ -21,56 +23,17 @@ export function Button({
   loading = false,
   disabled = false,
 }: ButtonProps) {
-  const theme = useTheme();
-  const background = {
-    primary: theme.accent,
-    secondary: theme.backgroundSelected,
-    danger: theme.danger,
-  }[variant];
-  const textColor = variant === 'secondary' ? theme.text : '#fff';
-
+  const theme = useMapTheme();
   return (
-    <Pressable
+    <ThemedButton
+      title={title}
       onPress={onPress}
-      disabled={disabled || loading}
-      accessibilityRole="button"
-      style={({ pressed }) => [
-        size === 'large' ? styles.large : styles.small,
-        { backgroundColor: background },
-        (pressed || loading || disabled) && styles.dimmed,
-      ]}>
-      {loading ? (
-        <ActivityIndicator color={textColor} />
-      ) : (
-        <ThemedText
-          type={size === 'large' ? 'default' : 'smallBold'}
-          style={[styles.text, { color: textColor }]}>
-          {title}
-        </ThemedText>
-      )}
-    </Pressable>
+      theme={theme}
+      size={size}
+      loading={loading}
+      disabled={disabled}
+      selected={variant === 'secondary'}
+      danger={variant === 'danger'}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  large: {
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.four,
-  },
-  small: {
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.three,
-  },
-  text: {
-    fontWeight: 600,
-  },
-  dimmed: {
-    opacity: 0.6,
-  },
-});

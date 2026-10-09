@@ -4,7 +4,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 
 /** Small coin badge. Swap the circle for a pixel-art coin sprite later. */
-export function CoinBalance({ balance }: { balance: number | null }) {
+export function CoinBalance({ balance, color }: { balance: number | null; color?: string }) {
   const label = balance === null ? '…' : balance.toLocaleString();
   return (
     <View
@@ -12,7 +12,7 @@ export function CoinBalance({ balance }: { balance: number | null }) {
       accessibilityLabel={balance === null ? 'Loading coins' : `${balance} coins`}
       style={styles.row}>
       <View style={styles.coin} />
-      <ThemedText type="smallBold" style={styles.num}>
+      <ThemedText type="smallBold" style={[styles.num, color ? { color } : null]}>
         {label}
       </ThemedText>
     </View>

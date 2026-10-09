@@ -8,12 +8,14 @@ export type Profile = {
   display_name: string | null;
   sharing_consent_at: string | null;
   avatar: AvatarConfig;
+  /** Selected step-road map (a shop item id); see src/track/themes.ts. */
+  map_theme: string;
 };
 
 export async function getMyProfile(userId: string): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, username, display_name, sharing_consent_at, avatar')
+    .select('id, username, display_name, sharing_consent_at, avatar, map_theme')
     .eq('id', userId)
     .single();
   if (error) throw error;

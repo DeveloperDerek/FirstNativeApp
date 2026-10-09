@@ -10,11 +10,12 @@ import {
 
 import { Avatar, PixelSprite } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
+import { ThemedButton } from '@/components/themed-button';
 import { ThemedText } from '@/components/themed-text';
-import { Button } from '@/components/ui/button';
 import { Spacing } from '@/constants/theme';
 
 import { assignLanes, centerFor, formatSteps, GOAL, roadWidth, scaleMax, ticksFor } from './scale';
+import type { MapTheme } from './themes';
 
 export type Walker = {
   id: string;
@@ -30,7 +31,7 @@ const SCALE = 2; // avatar pixel scale (whole number)
 const SPRITE_W = 32 * SCALE;
 const LABEL_H = 18;
 
-// Village. Sizes match the exports in assets/village (drawn at 256 x 80,
+// Map art. Sizes match the exports in assets/maps (drawn at 256 x 80,
 // shown at 2 points per pixel, the same pixel size as the characters).
 const TILE_W = 512;
 const TILE_H = 160;
@@ -41,39 +42,28 @@ const MAX_LANES = 3; // 3 x 14 fits inside the 48-point road
 // Characters further back also step a little to the side, so two people
 // at the same count don't merge into one figure.
 const LANE_SHIFT = [0, 22, -22];
-const SKY = '#bfe6ff';
-const MARKERS_BG = '#3a2a2a';
-
-const TILES = [
-  require('@/assets/village/village_tile_a.png'),
-  require('@/assets/village/village_tile_b.png'),
-];
 
 const LANDMARK_W = 128;
 const LANDMARK_H = 144;
-const WINDMILL = require('@/assets/village/landmark_windmill.png');
-const LANDMARKS: { steps: number; image: number; label: string }[] = [
-  { steps: 0, label: 'Village gate', image: require('@/assets/village/landmark_gate.png') },
-  { steps: 5_000, label: 'Bakery', image: require('@/assets/village/landmark_bakery.png') },
-  {
-    steps: 10_000,
-    label: 'Town hall, the 10,000 step goal',
-    image: require('@/assets/village/landmark_townhall.png'),
-  },
-];
 
 const FLAG = require('@/assets/track/flag_goal.png');
 const FLAG_W = 12;
 const FLAG_H = 24;
 const FLAG_POLE_X = 1.5; // pole center within the flag sprite, in sprite pixels
 
-/** Landmarks up to the end of the road; a windmill every 5,000 past 10,000. */
-function landmarksFor(max: number) {
+/**
+ * Landmarks up to the end of the road. The theme's last landmark (the
+ * "far" one at 15,000) repeats every 5,000 after that, so far walkers
+ * always have something to reach.
+ */
+function landmarksFor(theme: MapTheme, max: number) {
+  const base = theme.landmarks.filter((l) => l.steps <= Math.min(max, 15_000));
+  const far = theme.landmarks.find((l) => l.steps === 15_000);
   const extra = [];
-  for (let s = 15_000; s <= max; s += 5_000) {
-    extra.push({ steps: s, label: `Windmill at ${s.toLocaleString()} steps`, image: WINDMILL });
+  for (let s = 20_000; far && s <= max; s += 5_000) {
+    extra.push({ ...far, steps: s, label: `${far.label} at ${s.toLocaleString()} steps` });
   }
-  return [...LANDMARKS, ...extra];
+  return [...base, ...extra];
 }
 
 function WalkerSprite({ walker, x, lane }: { walker: Walker; x: number; lane: number }) {
@@ -109,11 +99,15 @@ function WalkerSprite({ walker, x, lane }: { walker: Walker; x: number; lane: nu
 }
 
 /**
- * A village road wider than the screen, scrolling sideways. Every 1,000
+ * A themed road wider than the screen, scrolling sideways. Every 1,000
  * steps is 100 points of road; the road ends at 10,000 until someone
  * passes it, then extends in 5,000s. Nobody moves when it grows.
+ *
+ * It runs edge to edge with no box: the sky color fills behind the
+ * scenery and everything below the road is the theme's ground color, so
+ * it blends into a screen painted in the same two colors.
  */
-export function StepTrack({ walkers }: { walkers: Walker[] }) {
+export function StepTrack({ walkers, theme }: { walkers: Walker[]; theme: MapTheme }) {
   const scrollRef = useRef<ScrollViewInstance>(null);
   const [viewport, setViewport] = useState(0);
   // Once someone scrolls by hand, stop re-centering on them.
@@ -151,12 +145,17 @@ export function StepTrack({ walkers }: { walkers: Walker[] }) {
 
   return (
     <View>
-      {/* The sky does not scroll, which gives a cheap depth effect */}
-      <View onLayout={(e) => setViewport(e.nativeEvent.layout.width)} style={styles.frame}>
+      {/* Sky color behind the scenery. No border, no rounding. */}
+      <View
+        onLayout={(e) => setViewport(e.nativeEvent.layout.width)}
+        style={{ backgroundColor: theme.sky }}>
         <ScrollView
           ref={scrollRef}
           horizontal
-          showsHorizontalScrollIndicator
+          // No rubber-band past the ends, so the sky never shows under the road
+          bounces={false}
+          overScrollMode="never"
+          showsHorizontalScrollIndicator={false}
           onScrollBeginDrag={() => {
             userScrolled.current = true;
           }}
@@ -168,7 +167,7 @@ export function StepTrack({ walkers }: { walkers: Walker[] }) {
                 {Array.from({ length: tileCount }, (_, i) => (
                   <Image
                     key={i}
-                    source={TILES[i % TILES.length]}
+                    source={theme.tiles[i % theme.tiles.length]}
                     style={{ width: TILE_W, height: TILE_H }}
                     resizeMode="stretch"
                     accessibilityElementsHidden
@@ -176,7 +175,7 @@ export function StepTrack({ walkers }: { walkers: Walker[] }) {
                 ))}
               </View>
 
-              {landmarksFor(max).map((l) => (
+              {landmarksFor(theme, max).map((l) => (
                 <Image
                   key={l.steps}
                   source={l.image}
@@ -211,11 +210,11 @@ export function StepTrack({ walkers }: { walkers: Walker[] }) {
               ))}
             </View>
 
-            {/* Distance markers under the road */}
-            <View style={[styles.markers, { width }]}>
+            {/* Distance markers, drawn straight onto the ground */}
+            <View style={[styles.markers, { width, backgroundColor: theme.ground }]}>
               {ticksFor(max).map((v) => {
                 const isGoal = v === GOAL;
-                const color = isGoal ? '#f7c948' : '#ffffff';
+                const color = theme.ink;
                 return (
                   <View key={v} style={[styles.tick, { left: centerFor(v) - 24 }]}>
                     <View style={[styles.tickMark, { backgroundColor: color }]} />
@@ -232,28 +231,21 @@ export function StepTrack({ walkers }: { walkers: Walker[] }) {
         </ScrollView>
       </View>
 
-      <View style={styles.buttons}>
+      {/* Jump buttons sit on the ground color */}
+      <View style={[styles.buttons, { backgroundColor: theme.ground }]}>
         {me && (
-          <Button
-            title="Find me"
-            size="small"
-            variant="secondary"
-            onPress={() => scrollToSteps(me.steps)}
-          />
+          <ThemedButton theme={theme} title="Find me" onPress={() => scrollToSteps(me.steps)} />
         )}
         {leader && leader.id !== me?.id && (
-          <Button
-            title="Leader"
-            size="small"
-            variant="secondary"
-            onPress={() => scrollToSteps(leader.steps)}
-          />
+          <ThemedButton theme={theme} title="Leader" onPress={() => scrollToSteps(leader.steps)} />
         )}
-        <Button title="Start" size="small" variant="secondary" onPress={() => scrollToSteps(0)} />
+        <ThemedButton theme={theme} title="Start" onPress={() => scrollToSteps(0)} />
       </View>
 
       {max > GOAL && (
-        <ThemedText type="small" themeColor="textSecondary" style={styles.extended}>
+        <ThemedText
+          type="small"
+          style={[styles.extended, { color: theme.ink, backgroundColor: theme.ground }]}>
           Road extended to {max.toLocaleString()} steps
         </ThemedText>
       )}
@@ -262,11 +254,6 @@ export function StepTrack({ walkers }: { walkers: Walker[] }) {
 }
 
 const styles = StyleSheet.create({
-  frame: {
-    backgroundColor: SKY,
-    borderRadius: Spacing.three,
-    overflow: 'hidden',
-  },
   tiles: {
     position: 'absolute',
     flexDirection: 'row',
@@ -298,7 +285,6 @@ const styles = StyleSheet.create({
   },
   markers: {
     height: 34,
-    backgroundColor: MARKERS_BG,
   },
   tick: {
     position: 'absolute',
@@ -316,9 +302,11 @@ const styles = StyleSheet.create({
   buttons: {
     flexDirection: 'row',
     gap: Spacing.two,
-    marginTop: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.two,
   },
   extended: {
-    marginTop: Spacing.one,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.two,
   },
 });
