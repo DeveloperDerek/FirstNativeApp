@@ -1175,6 +1175,562 @@ def mountain_far():  # observatory
     return layer
 
 
+# ---------------------------------------------------------------- dungeon
+# The first dark-sky maps (dungeon, space): the app draws light text and
+# a light status bar over their sky (skyInk in src/track/themes.ts).
+DU = {
+    'sky': '#2b2635', 'ground': hexc('#4f4756'),
+    'verge': hexc('#3d3644'), 'curb': hexc('#2f2a36'),
+    'speck': hexc('#5a5262'), 'speck2': hexc('#443d4b'), 'seam': hexc('#463f4d'),
+    'brick': hexc('#5e5668'), 'brick2': hexc('#564e60'), 'mortar': hexc('#4a4352'),
+    'cap': hexc('#433c4b'), 'stone': hexc('#7a7184'), 'dark': hexc('#1e1a26'),
+    'iron': hexc('#8a8296'), 'flame': hexc('#f2a03d'), 'core': hexc('#f7d36b'),
+    'wood': hexc('#8a6a4a'), 'hoop': hexc('#5a4a3a'), 'crate': hexc('#9a7b5c'),
+    'banner': hexc('#9c3b3b'), 'gold': hexc('#e2c070'), 'pillar': hexc('#6e6578'),
+    'crystal': hexc('#9f7fe0'), 'crystal2': hexc('#7fd6e0'),
+}
+WALL_TOP = 22
+
+
+def dungeon_base():
+    layer = ground_base(
+        DU['verge'], DU['curb'], DU['ground'],
+        specks=[(DU['speck'], 45, 4), (DU['speck2'], 35, 10)],
+    )
+    w, _ = TILE
+    # Flagstone seams in the floor; period 32 divides 256 (seamless)
+    layer.dots(DU['seam'], [(x, y) for x in range(0, w, 32) for y in range(58, 71)])
+    layer.dots(DU['seam'], [(x, 64) for x in range(w)])
+    # Brick back wall, edge to edge: bricks 8 wide, 4 tall, every other
+    # row offset by half a brick
+    for y in range(WALL_TOP, GROUND - 3):
+        row = (y - WALL_TOP) // 4
+        for x in range(w):
+            bx = x + (4 if row % 2 else 0)
+            if (y - WALL_TOP) % 4 == 3 or bx % 8 == 7:
+                c = DU['mortar']
+            elif (bx // 8 + row * 3) % 5 == 0:
+                c = DU['brick2']
+            else:
+                c = DU['brick']
+            layer.dots(c, [(x, y)])
+    layer.dots(DU['cap'], [(x, y) for x in range(w) for y in (WALL_TOP - 2, WALL_TOP - 1)])
+    return layer
+
+
+def dungeon_arch(layer, cx, w=16, h=24):
+    half = w // 2
+    frame = rect(cx - half - 2, GROUND - h + half, cx + half + 1, GROUND) | ell(cx, GROUND - h + half + 1, half + 2, half + 2)
+    vpart(layer, frame, DU['stone'])
+    inside = rect(cx - half, GROUND - h + half + 1, cx + half - 1, GROUND) | ell(cx, GROUND - h + half + 1, half, half)
+    layer.dots(DU['dark'], inside)
+
+
+def torch(layer, x, y=34):
+    layer.dots(SOFT, [(x, y), (x, y + 1), (x, y + 2), (x - 1, y + 3), (x + 1, y + 3)])
+    vpart(layer, ell(x + 0.5, y - 2.5, 2.5, 3.5), DU['flame'], 0.95)
+    layer.dots(DU['core'], [(x, y - 2), (x, y - 1)])
+
+
+def bars_window(layer, x0, y0=28):
+    vpart(layer, rect(x0, y0, x0 + 9, y0 + 7), DU['stone'])
+    layer.dots(DU['dark'], rect(x0 + 1, y0 + 1, x0 + 8, y0 + 6))
+    layer.dots(DU['iron'], [(x, y) for x in (x0 + 3, x0 + 6) for y in range(y0 + 1, y0 + 7)])
+
+
+def chain(layer, x, length=14):
+    layer.dots(DU['iron'], [(x + (y % 2), y) for y in range(WALL_TOP, WALL_TOP + length)])
+
+
+def pillar(layer, cx):
+    vpart(layer, rect(cx - 3, WALL_TOP - 4, cx + 3, GROUND), DU['pillar'])
+    vpart(layer, rect(cx - 5, WALL_TOP - 6, cx + 5, WALL_TOP - 3), DU['stone'])
+    vpart(layer, rect(cx - 5, GROUND - 2, cx + 5, GROUND), DU['stone'])
+
+
+def barrel(layer, cx):
+    vpart(layer, ell(cx + 0.5, GROUND - 4, 4.5, 5) & rect(0, GROUND - 9, 255, GROUND), DU['wood'])
+    layer.dots(DU['hoop'], [(x, y) for x in range(cx - 3, cx + 4) for y in (GROUND - 7, GROUND - 2)])
+
+
+def crate(layer, x0, s=9):
+    vpart(layer, rect(x0, GROUND - s + 1, x0 + s - 1, GROUND), DU['crate'])
+    layer.dots(DU['hoop'], [(x0 + i, GROUND - s + 1 + i) for i in range(1, s - 1)])
+    layer.dots(DU['hoop'], [(x0 + s - 1 - i, GROUND - s + 1 + i) for i in range(1, s - 1)])
+
+
+def banner(layer, x0, w=10, h=16):
+    cloth = rect(x0, WALL_TOP, x0 + w - 1, WALL_TOP + h - 4) | tri(x0, x0 + w - 1, WALL_TOP + h - 3, 3)
+    cloth -= tri(x0 + 2, x0 + w - 3, WALL_TOP + h, 3)  # notched bottom
+    vpart(layer, cloth, DU['banner'])
+    layer.dots(DU['gold'], [(x0 + w // 2 - 1, WALL_TOP + 5), (x0 + w // 2, WALL_TOP + 5),
+                            (x0 + w // 2 - 1, WALL_TOP + 6), (x0 + w // 2, WALL_TOP + 6)])
+
+
+def dungeon_tile_a():
+    layer = dungeon_base()
+    set_outline('#1e1a26')
+    pillar(layer, 8)
+    torch(layer, 24)
+    dungeon_arch(layer, 44)
+    torch(layer, 64)
+    barrel(layer, 76)
+    bars_window(layer, 92)
+    chain(layer, 112)
+    crate(layer, 120)
+    pillar(layer, 140)
+    banner(layer, 156)
+    barrel(layer, 178)
+    dungeon_arch(layer, 202, 14, 22)
+    torch(layer, 222)
+    crate(layer, 232, 8)
+    chain(layer, 248, 10)
+    return layer
+
+
+def dungeon_tile_b():
+    layer = dungeon_base()
+    set_outline('#1e1a26')
+    chain(layer, 6, 12)
+    banner(layer, 14)
+    torch(layer, 36)
+    bars_window(layer, 46)
+    barrel(layer, 66)
+    crate(layer, 74)
+    pillar(layer, 96)
+    dungeon_arch(layer, 124, 18, 26)
+    torch(layer, 146)
+    chain(layer, 160)
+    barrel(layer, 170)
+    pillar(layer, 190)
+    banner(layer, 204, 9, 14)
+    bars_window(layer, 222)
+    crate(layer, 240, 8)
+    return layer
+
+
+def dungeon_start():  # iron gate
+    layer = Layer(LANDMARK)
+    frame = rect(4, 22, 59, LB) | ell(32, 24, 28, 16)
+    vpart(layer, frame & rect(0, 6, 63, LB), DU['stone'])
+    inside = (rect(14, 26, 49, LB) | ell(32, 27, 18, 14)) & rect(0, 12, 63, LB)
+    layer.dots(DU['dark'], inside)
+    # Portcullis, half raised: a bar grid in the top half, spikes at its foot
+    bars = {(x, y) for x, y in inside if y < 46 and (x % 5 == 1 or y % 6 == 0)}
+    layer.dots(DU['iron'], bars)
+    layer.dots(DU['iron'], [(x, 46) for x in range(14, 50) if x % 5 == 1])
+    layer.dots(SOFT, [(x, y) for x in range(6, 58, 8) for y in range(30, LB, 8) if (x, y) not in inside])
+    torch(layer, 6, 40)
+    torch(layer, 57, 40)
+    return layer
+
+
+def dungeon_mid():  # treasure chest
+    layer = Layer(LANDMARK)
+    vpart(layer, rect(8, 64, 55, LB), DU['stone'])  # pedestal
+    vpart(layer, rect(14, 46, 49, 63), DU['wood'])
+    layer.dots(DU['gold'], [(x, y) for x in range(15, 49) for y in (50, 59)])
+    layer.dots(DU['gold'], [(x, y) for x in (20, 43) for y in range(47, 63)])
+    vpart(layer, rect(29, 52, 34, 57), DU['gold'], 0.85)  # lock
+    lid = ell(32, 40, 18, 7) & rect(0, 32, 63, 45)
+    vpart(layer, lid | rect(14, 40, 49, 45), darker(DU['wood'], 0.9))
+    layer.dots(DU['gold'], [(x, 43) for x in range(15, 49)])
+    # Coins spilling down the pedestal
+    for cx, cy in ((10, 62), (15, 64), (50, 63), (54, 61), (57, 65), (6, 66)):
+        vpart(layer, ell(cx + 0.5, cy + 0.5, 2.5, 1.5), DU['gold'], 0.85)
+    layer.dots(DU['core'], [(22, 31), (32, 29), (42, 31), (27, 27), (37, 27)])  # sparkle
+    return layer
+
+
+def dungeon_goal():  # crystal altar
+    layer = Layer(LANDMARK)
+    vpart(layer, rect(4, 66, 59, LB), DU['stone'])
+    vpart(layer, rect(10, 60, 53, 65), DU['stone'], 0.9)
+    vpart(layer, rect(18, 44, 45, 59), DU['pillar'])
+    layer.dots(DU['gold'], [(x, 48) for x in range(19, 45) if x % 3 != 2])
+    crystal = set()
+    for y in range(6, 44):
+        half = min(y - 6, 44 - y) * 0.42
+        crystal |= {(x, y) for x in range(round(32 - half), round(32 + half) + 1)}
+    vpart(layer, crystal, DU['crystal'], 0.85)
+    layer.dots(DU['crystal2'], [(x, y) for x, y in crystal if x < 32 and (x - 1, y) in crystal and (x + 1, y) in crystal and y % 3])
+    layer.dots(DU['core'], [(20, 14), (44, 12), (16, 30), (48, 28), (32, 2)])  # glow
+    return layer
+
+
+def dungeon_far():  # stairway up and out
+    layer = Layer(LANDMARK)
+    steps = set()
+    for i in range(8):
+        x0 = 4 + i * 6
+        steps |= rect(x0, LB - (i + 1) * 6 + 1, 59, LB - i * 6)
+    vpart(layer, steps, DU['stone'])
+    layer.dots(SOFT, [(x, LB - i * 6) for i in range(8) for x in range(4 + i * 6, 60) if x % 6 == 0])
+    vpart(layer, rect(46, 2, 59, 23), DU['pillar'])
+    layer.dots(DU['core'], rect(49, 6, 56, 23))  # daylight through the door
+    layer.dots(DU['core'], ell(52.5, 7, 3.5, 3) & rect(49, 0, 56, 6))
+    return layer
+
+
+# ---------------------------------------------------------------- space
+SP = {
+    'sky': '#141a33', 'ground': hexc('#a3a5b3'),
+    'rim': hexc('#8d8f9e'), 'curb': hexc('#7d7f8e'),
+    'dust': hexc('#959786'), 'dust2': hexc('#b4b6c2'), 'pit': hexc('#8f91a0'),
+    'ridge': hexc('#5f6278'), 'ridge2': hexc('#53566b'),
+    'star': hexc('#f3f6fa'), 'star2': hexc('#c9d0ff'),
+    'hull': hexc('#d8dce6'), 'glass': hexc('#7fb8e8'), 'red': hexc('#e0584f'),
+    'gold': hexc('#e8c34f'), 'metal': hexc('#9aa0b0'), 'purple': hexc('#9a7fd6'),
+    'ring': hexc('#d6c28f'), 'earth': hexc('#4f8fd6'), 'land': hexc('#5fae6a'),
+}
+
+
+def stars(layer, seed, count=34):
+    for i in range(count):
+        x = 3 + (i * 53 + seed * 17 + (i * i) % 29) % 250
+        y = 2 + (i * 31 + seed * 7) % 36
+        layer.dots(SP['star'] if i % 3 else SP['star2'], [(x, y)])
+        if i % 9 == 0:  # a few bright ones with a twinkle
+            layer.dots(SP['star'], [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)])
+
+
+def space_base(seed):
+    layer = ground_base(
+        SP['rim'], SP['curb'], SP['ground'],
+        specks=[(SP['pit'], 40, 6), (SP['dust2'], 30, 12)],
+    )
+    w, _ = TILE
+    stars(layer, seed)
+    # Far ridge; its shape repeats every 64 px (divides 256, seamless)
+    import math
+    for x in range(w):
+        top = 45 - round(3 * math.sin(2 * math.pi * x / 64) + 2 * math.sin(2 * math.pi * x / 32))
+        layer.dots(SP['ridge'], [(x, y) for y in range(top, 52)])
+        layer.dots(SP['ridge2'], [(x, top)])
+    # Small craters pressed into the road
+    for cx in (40, 120, 200):
+        layer.dots(SP['pit'], (ell(cx, 63, 6, 2.5) - ell(cx, 62.5, 4.5, 1.5)))
+        layer.dots(SP['dust2'], [(cx - 5, 61), (cx + 4, 61)])
+    return layer
+
+
+def planet_ringed(layer, cx, cy):
+    vpart(layer, ell(cx, cy, 9, 9), SP['purple'])
+    layer.dots(darker(SP['purple'], 0.85), [(x, y) for x, y in ell(cx, cy, 9, 9) if (y - cy) % 4 == 0])
+    ring = ell(cx, cy + 1, 16, 3) - ell(cx, cy + 1, 11, 1.5)
+    layer.dots(SP['ring'], {(x, y) for x, y in ring if y >= cy + 1 or abs(x + 0.5 - cx) > 9})
+
+
+def planet_earth(layer, cx, cy):
+    vpart(layer, ell(cx, cy, 7, 7), SP['earth'])
+    layer.dots(SP['land'], [(cx - 3, cy - 2), (cx - 2, cy - 2), (cx - 2, cy - 1), (cx - 3, cy - 1),
+                            (cx + 2, cy + 1), (cx + 3, cy + 1), (cx + 2, cy + 2), (cx + 1, cy + 3)])
+    layer.dots(SP['star'], [(cx - 1, cy - 5), (cx, cy - 5)])  # cloud
+
+
+def habitat(layer, cx, r=10):
+    dome = ell(cx + 0.5, GROUND + 1, r, r) & rect(0, 0, 255, GROUND)
+    vpart(layer, dome, SP['hull'])
+    layer.dots(SP['glass'], [(x, GROUND - r // 2) for x in range(cx - r + 3, cx + r - 2) if x % 3 != 2])
+    vpart(layer, rect(cx - 2, GROUND - 4, cx + 1, GROUND), SP['metal'])
+
+
+def antenna(layer, x, h=18):
+    layer.dots(SP['metal'], [(x, y) for y in range(GROUND - h, GROUND + 1)])
+    layer.dots(SP['metal'], [(x - 2, GROUND - h + 4), (x - 1, GROUND - h + 4), (x + 1, GROUND - h + 4), (x + 2, GROUND - h + 4)])
+    vpart(layer, ell(x + 0.5, GROUND - h - 0.5, 1.6, 1.6), SP['red'], 0.9)
+
+
+def moon_rock(layer, cx, r=3):
+    vpart(layer, ell(cx + 0.5, GROUND - r + 1.5, r + 1.5, r), SP['metal'])
+
+
+def mini_dish(layer, cx):
+    layer.dots(SP['metal'], [(cx, y) for y in range(GROUND - 6, GROUND + 1)])
+    dish = ell(cx - 1, GROUND - 9, 5, 3) - ell(cx + 1, GROUND - 10, 4, 2.5)
+    vpart(layer, dish, SP['hull'])
+
+
+def space_tile_a():
+    layer = space_base(1)
+    set_outline('#2a2f4a')
+    planet_ringed(layer, 70, 18)
+    habitat(layer, 18)
+    antenna(layer, 38)
+    moon_rock(layer, 52)
+    habitat(layer, 92, 13)
+    moon_rock(layer, 118, 4)
+    mini_dish(layer, 136)
+    antenna(layer, 156, 22)
+    habitat(layer, 182, 9)
+    moon_rock(layer, 204, 2)
+    mini_dish(layer, 222)
+    moon_rock(layer, 244, 3)
+    return layer
+
+
+def space_tile_b():
+    layer = space_base(2)
+    set_outline('#2a2f4a')
+    planet_earth(layer, 190, 16)
+    moon_rock(layer, 10, 4)
+    mini_dish(layer, 30)
+    habitat(layer, 60, 11)
+    antenna(layer, 82)
+    moon_rock(layer, 100)
+    habitat(layer, 128, 9)
+    moon_rock(layer, 150, 2)
+    antenna(layer, 168, 16)
+    habitat(layer, 210, 12)
+    mini_dish(layer, 240)
+    return layer
+
+
+def space_start():  # rocket on its launch pad
+    layer = Layer(LANDMARK)
+    vpart(layer, rect(6, 64, 57, LB), SP['metal'])
+    layer.dots(SP['gold'], [(x, 66) for x in range(8, 56) if (x // 3) % 2])
+    body = rect(25, 18, 38, 58) | tri(25, 38, 17, 12)
+    vpart(layer, body, SP['hull'])
+    layer.dots(SP['red'], [(x, y) for x, y in body if 30 <= y <= 32 and (x - 1, y) in body and (x + 1, y) in body])
+    vpart(layer, ell(31.5, 28, 3.5, 3.5), SP['glass'])
+    for fin in (tri(17, 26, 60, 12) & rect(17, 0, 25, 63), tri(37, 46, 60, 12) & rect(38, 0, 46, 63)):
+        vpart(layer, fin, SP['red'])
+    vpart(layer, rect(27, 58, 36, 63), SP['metal'], 0.85)
+    layer.dots(SOFT, [(x, y) for x in (8, 55) for y in range(30, 64)])  # gantry
+    layer.dots(SOFT, [(x, y) for x in range(8, 25) for y in (36, 48)])
+    return layer
+
+
+def space_mid():  # moon rover
+    layer = Layer(LANDMARK)
+    for cx in (14, 32, 50):
+        vpart(layer, ell(cx + 0.5, 64.5, 6.5, 6.5), hexc('#4a4e5e'))
+        vpart(layer, ell(cx + 0.5, 64.5, 2.5, 2.5), SP['metal'])
+    vpart(layer, rect(6, 48, 57, 58), SP['hull'])
+    layer.dots(SP['gold'], [(x, 56) for x in range(7, 57)])
+    vpart(layer, rect(36, 38, 52, 48), SP['glass'], 0.9)  # cab window
+    layer.dots(SP['metal'], [(14, y) for y in range(28, 48)])
+    vpart(layer, ell(14, 26, 8, 3) - ell(16, 25, 6, 2), SP['hull'])  # dish on a mast
+    vpart(layer, rect(10, 42, 22, 47), hexc('#3f6fd8'), 0.9)  # solar panel
+    layer.dots(SP['star2'], [(x, 44) for x in range(11, 22, 2)])
+    return layer
+
+
+def space_goal():  # moon base
+    layer = Layer(LANDMARK)
+    vpart(layer, ell(32.5, LB + 1, 22, 26) & rect(0, 0, 63, LB), SP['hull'])
+    vpart(layer, ell(8.5, LB + 1, 9, 10) & rect(0, 0, 63, LB), SP['hull'], 0.92)
+    vpart(layer, ell(56.5, LB + 1, 8, 9) & rect(0, 0, 63, LB), SP['hull'], 0.92)
+    layer.dots(SP['glass'], [(x, y) for y in (56, 62) for x in range(16, 49) if x % 4 != 3])
+    vpart(layer, rect(27, 62, 36, LB), SP['metal'])
+    layer.dots(SP['metal'], [(32, y) for y in range(10, 46)])
+    vpart(layer, ell(32.5, 8.5, 2.5, 2.5), SP['red'], 0.9)
+    layer.dots(SOFT, [(32, y) for y in range(12, 20)])
+    vpart(layer, rect(33, 12, 44, 18), SP['gold'], 0.9)  # flag
+    return layer
+
+
+def space_far():  # radio telescope
+    layer = Layer(LANDMARK)
+    vpart(layer, tri(18, 45, LB, 26), SP['metal'])
+    vpart(layer, rect(28, 34, 35, 50), SP['metal'], 0.85)
+    dish = (ell(32, 24, 28, 16) - ell(32, 14, 26, 14)) & rect(0, 0, 63, 40)
+    vpart(layer, dish, SP['hull'])
+    layer.dots(SOFT, [(32, y) for y in range(6, 26)])
+    vpart(layer, ell(32.5, 5.5, 2.5, 2.5), SP['red'], 0.9)
+    return layer
+
+
+# ---------------------------------------------------------------- ocean
+# Under the sea: the "sky" is the water, the road is the sandy seabed.
+OC = {
+    'sky': '#276e9c', 'ground': hexc('#e3cf9a'),
+    'verge': hexc('#d3bd85'), 'curb': hexc('#cbb47c'),
+    'shell': hexc('#f3e6c8'), 'pebble': hexc('#c9b27a'),
+    'reef': hexc('#3a82ad'), 'reef2': hexc('#347aa4'),
+    'kelp': hexc('#4f9a6a'), 'kelp2': hexc('#3f8a5c'),
+    'coral': hexc('#e07a8a'), 'coral2': hexc('#f0a05a'), 'rock': hexc('#7a8a96'),
+    'bubble': hexc('#cfeaf7'), 'fish': hexc('#f7c948'), 'fish2': hexc('#f08a5a'),
+    'star': hexc('#f08a5a'), 'wood': hexc('#9a7b5c'), 'iron': hexc('#6a7380'),
+    'pearl': hexc('#f8f4ec'), 'sub': hexc('#f2c94c'), 'glass': hexc('#a9d8f0'),
+}
+
+
+def ocean_base():
+    layer = ground_base(
+        OC['verge'], OC['curb'], OC['ground'],
+        specks=[(OC['pebble'], 50, 3), (OC['shell'], 20, 11)],
+    )
+    w, _ = TILE
+    import math
+    # Distant reef; period 32 divides 256 (seamless)
+    for x in range(w):
+        top = 44 - round(3 * math.sin(2 * math.pi * x / 32) + 2 * math.sin(2 * math.pi * x / 128))
+        layer.dots(OC['reef'], [(x, y) for y in range(top, 52)])
+        layer.dots(OC['reef2'], [(x, y) for y in range(top, 52) if (x + y) % 7 == 0])
+    # Sand ripples on the seabed; period 16
+    layer.dots(OC['pebble'], [(x, y) for y in (60, 66) for x in range(w) if (x + y) % 16 in (0, 1, 2, 3)])
+    return layer
+
+
+def kelp(layer, cx, h=36, color=None):
+    # Too thin for an outline (it would cover the whole stalk), so it is
+    # drawn as a lit side and a shaded side instead.
+    import math
+    color = color or OC['kelp']
+    shadow = darker(color, 0.8)
+    for i in range(h):
+        x = cx + round(2 * math.sin(i / 4))
+        y = GROUND - i
+        layer.dots(color, [(x, y)])
+        layer.dots(shadow, [(x + 1, y)])
+        if i % 6 == 3 and i > 4:  # leaves
+            side = 1 if (i // 6) % 2 else -1
+            leaf = [(x + side * 2, y), (x + side * 2, y - 1), (x + side * 3, y - 1), (x + side * 3, y - 2)]
+            layer.dots(color if side < 0 else shadow, leaf)
+
+
+def coral(layer, cx, color, h=14):
+    # Thin branches: lit and shaded sides instead of an outline (like kelp)
+    shadow = darker(color, 0.8)
+    branch_y = GROUND - h // 3
+    layer.dots(color, rect(cx - 1, GROUND - h // 2, cx, GROUND))
+    layer.dots(shadow, rect(cx + 1, GROUND - h // 2, cx + 1, GROUND))
+    layer.dots(color, [(x, branch_y) for x in range(cx - 5, cx + 7)])
+    for dx, top in ((-5, h - 4), (-2, h), (2, h - 2), (5, h - 6)):
+        x = cx + dx
+        layer.dots(color, [(x, y) for y in range(GROUND - top, branch_y)])
+        layer.dots(shadow, [(x + 1, y) for y in range(GROUND - top, branch_y)])
+        layer.dots(hexc('#f8d0d6'), [(x, GROUND - top)])  # pale tip
+
+
+def sea_rock(layer, cx, r=5, anemone=None):
+    vpart(layer, ell(cx + 0.5, GROUND - r + 1.5, r + 2, r), OC['rock'])
+    if anemone:
+        for x in range(cx - 2, cx + 3):
+            layer.dots(anemone, [(x, GROUND - 2 * r + 1), (x, GROUND - 2 * r - (x % 2))])
+
+
+def fish(layer, x, y, color, left=False):
+    d = -1 if left else 1
+    vpart(layer, ell(x + 0.5, y + 0.5, 3.5, 2), color, 0.85)
+    layer.dots(color, [(x - d * 4, y - 1), (x - d * 4, y), (x - d * 4, y + 1), (x - d * 5, y - 2), (x - d * 5, y + 2)])
+    layer.dots(SOFT, [(x + d * 2, y)])
+
+
+def bubbles(layer, x, y):
+    for i, (dx, dy) in enumerate(((0, 0), (2, -5), (-1, -10), (1, -15))):
+        layer.dots(OC['bubble'], [(x + dx, y + dy), (x + dx + 1, y + dy), (x + dx, y + dy - 1), (x + dx + 1, y + dy - 1)] if i % 2 else [(x + dx, y + dy)])
+
+
+def starfish(layer, cx):
+    layer.dots(OC['star'], [(cx, GROUND - 2), (cx - 1, GROUND - 1), (cx + 1, GROUND - 1), (cx, GROUND - 1),
+                            (cx - 2, GROUND), (cx + 2, GROUND), (cx, GROUND - 3)])
+
+
+def ocean_tile_a():
+    layer = ocean_base()
+    set_outline('#1f4a66')
+    kelp(layer, 10, 40)
+    coral(layer, 30, OC['coral'])
+    fish(layer, 48, 22, OC['fish'])
+    sea_rock(layer, 56, 5, OC['coral2'])
+    bubbles(layer, 74, 50)
+    kelp(layer, 88, 46, OC['kelp2'])
+    starfish(layer, 104)
+    coral(layer, 122, OC['coral2'], 16)
+    fish(layer, 140, 30, OC['fish2'], left=True)
+    kelp(layer, 156, 34)
+    sea_rock(layer, 178, 4)
+    coral(layer, 200, OC['coral'], 12)
+    fish(layer, 212, 16, OC['fish'], left=True)
+    kelp(layer, 228, 42, OC['kelp2'])
+    starfish(layer, 246)
+    return layer
+
+
+def ocean_tile_b():
+    layer = ocean_base()
+    set_outline('#1f4a66')
+    sea_rock(layer, 14, 5, OC['coral'])
+    kelp(layer, 36, 44, OC['kelp2'])
+    fish(layer, 58, 26, OC['fish2'])
+    coral(layer, 62, OC['coral2'])
+    starfish(layer, 82)
+    kelp(layer, 100, 38)
+    bubbles(layer, 114, 46)
+    coral(layer, 134, OC['coral'], 15)
+    sea_rock(layer, 160, 6, OC['coral2'])
+    fish(layer, 176, 18, OC['fish'], left=True)
+    kelp(layer, 190, 48)
+    coral(layer, 214, OC['coral2'], 12)
+    kelp(layer, 238, 36, OC['kelp2'])
+    return layer
+
+
+def ocean_start():  # anchor in the sand
+    layer = Layer(LANDMARK)
+    vpart(layer, rect(29, 18, 34, 64), OC['iron'])
+    vpart(layer, ell(31.5, 13, 6, 6) - ell(31.5, 13, 3, 3), OC['iron'])
+    vpart(layer, rect(18, 24, 45, 28), OC['iron'])
+    arms = (ell(32, 52, 24, 16) - ell(32, 50, 19, 14)) & rect(0, 54, 63, LB)
+    vpart(layer, arms, OC['iron'])
+    for x0 in (6, 52):
+        vpart(layer, tri(x0, x0 + 6, 56, 6), OC['iron'])
+    layer.dots(OC['kelp'], [(36, y) for y in range(30, 40)] + [(37, y) for y in range(40, 46)])  # seaweed on it
+    chain_pts = [(36 + i, 8 - (i % 2)) for i in range(0, 26, 2)]
+    layer.dots(OC['rock'], chain_pts)
+    return layer
+
+
+def ocean_mid():  # giant clam with a pearl
+    layer = Layer(LANDMARK)
+    bottom = ell(32, 56, 26, 14) & rect(0, 56, 63, LB)
+    vpart(layer, bottom, OC['coral'])
+    top = ell(32, 50, 26, 22) & rect(0, 0, 63, 46)
+    vpart(layer, top, OC['coral'], 0.9)
+    layer.dots(darker(OC['coral'], 0.85), [(x, y) for x, y in top | bottom if (x - 32) % 6 == 0])
+    layer.dots(hexc('#f7d6dc'), rect(10, 47, 53, 55))
+    vpart(layer, ell(32.5, 51, 5, 5), OC['pearl'], 0.92)
+    layer.dots(hexc('#ffffff'), [(31, 48), (30, 49)])
+    bubbles(layer, 52, 26)
+    return layer
+
+
+def ocean_goal():  # sunken ship
+    layer = Layer(LANDMARK)
+    hull = set()
+    for y in range(42, LB + 1):
+        inset = (y - 42) // 3
+        hull |= {(x, y) for x in range(2 + inset, 62 - inset // 2)}
+    vpart(layer, hull, OC['wood'])
+    layer.dots(darker(OC['wood'], 0.8), [(x, y) for x, y in hull if y % 5 == 0])
+    for cx in (16, 30, 44):
+        vpart(layer, ell(cx + 0.5, 52.5, 2.5, 2.5), darker(OC['wood'], 0.6))
+    # Broken mast, leaning, with a torn sail
+    mast = {(24 + (42 - y) // 5, y) for y in range(4, 42)} | {(25 + (42 - y) // 5, y) for y in range(4, 42)}
+    vpart(layer, mast, darker(OC['wood'], 0.85))
+    sail = rect(28, 10, 44, 28) - tri(36, 46, 28, 8)
+    vpart(layer, sail, hexc('#e8dcc0'))
+    layer.dots(OC['kelp'], [(56, y) for y in range(30, 44)] + [(57, y) for y in range(34, 42)])
+    bubbles(layer, 10, 34)
+    return layer
+
+
+def ocean_far():  # yellow submarine
+    layer = Layer(LANDMARK)
+    vpart(layer, ell(30, 52, 26, 11), OC['sub'])
+    vpart(layer, rect(22, 32, 37, 42), OC['sub'], 0.9)  # tower
+    layer.dots(SOFT, [(30, y) for y in range(20, 32)] + [(31, 20), (32, 20), (33, 20)])  # periscope
+    for cx in (16, 30, 44):
+        vpart(layer, ell(cx + 0.5, 52.5, 3.5, 3.5), OC['glass'], 0.9)
+    vpart(layer, tri(54, 63, 56, 10) & rect(55, 0, 63, LB), darker(OC['sub'], 0.85))  # tail fin
+    layer.dots(OC['iron'], [(x, 64) for x in range(10, 50) if x % 2])
+    bubbles(layer, 60, 40)
+    return layer
+
+
 # ---------------------------------------------------------------- build
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
@@ -1221,9 +1777,14 @@ if __name__ == '__main__':
         'beach': (beach_tile_a, beach_tile_b, beach_start, beach_mid, beach_goal, beach_far),
         'mountain': (mountain_tile_a, mountain_tile_b, mountain_start, mountain_mid,
                      mountain_goal, mountain_far),
+        'dungeon': (dungeon_tile_a, dungeon_tile_b, dungeon_start, dungeon_mid, dungeon_goal,
+                    dungeon_far),
+        'space': (space_tile_a, space_tile_b, space_start, space_mid, space_goal, space_far),
+        'ocean': (ocean_tile_a, ocean_tile_b, ocean_start, ocean_mid, ocean_goal, ocean_far),
     }
     OUTLINES = {'village': '#6b5a50', 'forest': '#2f3f25', 'city': '#353a44',
-                'beach': '#7a6a4a', 'mountain': '#3f4250'}
+                'beach': '#7a6a4a', 'mountain': '#3f4250', 'dungeon': '#1e1a26',
+                'space': '#2a2f4a', 'ocean': '#1f4a66'}
     for theme, makers in THEMES.items():
         for name, make in zip(('tile_a', 'tile_b', 'start', 'mid', 'goal', 'far'), makers):
             set_outline(OUTLINES[theme])

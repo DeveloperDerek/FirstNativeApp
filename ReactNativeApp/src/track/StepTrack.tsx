@@ -45,6 +45,9 @@ const LANE_SHIFT = [0, 22, -22];
 
 const LANDMARK_W = 128;
 const LANDMARK_H = 144;
+// Landmarks stand on the road and reach above the street art, so the
+// scene is tall enough for them; the extra space at the top is sky.
+const SCENE_H = Math.max(TILE_H, ROAD_H + LANDMARK_H);
 
 const FLAG = require('@/assets/track/flag_goal.png');
 const FLAG_W = 12;
@@ -162,7 +165,7 @@ export function StepTrack({ walkers, theme }: { walkers: Walker[]; theme: MapThe
           accessibilityLabel="Step road. Swipe left or right to scroll.">
           <View style={{ width }}>
             {/* Village street + road + characters */}
-            <View style={{ width, height: TILE_H }}>
+            <View style={{ width, height: SCENE_H }}>
               <View style={styles.tiles} importantForAccessibility="no-hide-descendants">
                 {Array.from({ length: tileCount }, (_, i) => (
                   <Image
@@ -256,6 +259,7 @@ export function StepTrack({ walkers, theme }: { walkers: Walker[]; theme: MapThe
 const styles = StyleSheet.create({
   tiles: {
     position: 'absolute',
+    bottom: 0, // the road sits at the bottom of the scene
     flexDirection: 'row',
   },
   landmark: {

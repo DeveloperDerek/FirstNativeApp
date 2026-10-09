@@ -23,7 +23,7 @@ export function Button({
   loading = false,
   disabled = false,
 }: ButtonProps) {
-  const theme = useMapTheme();
+  const { theme } = useMapTheme();
   return (
     <ThemedButton
       title={title}

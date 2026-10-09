@@ -2,7 +2,6 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useCallback, useState } from 'react';
 import {
-  Alert,
   Platform,
   Pressable,
   RefreshControl,
@@ -12,10 +11,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { listOwnedItems } from '@/api/coins';
 import { friendsLeaderboard } from '@/api/friends';
 import { type Group, groupLeaderboard, listMyGroups } from '@/api/groups';
-import { saveMapTheme } from '@/api/mapTheme';
 import type { LeaderboardRow } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
 import { CheckinCountdown } from '@/components/checkin-countdown';
@@ -27,13 +24,13 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, DailyStepGoal, MaxContentWidth, Spacing } from '@/constants/theme';
 import { openHealthSettings, permissionHelp } from '@/health';
+import { useMapTheme } from '@/hooks/use-map-theme';
 import { useSteps } from '@/hooks/use-steps';
 import { useWallet } from '@/hooks/use-wallet';
 import { errorMessage } from '@/lib/error-message';
 import { dayKey } from '@/storage/stepStore';
 import { pickShown } from '@/track/scale';
 import { StepTrack, type Walker } from '@/track/StepTrack';
-import { DEFAULT_THEME_ID, getTheme, SKY_INK, THEME_LIST } from '@/track/themes';
 
 type Mode = { kind: 'solo' } | { kind: 'friends' } | { kind: 'group'; id: string; name: string };
 
@@ -47,7 +44,7 @@ export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { today, permission, loading, error, refresh } = useSteps();
-  const { session, profile, reloadProfile } = useAuth();
+  const { session, profile } = useAuth();
   const { balance, nextCheckin, checkIn } = useWallet();
   const myId = session?.user.id ?? '';
   const sharing = Boolean(profile?.sharing_consent_at);
@@ -59,12 +56,10 @@ export default function TodayScreen() {
   const [board, setBoard] = useState<{ key: string; rows: LeaderboardRow[] } | null>(null);
   const [boardError, setBoardError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [owned, setOwned] = useState<Set<string>>(new Set());
-  // Switch maps immediately; put it back if the database refuses.
-  const [pendingTheme, setPendingTheme] = useState<string | null>(null);
 
-  // You always see YOUR map, even in Friends and Group modes.
-  const theme = getTheme(pendingTheme ?? profile?.map_theme);
+  // You always see YOUR map, even in Friends and Group modes. It is
+  // chosen on the Profile page.
+  const { theme } = useMapTheme();
 
   const progress = Math.min((today ?? 0) / DailyStepGoal, 1);
   const blocked = permission === 'denied' || permission === 'unavailable';
@@ -92,17 +87,13 @@ export default function TodayScreen() {
     }
   }, [mode, sharing]);
 
-  // On open: dark status bar text (all map skies are light), load the
-  // board and owned maps (a map bought in the Shop unlocks here), then
-  // poll lightly every 60 seconds while visible. Other people only move
-  // when their own app syncs.
+  // On open: status bar text that reads on this map's sky, load the
+  // board, then poll lightly every 60 seconds while visible. Other people
+  // only move when their own app syncs.
   useFocusEffect(
     useCallback(() => {
-      setStatusBarStyle('dark');
+      setStatusBarStyle(theme.statusBar);
       loadBoard();
-      listOwnedItems()
-        .then(setOwned)
-        .catch(() => {});
       const timer = setInterval(() => {
         refresh();
         loadBoard();
@@ -111,29 +102,13 @@ export default function TodayScreen() {
         clearInterval(timer);
         setStatusBarStyle('auto');
       };
-    }, [loadBoard, refresh])
+    }, [loadBoard, refresh, theme.statusBar])
   );
 
   async function pullToRefresh() {
     setRefreshing(true);
     await Promise.all([refresh(), loadBoard(), checkIn().catch(() => {})]);
     setRefreshing(false);
-  }
-
-  // The village is free; every other map must be owned
-  const canUse = (id: string) => id === DEFAULT_THEME_ID || owned.has(id);
-
-  async function pickTheme(id: string) {
-    if (!myId || id === theme.id) return;
-    setPendingTheme(id);
-    try {
-      await saveMapTheme(myId, id);
-      await reloadProfile();
-    } catch (e) {
-      Alert.alert('Map not changed', errorMessage(e));
-    } finally {
-      setPendingTheme(null);
-    }
   }
 
   const me: Walker = {
@@ -172,28 +147,28 @@ export default function TodayScreen() {
       <View style={{ backgroundColor: theme.sky, paddingTop: insets.top }}>
         <View style={styles.header}>
           <View style={styles.topBar}>
-            <CoinBalance balance={balance} color={SKY_INK} />
+            <CoinBalance balance={balance} color={theme.skyInk} />
             <Pressable
               onPress={() => router.push('/shop')}
               accessibilityRole="button"
               style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedText type="smallBold" style={styles.shopLink}>
+              <ThemedText type="smallBold" style={[styles.shopLink, { color: theme.skyInk }]}>
                 Shop
               </ThemedText>
             </Pressable>
           </View>
           <View style={styles.hero}>
-            <ThemedText type="code" style={[styles.caps, { color: SKY_INK }]}>
+            <ThemedText type="code" style={[styles.caps, { color: theme.skyInk }]}>
               Today
             </ThemedText>
-            <ThemedText style={[styles.count, { color: SKY_INK }]}>
+            <ThemedText style={[styles.count, { color: theme.skyInk }]}>
               {today?.toLocaleString() ?? '--'}
             </ThemedText>
-            <ThemedText type="small" style={{ color: SKY_INK }}>
+            <ThemedText type="small" style={{ color: theme.skyInk }}>
               {Math.round(progress * 100)}% of {DailyStepGoal.toLocaleString()} goal
               {progress >= 1 && sharing ? ' · +100 coins' : ''}
             </ThemedText>
-            <CheckinCountdown nextAt={nextCheckin} color={SKY_INK} />
+            <CheckinCountdown nextAt={nextCheckin} color={theme.skyInk} />
           </View>
         </View>
       </View>
@@ -256,22 +231,6 @@ export default function TodayScreen() {
               </ThemedText>
             </ThemedView>
           )}
-
-          <ThemedText type="smallBold" style={ink}>
-            Map
-          </ThemedText>
-          <View style={styles.wrap}>
-            {THEME_LIST.map((t) => (
-              <ThemedButton
-                key={t.id}
-                theme={theme}
-                title={canUse(t.id) ? t.label : `${t.label} (shop)`}
-                selected={t.id === theme.id}
-                disabled={!canUse(t.id)}
-                onPress={() => pickTheme(t.id)}
-              />
-            ))}
-          </View>
 
           {mode.kind !== 'solo' && board?.key === modeKey(mode) && (
             <>
@@ -346,7 +305,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   shopLink: {
-    color: SKY_INK,
     textDecorationLine: 'underline',
   },
   hero: {

@@ -1,18 +1,19 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { GroundText } from '@/components/ground-text';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 
-/** Titled rounded card, like the one on the History screen. */
+/** Titled rounded card, like the one on the History screen. The title sits on the map's ground. */
 export function Section({ title, children }: { title?: string; children: ReactNode }) {
   return (
     <View style={styles.wrapper}>
       {title && (
-        <ThemedText type="code" themeColor="textSecondary" style={styles.caps}>
+        <GroundText type="code" style={styles.caps}>
           {title}
-        </ThemedText>
+        </GroundText>
       )}
       <ThemedView type="backgroundElement" style={styles.card}>
         {children}

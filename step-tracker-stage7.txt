@@ -402,6 +402,11 @@ shows under the road at the ends.
   const MAX_LANES = 3;
   const LANDMARK_W = 128;
   const LANDMARK_H = 144;
+  // Landmarks stand on the road (48 points up) and reach above the
+  // 160-point street art, so the scene is tall enough for them. The
+  // extra space at the top is sky. Without this the tops of the
+  // landmarks are cut off.
+  const SCENE_H = Math.max(TILE_H, 48 + LANDMARK_H);
 
   function WalkerSprite({
     walker, x, lane,
@@ -498,8 +503,11 @@ shows under the road at the ends.
             accessibilityLabel="Step road. Swipe left or right to scroll."
           >
             <View style={{ width }}>
-              <View style={{ width, height: TILE_H }}>
-                <View style={{ position: 'absolute', flexDirection: 'row' }}>
+              <View style={{ width, height: SCENE_H }}>
+                {/* Street art pinned to the bottom, under the road */}
+                <View style={{
+                  position: 'absolute', bottom: 0, flexDirection: 'row',
+                }}>
                   {Array.from({ length: tileCount }, (_, i) => (
                     <Image
                       key={i}

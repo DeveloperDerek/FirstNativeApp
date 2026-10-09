@@ -8,12 +8,14 @@ import { Avatar } from '@/avatar/Avatar';
 import { CATALOG, type Slot } from '@/avatar/catalog';
 import { DEFAULT_AVATAR } from '@/avatar/types';
 import { CoinBalance } from '@/components/coin-balance';
+import { GroundText } from '@/components/ground-text';
 import { SharingRequired } from '@/components/sharing-required';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Section } from '@/components/ui/section';
 import { Spacing } from '@/constants/theme';
+import { useMapTheme } from '@/hooks/use-map-theme';
 import { useWallet } from '@/hooks/use-wallet';
 import { errorMessage } from '@/lib/error-message';
 import { THEME_LIST } from '@/track/themes';
@@ -64,6 +66,7 @@ export default function ShopScreen() {
   const router = useRouter();
   const { profile } = useAuth();
   const { balance, setBalance, refreshBalance } = useWallet();
+  const { theme, refreshOwned } = useMapTheme();
   const sharing = Boolean(profile?.sharing_consent_at);
 
   const [shop, setShop] = useState<DailyShop>({ items: [], refreshesAt: null });
@@ -123,6 +126,7 @@ export default function ShopScreen() {
           try {
             setBalance(await purchaseItem(itemId));
             setOwned((prev) => new Set(prev).add(itemId));
+            refreshOwned(); // a new background unlocks on Profile straight away
           } catch (e) {
             Alert.alert('Not purchased', errorMessage(e));
             load(); // e.g. the shop just refreshed
@@ -137,10 +141,10 @@ export default function ShopScreen() {
   if (!sharing) {
     return (
       <Screen title="Shop" inTabs={false}>
-        <ThemedText themeColor="textSecondary">
+        <GroundText>
           Earn 100 coins for every day you reach 10,000 steps, then spend them on clothes for your
           character.
-        </ThemedText>
+        </GroundText>
         <SharingRequired />
       </Screen>
     );
@@ -151,20 +155,23 @@ export default function ShopScreen() {
   return (
     <Screen title="Shop" inTabs={false}>
       <View style={styles.header}>
-        <ThemedText type="small" themeColor="textSecondary">
+        <GroundText type="small">
           {msLeft !== null && msLeft > 0 ? countdownText(msLeft) : ' '}
-        </ThemedText>
-        <CoinBalance balance={balance} />
+        </GroundText>
+        <CoinBalance balance={balance} color={theme.ink} />
       </View>
-      <ThemedText type="small" themeColor="textSecondary">
+      <GroundText type="small">
         Your shop is unique to you and changes every day at midnight Pacific time. Earn 100 coins
         for each day you reach 10,000 steps.
-      </ThemedText>
+      </GroundText>
 
       {error && (
-        <ThemedText type="small" themeColor="danger">
-          {error}
-        </ThemedText>
+        // In a card, so the red reads on every map's ground
+        <Section>
+          <ThemedText type="small" themeColor="danger">
+            {error}
+          </ThemedText>
+        </Section>
       )}
 
       <Section title="Today's items">
@@ -193,7 +200,7 @@ export default function ShopScreen() {
                 <ThemedText>{item.label}</ThemedText>
                 {item.kind === 'map' && (
                   <ThemedText type="small" themeColor="textSecondary">
-                    Change maps on the Today screen
+                    Change backgrounds in Profile
                   </ThemedText>
                 )}
                 <ThemedText type="small" themeColor="textSecondary">

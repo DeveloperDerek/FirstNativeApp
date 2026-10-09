@@ -1,0 +1,735 @@
+STEP TRACKER - THEME ON EVERY PAGE
+Two changes, in one file:
+  A. The map (background) picker moves from the Today page to the
+     Profile page
+  B. History, Friends, Groups, and Profile get the same background as
+     the Today page: sky on top, a strip of scenery, ground below
+Last checked: October 2026
+
+Builds on step-tracker-map-themes.txt. Keep themes.ts, StepTrack.tsx,
+ThemedButton.tsx, mapTheme.ts, and the SQL from that file. This file
+REPLACES TrackScreen.tsx again and adds five small files.
+
+No database changes. None of this code has been run; treat it as a
+scaffold.
+
+======================================================================
+1. HOW IT WORKS
+======================================================================
+
+Before, the Today page loaded the chosen map by itself, so no other
+page knew about it. Now the map is loaded ONCE, at the top of the
+app, and every page reads it from there.
+
+  App
+   +- AuthProvider              (from the social features file)
+       +- ThemeProvider         NEW: loads the user's map + owned maps
+           +- Today             reads the theme
+           +- History           reads the theme
+           +- Friends           reads the theme
+           +- Groups            reads the theme
+           +- Profile           reads the theme AND changes it
+
+When the user picks a map on Profile, every page switches at once,
+because they all read the same value.
+
+What each page looks like:
+
+  TODAY                          HISTORY / FRIENDS / GROUPS / PROFILE
+  sky color   Today: Friends     sky color   Friends
+  scenery, scrolls sideways,     scenery strip, full height,
+    with characters and            fixed, no characters or
+    landmarks                      landmarks
+  ===== road ================    ===== road ================
+  ground color                   ground color
+  buttons, ranked list           the page's own content
+
+The other pages use a non-scrolling strip of the same scenery, shown
+at its full 160-point height so no houses, trees, or peaks are cut
+off by the sky. It matches Today without characters or landmarks. It
+can be switched off per page (section 4).
+
+======================================================================
+2. FILE LAYOUT
+======================================================================
+
+  src/
+    theme/
+      ThemeProvider.tsx   <- NEW: loads and shares the chosen map
+    components/
+      ThemedScreen.tsx    <- NEW: the shared page background
+      ThemedText.tsx      <- NEW: text + card that suit any map
+      MapPicker.tsx       <- NEW: the picker, now used on Profile
+      ThemedButton.tsx    <- unchanged
+    screens/
+      TrackScreen.tsx     <- REPLACED (picker removed)
+      ProfileScreen.tsx   <- picker added (section 7)
+      HistoryScreen.tsx   <- wrap in ThemedScreen (section 8)
+      FriendsScreen.tsx   <- wrap in ThemedScreen (section 8)
+      GroupsScreen.tsx    <- wrap in ThemedScreen (section 8)
+      ShopScreen.tsx      <- one line added (section 9)
+
+======================================================================
+3. src/theme/ThemeProvider.tsx
+======================================================================
+
+  import {
+    createContext, useCallback, useContext, useEffect, useState,
+  } from 'react';
+  import { Alert } from 'react-native';
+  import { DEFAULT_THEME_ID, getTheme, type MapTheme } from '../track/themes';
+  import { loadMapTheme, saveMapTheme } from '../api/mapTheme';
+  import { listOwnedItems } from '../api/coins';
+
+  type ThemeValue = {
+    theme: MapTheme;
+    themeId: string;
+    canUse: (id: string) => boolean;      // free or owned
+    pickTheme: (id: string) => Promise<void>;
+    refreshOwned: () => Promise<void>;    // call after a shop purchase
+  };
+
+  const ThemeContext = createContext<ThemeValue>({
+    theme: getTheme(DEFAULT_THEME_ID),
+    themeId: DEFAULT_THEME_ID,
+    canUse: (id) => id === DEFAULT_THEME_ID,
+    pickTheme: async () => {},
+    refreshOwned: async () => {},
+  });
+
+  export function ThemeProvider({
+    userId, children,
+  }: { userId: string | null; children: React.ReactNode }) {
+    const [themeId, setThemeId] = useState(DEFAULT_THEME_ID);
+    const [owned, setOwned] = useState<Set<string>>(new Set());
+
+    const refreshOwned = useCallback(async () => {
+      try {
+        setOwned(await listOwnedItems());
+      } catch (e) {
+        console.warn(e);
+      }
+    }, []);
+
+    // Load once per signed-in user. Signed out = the free village.
+    useEffect(() => {
+      if (!userId) {
+        setThemeId(DEFAULT_THEME_ID);
+        setOwned(new Set());
+        return;
+      }
+      loadMapTheme(userId).then(setThemeId).catch(console.warn);
+      refreshOwned();
+    }, [userId, refreshOwned]);
+
+    const canUse = useCallback(
+      (id: string) => id === DEFAULT_THEME_ID || owned.has(id),
+      [owned]
+    );
+
+    const pickTheme = useCallback(async (id: string) => {
+      if (!userId) return;
+      const previous = themeId;
+      setThemeId(id);                     // every page switches now
+      try {
+        await saveMapTheme(userId, id);
+      } catch (e) {
+        setThemeId(previous);             // put it back if refused
+        Alert.alert('Background not changed', (e as Error).message);
+      }
+    }, [userId, themeId]);
+
+    return (
+      <ThemeContext.Provider value={{
+        theme: getTheme(themeId), themeId, canUse, pickTheme, refreshOwned,
+      }}>
+        {children}
+      </ThemeContext.Provider>
+    );
+  }
+
+  export const useTheme = () => useContext(ThemeContext);
+
+Wire it in App.tsx, inside AuthProvider so it can see who is signed
+in:
+
+  function Root() {
+    const { session } = useAuth();
+    return (
+      <ThemeProvider userId={session?.user.id ?? null}>
+        {/* your navigation / tabs / screens */}
+      </ThemeProvider>
+    );
+  }
+
+  export default function App() {
+    return (
+      <AuthProvider>
+        <Root />
+      </AuthProvider>
+    );
+  }
+
+======================================================================
+4. src/components/ThemedScreen.tsx
+======================================================================
+
+The shared background. Wrap a page's content in this and it matches
+Today.
+
+  import {
+    Image, SafeAreaView, ScrollView, StatusBar, Text, View,
+    useWindowDimensions,
+  } from 'react-native';
+  import { useTheme } from '../theme/ThemeProvider';
+
+  const TILE_W = 512;       // same sizes as StepTrack
+  const TILE_H = 160;
+
+  // A fixed strip of the map's scenery at full height, no characters
+  function SceneryBand() {
+    const { theme } = useTheme();
+    const { width } = useWindowDimensions();
+    const count = Math.ceil(width / TILE_W);
+    return (
+      <View
+        // Full tile height, so nothing is cut off by the sky.
+        // overflow only trims tiles that run past the screen's edge.
+        style={{ height: TILE_H, overflow: 'hidden' }}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <View style={{ position: 'absolute', bottom: 0, flexDirection: 'row' }}>
+          {Array.from({ length: count }, (_, i) => (
+            <Image
+              key={i}
+              source={theme.tiles[i % theme.tiles.length]}
+              style={{ width: TILE_W, height: TILE_H }}
+            />
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  export function ThemedScreen({
+    title, children, right, scenery = true, scroll = true,
+  }: {
+    title: string;
+    children: React.ReactNode;
+    right?: React.ReactNode;   // e.g. the coin balance, top right
+    scenery?: boolean;         // false = sky header only, no strip
+    scroll?: boolean;          // false when the page has its own list
+  }) {
+    const { theme } = useTheme();
+    return (
+      // Ground color fills the whole page
+      <View style={{ flex: 1, backgroundColor: theme.ground }}>
+        <StatusBar barStyle="dark-content" backgroundColor={theme.sky} />
+
+        {/* Sky color from the top of the screen down to the road */}
+        <View style={{ backgroundColor: theme.sky }}>
+          <SafeAreaView>
+            <View style={{
+              flexDirection: 'row', alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8,
+            }}>
+              <Text
+                accessibilityRole="header"
+                style={{ fontSize: 20, fontWeight: 'bold', color: '#2a1a1a' }}
+              >
+                {title}
+              </Text>
+              {right}
+            </View>
+          </SafeAreaView>
+          {scenery && <SceneryBand />}
+        </View>
+
+        {scroll ? (
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+            {children}
+          </ScrollView>
+        ) : (
+          <View style={{ flex: 1 }}>{children}</View>
+        )}
+      </View>
+    );
+  }
+
+Do not make the strip shorter than TILE_H by clipping it: the tops of
+the buildings and trees get cut off by the sky. For a smaller strip,
+show the 1x art instead (256 x 80, height 80) so the whole picture
+still fits and the pixels stay sharp. To drop the strip on a page
+with a lot of content, pass scenery={false}.
+
+======================================================================
+5. src/components/ThemedText.tsx
+======================================================================
+
+Three of the five grounds are dark, so plain black text disappears on
+them. Use these instead of <Text> for anything sitting directly on
+the background.
+
+  import { Text, View, type TextProps, type ViewProps } from 'react-native';
+  import { useTheme } from '../theme/ThemeProvider';
+
+  // Text drawn straight onto the ground color
+  export function ThemedText({ style, ...rest }: TextProps) {
+    const { theme } = useTheme();
+    return <Text {...rest} style={[{ color: theme.ink }, style]} />;
+  }
+
+  // A light panel for forms, inputs, and dense rows. Text inside a
+  // card is always dark, whatever the map, so use plain <Text> here.
+  export function ThemedCard({ style, ...rest }: ViewProps) {
+    return (
+      <View
+        {...rest}
+        style={[
+          {
+            backgroundColor: '#fffaf0',
+            borderColor: '#2a1a1a',
+            borderWidth: 2,
+            borderRadius: 8,
+            padding: 12,
+            gap: 8,
+          },
+          style,
+        ]}
+      />
+    );
+  }
+
+Rule of thumb: headings and short lines go straight on the ground as
+ThemedText; text boxes, long lists, and anything with several lines
+per row go inside a ThemedCard.
+
+======================================================================
+6. src/components/MapPicker.tsx
+======================================================================
+
+The picker that used to be on the Today page.
+
+  import { View } from 'react-native';
+  import { THEME_LIST } from '../track/themes';
+  import { useTheme } from '../theme/ThemeProvider';
+  import { ThemedButton } from './ThemedButton';
+  import { ThemedText } from './ThemedText';
+
+  export function MapPicker({ onOpenShop }: { onOpenShop?: () => void }) {
+    const { theme, themeId, canUse, pickTheme } = useTheme();
+    const anyLocked = THEME_LIST.some((t) => !canUse(t.id));
+
+    return (
+      <View style={{ gap: 8 }}>
+        <ThemedText style={{ fontWeight: 'bold' }}>Background</ThemedText>
+
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {THEME_LIST.map((t) => (
+            <View key={t.id} style={{ alignItems: 'center', gap: 4 }}>
+              {/* Small preview of the map's two colors */}
+              <View
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+                style={{
+                  width: 64, height: 40, borderRadius: 6, overflow: 'hidden',
+                  borderWidth: 2, borderColor: '#2a1a1a',
+                  opacity: canUse(t.id) ? 1 : 0.45,
+                }}
+              >
+                <View style={{ flex: 3, backgroundColor: t.sky }} />
+                <View style={{ flex: 2, backgroundColor: t.ground }} />
+              </View>
+              <ThemedButton
+                theme={theme}
+                title={canUse(t.id) ? t.label : `${t.label} (locked)`}
+                selected={t.id === themeId}
+                disabled={!canUse(t.id)}
+                onPress={() => pickTheme(t.id)}
+              />
+            </View>
+          ))}
+        </View>
+
+        {anyLocked && (
+          <ThemedText style={{ fontSize: 12 }}>
+            Locked backgrounds are sold in the shop for coins.
+          </ThemedText>
+        )}
+        {anyLocked && onOpenShop && (
+          <View style={{ alignSelf: 'flex-start' }}>
+            <ThemedButton theme={theme} title="Open shop" onPress={onOpenShop} />
+          </View>
+        )}
+      </View>
+    );
+  }
+
+======================================================================
+7. PROFILE PAGE: ADD THE PICKER
+======================================================================
+
+Wrap the page in ThemedScreen and add <MapPicker />. Your existing
+profile content goes where marked.
+
+  import { Text } from 'react-native';
+  import { ThemedScreen } from '../components/ThemedScreen';
+  import { ThemedCard, ThemedText } from '../components/ThemedText';
+  import { ThemedButton } from '../components/ThemedButton';
+  import { MapPicker } from '../components/MapPicker';
+  import { useTheme } from '../theme/ThemeProvider';
+  import { signOut } from '../auth/signIn';
+
+  export function ProfileScreen({
+    userId, onOpenShop,
+  }: { userId: string; onOpenShop: () => void }) {
+    const { theme } = useTheme();
+    return (
+      <ThemedScreen title="Profile">
+        <ThemedCard>
+          <Text style={{ fontWeight: 'bold' }}>Account</Text>
+          {/* your existing name / username fields go here */}
+        </ThemedCard>
+
+        {/* The background picker now lives here */}
+        <MapPicker onOpenShop={onOpenShop} />
+
+        <ThemedText style={{ fontWeight: 'bold' }}>Sharing</ThemedText>
+        {/* your "Stop sharing my steps" switch goes here */}
+
+        <ThemedButton theme={theme} title="Sign out" onPress={signOut} />
+        {/* your Delete account button goes here */}
+      </ThemedScreen>
+    );
+  }
+
+onOpenShop is whatever your navigation uses to show the Shop screen,
+for example () => navigation.navigate('Shop'). Leave it out and the
+"Open shop" button is simply not shown.
+
+======================================================================
+8. HISTORY, FRIENDS, GROUPS: THE SAME BACKGROUND
+======================================================================
+
+The change is the same on each page:
+  1. Replace the outer <SafeAreaView> (or <View>) with <ThemedScreen>.
+  2. Replace <Text> that sits on the background with <ThemedText>.
+  3. Replace <Button> with <ThemedButton theme={theme}>.
+  4. Put text inputs and dense rows inside a <ThemedCard>.
+
+BEFORE (typical page):
+
+  <SafeAreaView style={{ flex: 1 }}>
+    <Text style={{ fontSize: 20 }}>Friends</Text>
+    <Button title="Add friend" onPress={openSearch} />
+    {friends.map((f) => <Text key={f.id}>{f.display_name}</Text>)}
+  </SafeAreaView>
+
+AFTER:
+
+  const { theme } = useTheme();
+  ...
+  <ThemedScreen title="Friends">
+    <ThemedButton theme={theme} title="Add friend" onPress={openSearch} />
+    {friends.map((f) => (
+      <ThemedText key={f.id}>{f.display_name}</ThemedText>
+    ))}
+  </ThemedScreen>
+
+Pages built on a FlatList (often History, or a long friends list)
+must not sit inside another vertical scroller. Pass scroll={false}
+and let the FlatList do the scrolling:
+
+  <ThemedScreen title="History" scroll={false}>
+    <FlatList
+      data={days}
+      keyExtractor={(d) => d.day}
+      contentContainerStyle={{ padding: 16, gap: 8 }}
+      renderItem={({ item }) => (
+        <ThemedText>
+          {item.day}   {item.steps.toLocaleString()} steps
+        </ThemedText>
+      )}
+    />
+  </ThemedScreen>
+
+Search box example for Friends (inputs go in a card so the typed
+text is readable on every map):
+
+  <ThemedCard>
+    <TextInput
+      placeholder="Search by username"
+      placeholderTextColor="#6b5b4b"
+      style={{ color: '#2a1a1a', minHeight: 44 }}
+      value={query}
+      onChangeText={setQuery}
+    />
+  </ThemedCard>
+
+The Shop and character editor screens can be converted the same way.
+
+======================================================================
+9. SHOP: UNLOCK A NEW BACKGROUND STRAIGHT AWAY
+======================================================================
+
+After a purchase, tell the ThemeProvider so the Profile picker
+unlocks without restarting the app. In ShopScreen.tsx:
+
+  import { useTheme } from '../theme/ThemeProvider';
+  ...
+  const { refreshOwned } = useTheme();
+
+and inside the buy handler, right after setOwned(...):
+
+  refreshOwned();
+
+Also change the hint under a map in the shop from "Change maps on the
+Track screen" to:
+
+  {item.kind === 'map' && <Text>Change backgrounds in Profile</Text>}
+
+======================================================================
+10. src/screens/TrackScreen.tsx  (REPLACES THE EARLIER VERSION)
+======================================================================
+
+Changes: the theme comes from the ThemeProvider; the map picker and
+its loading code are gone.
+
+  import { useCallback, useEffect, useState } from 'react';
+  import {
+    Alert, AppState, RefreshControl, SafeAreaView, ScrollView,
+    StatusBar, Text, View,
+  } from 'react-native';
+  import { StepTrack, type Walker } from '../track/StepTrack';
+  import { ThemedButton } from '../components/ThemedButton';
+  import { useTheme } from '../theme/ThemeProvider';
+  import { getSteps, todayRange } from '../health';
+  import { dayKey, syncSteps } from '../api/steps';
+  import { friendsLeaderboard } from '../api/friends';
+  import { groupLeaderboard, listMyGroups } from '../api/groups';
+  import { hasConsented } from '../api/consent';
+  import { loadAvatar } from '../api/avatar';
+
+  type Mode = { kind: 'solo' } | { kind: 'friends' }
+            | { kind: 'group'; id: string; name: string };
+
+  export function TrackScreen({ userId }: { userId: string }) {
+    const { theme } = useTheme();
+    const [mode, setMode] = useState<Mode>({ kind: 'solo' });
+    const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
+    const [walkers, setWalkers] = useState<Walker[]>([]);
+    const [sharing, setSharing] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    useEffect(() => {
+      listMyGroups().then(setGroups).catch(console.warn);
+      hasConsented(userId).then(setSharing).catch(console.warn);
+    }, [userId]);
+
+    const load = useCallback(async () => {
+      try {
+        const { start, end } = todayRange();
+        const mySteps = await getSteps(start, end);
+
+        if (mode.kind === 'solo') {
+          const avatar = await loadAvatar(userId);
+          setWalkers([
+            { id: userId, name: 'You', steps: mySteps, avatar, isMe: true },
+          ]);
+          return;
+        }
+
+        if (sharing) await syncSteps(userId, 1);
+
+        const today = dayKey(new Date());
+        const rows =
+          mode.kind === 'friends'
+            ? await friendsLeaderboard(today, today)
+            : await groupLeaderboard(mode.id, today, today);
+
+        setWalkers(
+          rows.map((r: any) => ({
+            id: r.user_id,
+            name: r.display_name ?? 'Player',
+            steps: r.user_id === userId ? mySteps : Number(r.total_steps),
+            avatar: r.avatar,
+            isMe: r.user_id === userId,
+          }))
+        );
+      } catch (e) {
+        Alert.alert('Could not load the track', String(e));
+      }
+    }, [mode, userId, sharing]);
+
+    useEffect(() => { load(); }, [load]);
+
+    useEffect(() => {
+      const sub = AppState.addEventListener('change', (state) => {
+        if (state === 'active') load();
+      });
+      return () => sub.remove();
+    }, [load]);
+
+    useEffect(() => {
+      const timer = setInterval(load, 60_000);
+      return () => clearInterval(timer);
+    }, [load]);
+
+    const title =
+      mode.kind === 'solo' ? 'Just me'
+      : mode.kind === 'friends' ? 'Friends'
+      : mode.name;
+
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.ground }}>
+        <StatusBar barStyle="dark-content" backgroundColor={theme.sky} />
+
+        <View style={{ backgroundColor: theme.sky }}>
+          <SafeAreaView>
+            <Text
+              accessibilityRole="header"
+              style={{
+                fontSize: 20, fontWeight: 'bold', color: '#2a1a1a',
+                paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8,
+              }}
+            >
+              Today: {title}
+            </Text>
+          </SafeAreaView>
+        </View>
+
+        <StepTrack walkers={walkers} theme={theme} />
+
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 16, gap: 16 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              tintColor={theme.ink}
+              onRefresh={async () => {
+                setRefreshing(true);
+                await load();
+                setRefreshing(false);
+              }}
+            />
+          }
+        >
+          {mode.kind !== 'solo' && !sharing && (
+            <Text style={{ color: theme.ink }}>
+              You are not sharing steps, so others see you at 0. Turn on
+              sharing in Profile to appear on their roads.
+            </Text>
+          )}
+
+          <Text style={{ color: theme.ink, fontWeight: 'bold' }}>Who</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <ThemedButton theme={theme} title="Just me"
+              selected={mode.kind === 'solo'}
+              onPress={() => setMode({ kind: 'solo' })} />
+            <ThemedButton theme={theme} title="Friends"
+              selected={mode.kind === 'friends'}
+              onPress={() => setMode({ kind: 'friends' })} />
+            {groups.map((g) => (
+              <ThemedButton
+                key={g.id}
+                theme={theme}
+                title={g.name}
+                selected={mode.kind === 'group' && mode.id === g.id}
+                onPress={() => setMode({ kind: 'group', id: g.id, name: g.name })}
+              />
+            ))}
+          </View>
+
+          <View>
+            {[...walkers]
+              .sort((a, b) => b.steps - a.steps)
+              .map((w, i) => (
+                <Text key={w.id} style={{ color: theme.ink, lineHeight: 22 }}>
+                  {i + 1}. {w.isMe ? 'You' : w.name} - {w.steps.toLocaleString()}
+                </Text>
+              ))}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+======================================================================
+11. THE TAB BAR
+======================================================================
+
+If the app has a bottom tab bar, it is the last piece still in the
+default white or black. Color it from the theme so the ground runs
+all the way down. With React Navigation bottom tabs or Expo Router
+tabs, set these screen options where the tabs are defined:
+
+  const { theme } = useTheme();
+  ...
+  screenOptions={{
+    headerShown: false,                    // ThemedScreen draws the title
+    tabBarStyle: {
+      backgroundColor: theme.ground,
+      borderTopColor: theme.ink,
+    },
+    tabBarActiveTintColor: theme.ink,
+    tabBarInactiveTintColor: theme.ink + '99',   // same color, faded
+  }}
+
+headerShown: false matters. If the navigator also draws its own
+header, each page gets two titles and a white bar above the sky.
+
+The component that defines the tabs must be inside ThemeProvider, or
+useTheme() only ever returns the village.
+
+======================================================================
+12. GOTCHAS
+======================================================================
+
+  - A page still showing white or black: it was not wrapped in
+    ThemedScreen, or the navigator is drawing its own header or
+    background over it (see section 11).
+  - Invisible text on forest, city, or mountain: a plain <Text> is
+    sitting on the ground color. Use ThemedText, or move it into a
+    ThemedCard.
+  - Yellow warning "VirtualizedLists should never be nested": a
+    FlatList is inside a ThemedScreen that is still scrolling. Add
+    scroll={false} to that ThemedScreen.
+  - Every page shows the village after choosing another map:
+    ThemeProvider is missing, is placed below the screens, or was not
+    given the signed-in user's id.
+  - Brief flash of the village on launch: the saved choice takes a
+    moment to load. To avoid it, also save the chosen id on the phone
+    (AsyncStorage) and use that as the starting value.
+  - Tops of landmarks cut off on Today: the scene must be at least
+    48 + 144 = 192 points tall (SCENE_H in StepTrack, in the map
+    themes file), with the street art pinned to the bottom. A
+    horizontal ScrollView clips anything taller than its content.
+  - The scenery strip uses the same tile images as the Today map, so
+    it needs no new art. It is anchored to the bottom, so on every
+    page the road meets the ground color exactly as it does on Today.
+  - Signing out returns the app to the village. That is deliberate:
+    the next person to sign in on that phone should not see the
+    previous user's purchased background.
+  - Sign-in and consent screens appear before a user is known, so
+    they always use the village.
+
+======================================================================
+13. BUILD ORDER
+======================================================================
+
+  [ ] ThemeProvider, wired into App.tsx inside AuthProvider
+  [ ] New TrackScreen (section 10); confirm Today looks the same as
+      before and no longer has a map picker
+  [ ] ThemedScreen, ThemedText, MapPicker
+  [ ] Profile page with the picker; change the background and confirm
+      Today changes too
+  [ ] Convert Friends, then Groups, then History
+  [ ] Check each page on a light ground (beach) and a dark ground
+      (forest) for unreadable text
+  [ ] Tab bar colors (section 11)
+  [ ] Shop: refreshOwned() after a purchase; buy a map and confirm it
+      unlocks on Profile without restarting
+  [ ] Restart the app; confirm the chosen background is remembered

@@ -4,6 +4,7 @@ import { useColorScheme } from 'react-native';
 
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { MapThemeProvider } from '@/hooks/use-map-theme';
 import { WalletProvider } from '@/hooks/use-wallet';
 
 SplashScreen.preventAutoHideAsync();
@@ -14,8 +15,10 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthProvider>
         <WalletProvider>
-          <RootNavigator />
-          <AnimatedSplashOverlay />
+          <MapThemeProvider>
+            <RootNavigator />
+            <AnimatedSplashOverlay />
+          </MapThemeProvider>
         </WalletProvider>
       </AuthProvider>
     </ThemeProvider>

@@ -4,8 +4,10 @@ import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { giveConsent } from '@/api/consent';
 import { useAuth } from '@/auth/AuthProvider';
+import { GroundText } from '@/components/ground-text';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
+import { Section } from '@/components/ui/section';
 import { Screen } from '@/components/ui/screen';
 import { Spacing } from '@/constants/theme';
 import { errorMessage } from '@/lib/error-message';
@@ -44,27 +46,32 @@ export default function ConsentScreen() {
 
   return (
     <Screen title="Share your steps?" inTabs={false}>
-      <ThemedText>
+      <GroundText>
         To compare with friends, StepTracker uploads your daily step totals to our servers.
-      </ThemedText>
+      </GroundText>
 
       <View style={styles.points}>
         {POINTS.map((p) => (
           <View key={p} style={styles.point}>
-            <ThemedText themeColor="textSecondary">•</ThemedText>
-            <ThemedText style={styles.pointText}>{p}</ThemedText>
+            <GroundText>•</GroundText>
+            <GroundText style={styles.pointText}>{p}</GroundText>
           </View>
         ))}
       </View>
 
       <Pressable onPress={() => Linking.openURL(privacyUrl)}>
-        <ThemedText type="linkPrimary">Read the privacy policy</ThemedText>
+        <GroundText type="link" style={styles.link}>
+          Read the privacy policy
+        </GroundText>
       </Pressable>
 
       {error && (
-        <ThemedText type="small" themeColor="danger">
-          {error}
-        </ThemedText>
+        // In a card, so the red reads on every map's ground
+        <Section>
+          <ThemedText type="small" themeColor="danger">
+            {error}
+          </ThemedText>
+        </Section>
       )}
 
       <View style={styles.buttons}>
@@ -86,6 +93,9 @@ const styles = StyleSheet.create({
   },
   pointText: {
     flex: 1,
+  },
+  link: {
+    textDecorationLine: 'underline',
   },
   buttons: {
     gap: Spacing.three,

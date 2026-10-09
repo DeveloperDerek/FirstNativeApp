@@ -120,9 +120,12 @@ export default function FriendsScreen() {
   return (
     <Screen title="Friends" onRefresh={pullToRefresh} refreshing={refreshing}>
       {error && (
-        <ThemedText type="small" themeColor="danger">
-          {error}
-        </ThemedText>
+        // In a card, so the red reads on every map's ground
+        <Section>
+          <ThemedText type="small" themeColor="danger">
+            {error}
+          </ThemedText>
+        </Section>
       )}
 
       <PeriodPicker value={period} onChange={setPeriod} />
