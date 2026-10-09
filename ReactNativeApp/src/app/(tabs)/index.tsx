@@ -288,9 +288,6 @@ export default function TodayScreen() {
             loading={loading}
             onPress={refresh}
           />
-          <ThemedText type="small" style={[styles.fineprint, ink]}>
-            Manually entered steps and steps from unsupported apps do not count.
-          </ThemedText>
         </View>
       </ScrollView>
 
@@ -359,9 +356,6 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     borderRadius: Spacing.three,
     gap: Spacing.two,
-  },
-  fineprint: {
-    textAlign: 'center',
   },
   pressed: {
     opacity: 0.7,
