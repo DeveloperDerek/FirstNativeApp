@@ -183,7 +183,29 @@ export const CATALOG: Record<Slot, Item[]> = {
       image: require('@/assets/avatar/shoes_hightop_black.png'),
     },
     { id: 'shoes_sandals', label: 'Sandals', image: require('@/assets/avatar/shoes_sandals.png') },
-    { id: 'shoes_gold', label: 'Gold sneakers', image: require('@/assets/avatar/shoes_gold.png') },  ],
+    { id: 'shoes_gold', label: 'Gold sneakers', image: require('@/assets/avatar/shoes_gold.png') },
+    {
+      id: 'shoes_running_blue',
+      label: 'Running shoes',
+      image: require('@/assets/avatar/shoes_running_blue.png'),
+    },
+    { id: 'shoes_cowboy', label: 'Cowboy boots', image: require('@/assets/avatar/shoes_cowboy.png') },
+    {
+      id: 'shoes_slippers_bunny',
+      label: 'Bunny slippers',
+      image: require('@/assets/avatar/shoes_slippers_bunny.png'),
+    },
+    {
+      id: 'shoes_clogs_green',
+      label: 'Green clogs',
+      image: require('@/assets/avatar/shoes_clogs_green.png'),
+    },
+    {
+      id: 'shoes_skates_pink',
+      label: 'Roller skates',
+      image: require('@/assets/avatar/shoes_skates_pink.png'),
+    },
+    { id: 'shoes_rocket', label: 'Rocket boots', image: require('@/assets/avatar/shoes_rocket.png') },  ],
   hat: [
     { id: 'hat_beanie_teal', label: 'Teal beanie', image: require('@/assets/avatar/hat_beanie_teal.png') },
     { id: 'hat_cap_red', label: 'Red cap', image: require('@/assets/avatar/hat_cap_red.png') },

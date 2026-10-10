@@ -31,6 +31,24 @@ export const DEFAULT_AVATAR: AvatarConfig = {
   pet: null,
 };
 
+// The two outfits a new player picks from on "Set up your profile". Only
+// what they wear on day one: every free item stays available to everyone
+// in Customize. Each item here must be free (no shop_items row), or the
+// save after sign-up is refused (supabase/migrations/*_free_starter_items.sql).
+export const STARTER_LOOKS: { id: 'men' | 'women'; label: string; avatar: AvatarConfig }[] = [
+  { id: 'men', label: "Men's", avatar: DEFAULT_AVATAR },
+  {
+    id: 'women',
+    label: "Women's",
+    avatar: {
+      ...DEFAULT_AVATAR,
+      hair: 'hair_long',
+      top: 'top_sweater_yellow',
+      bottom: 'bottom_skirt_pink',
+    },
+  },
+];
+
 export const SKIN_TONES = ['#fde0c8', '#f6c9a0', '#e0a878', '#c68655', '#a86b45', '#6f4428'];
 
 export const HAIR_COLORS = [

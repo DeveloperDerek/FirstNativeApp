@@ -23,11 +23,14 @@ type Loaded = { id: string; profile: PlayerProfile | null; failed: boolean };
  */
 export function PlayerCard({
   walker,
+  stepsLabel = 'Today',
   onClose,
   onEditMine,
 }: {
   /** null = the card is closed */
   walker: Walker | null;
+  /** Which days walker.steps covers. */
+  stepsLabel?: string;
   onClose: () => void;
   /** Shown as "Edit profile" on your own card. */
   onEditMine?: () => void;
@@ -97,7 +100,7 @@ export function PlayerCard({
             </ThemedText>
             {profile && <ThemedText style={{ color: ink }}>@{profile.username}</ThemedText>}
             <ThemedText style={{ color: ink }}>
-              Today: {walker.steps.toLocaleString()} steps
+              {stepsLabel}: {walker.steps.toLocaleString()} steps
             </ThemedText>
             {profile?.lastSeen && (
               <ThemedText style={{ color: ink }}>Last seen {timeAgo(profile.lastSeen)}</ThemedText>

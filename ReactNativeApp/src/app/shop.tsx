@@ -2,7 +2,14 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Image, StyleSheet, View } from 'react-native';
 
-import { type DailyShop, listDailyShop, listOwnedItems, purchaseItem } from '@/api/coins';
+import {
+  type DailyShop,
+  getShopRefreshAt,
+  listDailyShop,
+  listOwnedItems,
+  purchaseItem,
+  refreshShop,
+} from '@/api/coins';
 import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
 import { CATALOG, type Slot, wear } from '@/avatar/catalog';
@@ -60,15 +67,20 @@ function MapThumb({ entry }: { entry: Extract<Entry, { kind: 'map' }> }) {
   );
 }
 
-function countdownText(msLeft: number) {
+function hoursMinutes(msLeft: number) {
   const hours = Math.floor(msLeft / 3_600_000);
   const minutes = Math.floor((msLeft % 3_600_000) / 60_000);
-  return `New items in ${hours}h ${minutes}m`;
+  return `${hours}h ${minutes}m`;
+}
+
+function countdownText(msLeft: number) {
+  return `New items in ${hoursMinutes(msLeft)}`;
 }
 
 export default function ShopScreen() {
   const router = useRouter();
-  const { profile } = useAuth();
+  const { session, profile } = useAuth();
+  const userId = session?.user.id;
   const { balance, setBalance, refreshBalance } = useWallet();
   const { theme, refreshOwned } = useMapTheme();
   const sharing = Boolean(profile?.sharing_consent_at);
@@ -79,19 +91,28 @@ export default function ShopScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // When the Refresh button works again. null = ready now.
+  const [refreshAt, setRefreshAt] = useState<Date | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [s, o] = await Promise.all([listDailyShop(), listOwnedItems(), refreshBalance()]);
+      const [s, o, r] = await Promise.all([
+        listDailyShop(),
+        listOwnedItems(),
+        userId ? getShopRefreshAt(userId) : null,
+        refreshBalance(),
+      ]);
       setShop(s);
       setOwned(o);
+      setRefreshAt(r);
       setError(null);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setLoaded(true);
     }
-  }, [refreshBalance]);
+  }, [userId, refreshBalance]);
 
   // Load on open, and again when coming back from the character editor.
   useFocusEffect(
@@ -113,6 +134,24 @@ export default function ShopScreen() {
   }, [refreshesAt, load]);
 
   const msLeft = refreshesAt !== undefined ? refreshesAt - now : null;
+  const refreshMsLeft = refreshAt ? refreshAt.getTime() - now : 0;
+
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      const r = await refreshShop();
+      setRefreshAt(r.nextAt);
+      setNow(Date.now());
+      if (r.refreshed) {
+        await load();
+        if (r.granted) Alert.alert('New items!', `You earned ${r.granted} coins for refreshing.`);
+      }
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   // Today's items only, in the order the server picked them
   const prices = Object.fromEntries(shop.items.map((i) => [i.id, i.price]));
@@ -165,8 +204,8 @@ export default function ShopScreen() {
         <CoinBalance balance={balance} color={theme.ink} />
       </View>
       <GroundText type="small">
-        Your shop is unique to you and changes every day at midnight Pacific time. Earn 100 coins
-        for each day you reach 10,000 steps.
+        Your shop is unique to you and changes every day at midnight Pacific time. Refresh it every
+        12 hours for new items and 25 coins. Earn 100 coins for each day you reach 10,000 steps.
       </GroundText>
 
       {error && (
@@ -177,6 +216,16 @@ export default function ShopScreen() {
           </ThemedText>
         </Section>
       )}
+
+      <Button
+        title={
+          refreshMsLeft > 0 ? `Refresh in ${hoursMinutes(refreshMsLeft)}` : 'Refresh shop (+25 coins)'
+        }
+        variant="secondary"
+        loading={refreshing}
+        disabled={refreshMsLeft > 0}
+        onPress={refresh}
+      />
 
       <Section title="Today's items">
         {loaded && forSale.length === 0 && !error && (

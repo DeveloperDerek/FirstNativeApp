@@ -33,7 +33,7 @@ export const PETS: Pet[] = [
   },
   {
     id: 'pet_mushroom',
-    label: 'Mushroom',
+    label: 'Shroom',
     frames: [require('@/assets/pets/mushroom_a.png'), require('@/assets/pets/mushroom_b.png')],
   },
   {
@@ -51,6 +51,21 @@ export const PETS: Pet[] = [
     id: 'pet_fox',
     label: 'Fox',
     frames: [require('@/assets/pets/fox_a.png'), require('@/assets/pets/fox_b.png')],
+  },
+  {
+    // Bright orange dome cap with pale spots, cream rim, grumpy brows
+    id: 'pet_orange_mushroom',
+    label: 'Orange Mushroom',
+    frames: [
+      require('@/assets/pets/orange_mushroom_a.png'),
+      require('@/assets/pets/orange_mushroom_b.png'),
+    ],
+  },
+  {
+    // Dark purple head with three eyes, pink tentacles that wiggle as it walks
+    id: 'pet_octopus',
+    label: 'Octopus',
+    frames: [require('@/assets/pets/octopus_a.png'), require('@/assets/pets/octopus_b.png')],
   },
 ];
 

@@ -47,9 +47,18 @@ export async function listDailyShop(): Promise<DailyShop> {
 }
 
 export async function listOwnedItems(): Promise<Set<string>> {
-  const { data, error } = await supabase.from('user_items').select('item_id'); // RLS: own rows only
+  return new Set(await listOwnedItemsInOrder());
+}
+
+/** Owned item ids, the first one bought first. */
+export async function listOwnedItemsInOrder(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('user_items') // RLS: own rows only
+    .select('item_id')
+    .order('acquired_at')
+    .order('item_id'); // an admin's grant-all lands at one instant
   if (error) throw error;
-  return new Set(data.map((r) => r.item_id));
+  return data.map((r) => r.item_id);
 }
 
 /**
@@ -65,6 +74,36 @@ export async function claimCheckin(): Promise<{ granted: number; nextAt: Date | 
     granted: row?.granted ?? 0,
     nextAt: row?.next_at ? new Date(row.next_at) : null,
   };
+}
+
+export const SHOP_REFRESH_MS = 12 * 3_600_000; // matches refresh_shop()
+
+/** When the next shop refresh is allowed. null = ready now. */
+export async function getShopRefreshAt(userId: string): Promise<Date | null> {
+  const { data, error } = await supabase
+    .from('wallets')
+    .select('last_shop_refresh_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.last_shop_refresh_at) return null;
+  const next = new Date(new Date(data.last_shop_refresh_at).getTime() + SHOP_REFRESH_MS);
+  return next.getTime() > Date.now() ? next : null;
+}
+
+/**
+ * Swaps today's shop for new items and pays the refresh bonus. refreshed =
+ * false means it isn't ready yet; nextAt says when it is.
+ */
+export async function refreshShop(): Promise<{
+  refreshed: boolean;
+  granted: number;
+  nextAt: Date;
+}> {
+  const { data, error } = await supabase.rpc('refresh_shop');
+  if (error) throw error;
+  const row = (data as { refreshed: boolean; granted: number; next_at: string }[])[0];
+  return { refreshed: row.refreshed, granted: row.granted, nextAt: new Date(row.next_at) };
 }
 
 const MESSAGES: Record<string, string> = {

@@ -18,7 +18,7 @@ export const SPRITE_W = 32;
 export const SPRITE_H = 56;
 export const HEADROOM = 8;
 // Nearest-neighbor sampling keeps pixel art crisp when scaled up.
-const CRISP = { filter: FilterMode.Nearest, mipmap: MipmapMode.None };
+export const CRISP = { filter: FilterMode.Nearest, mipmap: MipmapMode.None };
 
 // Each sprite is decoded once and shared by every character on screen,
 // so a leaderboard of 20 people doesn't decode 160 images.
@@ -33,7 +33,7 @@ export function loadSprite(source: number) {
   return promise;
 }
 
-function useSprite(source: number | undefined): SkImage | null {
+export function useSprite(source: number | undefined): SkImage | null {
   // Kept in state (not read from the cache during render) so the React
   // Compiler re-renders when the image arrives.
   const [loaded, setLoaded] = useState<{ source: number; image: SkImage | null } | null>(null);

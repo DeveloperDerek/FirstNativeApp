@@ -287,12 +287,96 @@ def bottom(name, color, rows_end, skirt=False):
     layer.save(name)
 
 
-def shoes(name, color, boots=False, sole='#e8e8e8'):
+def lighter(c, f=0.5):
+    return tuple(int(v + (255 - v) * f) for v in c)
+
+
+# Shoe shapes, one per style: the left shoe on columns 9-14, bottom row
+# last (row 46, the floor; skates and rockets reach one row lower).
+# O outline, c color, h its highlight, s its shadow, w sole, a/b accents,
+# W white, E eye, . empty. The right shoe is the mirror image.
+SHOE_SHAPES = {
+    'sneaker': (42, ['.OOOO.',
+                     'OhcccO',
+                     'OcaacO',
+                     'OccccO',
+                     'OwwwwO']),
+    'runner': (42, ['.OOOO.',
+                    'OhcccO',
+                    'OcaacO',
+                    'ObbbcO',
+                    'OwwwwO']),
+    'hightop': (40, ['OOOOOO',
+                     'OhcccO',
+                     'OccWcO',
+                     'OcaacO',
+                     'OccccO',
+                     'OWWWWO',
+                     'OwwwwO']),
+    'boot': (40, ['OOOOOO',
+                  'OhcccO',
+                  'OccccO',
+                  'OcaacO',
+                  'OccccO',
+                  'OssssO',
+                  'OwwwwO']),
+    'rain': (39, ['OOOOOO',
+                  'OaaaaO',
+                  'OhcccO',
+                  'OhcccO',
+                  'OccccO',
+                  'OccccO',
+                  'OssssO',
+                  'OwwwwO']),
+    'cowboy': (39, ['OOOOOO',
+                    'OhcccO',
+                    'OaccaO',
+                    'OcaacO',
+                    'OccccO',
+                    'OccccO',
+                    'OssssO',
+                    'OwwwwO']),
+    'bunny': (40, ['OO..OO',
+                   'OaOOaO',
+                   'OhcccO',
+                   'OEccEO',
+                   'OcaacO',
+                   'OccccO',
+                   'OwwwwO']),
+    'clog': (42, ['.OOOO.',
+                  'OhcccO',
+                  'OcscsO',
+                  'OscscO',
+                  'OwwwwO']),
+    'skate': (41, ['.OOOO.',
+                   'OhcccO',
+                   'OcaacO',
+                   'OcaacO',
+                   'OccccO',
+                   'OwwwwO',
+                   '.bb.bb']),
+    'rocket': (40, ['OOOOOO',
+                    'OhcccO',
+                    'OaaaaO',
+                    'OccccO',
+                    'OssssO',
+                    'OwwwwO',
+                    '.abba.']),
+}
+
+
+def shoes(name, color, style='sneaker', sole='#f2f2f2', accent='#ffffff', accent2=None,
+          shine=None):
     c = hexc(color)
-    top_row = 42 if boots else 44
-    left = rect(9, top_row, 14, 46)  # two separate shoes, outlined on their own
-    layer = Layer().part(left, c, darker(c)).part(mirror(left) - left, c, darker(c))
-    layer.dots(hexc(sole), [(x, 45) for x in list(range(10, 14)) + list(range(18, 22))])
+    colors = {'O': OUTLINE, 'c': c, 'h': hexc(shine) if shine else lighter(c, 0.35),
+              's': darker(c, 0.8), 'w': hexc(sole), 'a': hexc(accent),
+              'b': hexc(accent2 or accent), 'W': WHITE, 'E': EYE_DARK}
+    top_row, rows = SHOE_SHAPES[style]
+    layer = Layer()
+    for dy, row in enumerate(rows):
+        for dx, key in enumerate(row):
+            if key != '.':
+                layer.dots(colors[key], mirror({(9 + dx, top_row + dy)}))
     layer.save(name)
 
 
@@ -542,14 +626,6 @@ def sandals(name, strap):
     for x0 in (9, 17):
         layer.part(rect(x0, 46, x0 + 5, 46), darker(c, 0.8), darker(c, 0.6), darker(c, 0.5))
         layer.dots(c, [(x0 + 1, 44), (x0 + 2, 45), (x0 + 3, 45), (x0 + 4, 44)])
-    layer.save(name)
-
-
-def hightops(name, color):
-    shoes(name, color, boots=True, sole='#f2f2f2')
-    layer = Layer()
-    layer.px = dict(LAYERS[name])
-    layer.dots(WHITE, [(11, 43), (12, 43), (19, 43), (20, 43)])
     layer.save(name)
 
 
@@ -874,6 +950,18 @@ def outfit_dress(name, color):
     layer.save(name)
 
 
+def more_shoes():
+    shoes('shoes_running_blue', '#3f6fd8', 'runner', accent='#ffffff', accent2='#f08a3c')
+    shoes('shoes_cowboy', '#9a5b2e', 'cowboy', sole='#4a2c18', accent='#e8c39a')
+    shoes('shoes_slippers_bunny', '#f4f4f4', 'bunny', sole='#e8a0b8', accent='#f29cb4',
+          shine='#ffffff')
+    shoes('shoes_clogs_green', '#5cb85c', 'clog', sole='#3d7f3d')
+    shoes('shoes_skates_pink', '#e87fa6', 'skate', sole='#9aa3b5', accent='#ffffff',
+          accent2='#f2c94c')
+    shoes('shoes_rocket', '#c9d1dc', 'rocket', sole='#4a4f5c', accent='#f08a3c',
+          accent2='#ffe066', shine='#ffffff')
+
+
 def shop_collection():
     face_joy()
     face_surprised()
@@ -900,10 +988,10 @@ def shop_collection():
     track_pants('bottom_track_red', '#c0392b')
     bottom('bottom_pants_white', '#ececec', 44)
 
-    shoes('shoes_rain_yellow', '#f2c94c', boots=True, sole='#3b3b45')
-    hightops('shoes_hightop_black', '#2f2f38')
+    shoes('shoes_rain_yellow', '#f2c94c', 'rain', sole='#3b3b45', accent='#fbe7a1')
+    shoes('shoes_hightop_black', '#2f2f38', 'hightop', sole='#d8d8d8')
     sandals('shoes_sandals', '#a9805e')
-    shoes('shoes_gold', '#e8c34f', sole='#ffffff')
+    shoes('shoes_gold', '#e8b830', sole='#ffffff', accent='#ffffff', shine='#fff3b0')
 
     hat_bunny('hat_bunny', '#f4f4f4')
     hat_cat('hat_cat', '#3b3b45')
@@ -2351,6 +2439,250 @@ def ocean_far():  # yellow submarine
 
 
 # ---------------------------------------------------------------- build
+# ---------------------------------------------------------------- neon city
+# A rough part of town at dusk: tired brick blocks, fire escapes, neon
+# signs and puddles on the road. Dark sky, so light text over it (like
+# dungeon and space).
+NE = {
+    'sky': '#2e2547', 'ground': hexc('#3a3b47'),
+    'walk': hexc('#55536a'), 'seam': hexc('#4a485e'), 'curb': hexc('#2a2935'),
+    'speck': hexc('#44454f'), 'speck2': hexc('#30313b'), 'lane': hexc('#b8a35a'),
+    'puddle': hexc('#4c4a6e'), 'glint': hexc('#e86fb0'),
+    'far': hexc('#3d3360'), 'far_lit': hexc('#c9a95a'),
+    'brick': hexc('#7a5560'), 'concrete': hexc('#6b6b80'), 'teal': hexc('#4f6f78'),
+    'plum': hexc('#5e4a72'),
+    'lit': hexc('#f0d27a'), 'unlit': hexc('#2c2a3c'), 'iron': hexc('#2c2a35'),
+    'pink': hexc('#ff5fae'), 'cyan': hexc('#5ff0f0'), 'lime': hexc('#b6f05f'),
+    'shutter': hexc('#8a8a98'), 'tank': hexc('#8a6a4a'), 'hoop': hexc('#5a4a3a'),
+    'can': hexc('#5f7a6a'), 'cone': hexc('#f08a3d'), 'white': hexc('#f3ebe0'),
+    'beam': hexc('#e0a83d'), 'red': hexc('#e0584f'),
+}
+NEON_GROUND = 49  # buildings stand behind a 6-row sidewalk, as in the city
+
+
+def neon_base(seed):
+    layer = ground_base(
+        NE['walk'], NE['curb'], NE['ground'],
+        specks=[(NE['speck'], 45, 5), (NE['speck2'], 35, 9)], verge_rows=6,
+    )
+    w, _ = TILE
+    layer.dots(NE['seam'], [(x, y) for x in range(0, w, 8) for y in range(50, 56)])
+    layer.dots(NE['lane'], [(x, y) for x in range(w) for y in (66, 67) if (x // 8) % 2 == 0])
+    # Back skyline: block heights repeat every 64 px (divides 256, seamless)
+    tops = (14, 22, 10, 18, 26, 12, 20, 16)
+    for x in range(w):
+        top = tops[(x // 8) % 8]
+        layer.dots(NE['far'], [(x, y) for y in range(top, NEON_GROUND + 1)])
+    for i in range(26):  # a few windows still lit far away
+        x = 3 + (i * 41 + seed * 13 + (i * i) % 17) % 248
+        top = tops[(x // 8) % 8]
+        y = top + 3 + (i * 7 + seed) % 12
+        if x % 8 < 6:
+            layer.dots(NE['far_lit'], [(x, y)])
+    # Puddles on the road catch the neon
+    for cx in (52, 140, 212):
+        cx += seed * 9
+        layer.dots(NE['puddle'], ell(cx, 62, 9, 1.8))
+        layer.dots(NE['glint'], [(cx - 4, 62), (cx - 3, 62), (cx + 3, 61)])
+    return layer
+
+
+def tenement(layer, x0, w, h, color, lit_seed=0, shutter=False, escape=False, tank=False):
+    top = NEON_GROUND - h + 1
+    vpart(layer, rect(x0, top, x0 + w - 1, NEON_GROUND), color)
+    vpart(layer, rect(x0 - 1, top - 2, x0 + w, top), darker(color, 0.8))  # parapet
+    if color == NE['brick']:  # brick courses
+        layer.dots(darker(color, 0.9), [(x, y) for y in range(top + 2, NEON_GROUND - 9, 3)
+                                        for x in range(x0 + 1, x0 + w - 1) if (x + y) % 5 == 0])
+    for j, y in enumerate(range(top + 3, NEON_GROUND - 12, 6)):
+        for i, x in enumerate(range(x0 + 3, x0 + w - 4, 6)):
+            lit = (i * 3 + j * 5 + lit_seed) % 4 != 0
+            vpart(layer, rect(x, y, x + 2, y + 3), NE['lit'] if lit else NE['unlit'], 0.85)
+    if escape:  # fire escape: landings with a ladder zig-zag between them
+        fx = x0 + w - 12
+        for y in range(top + 8, NEON_GROUND - 12, 6):
+            layer.dots(NE['iron'], [(x, y) for x in range(fx, fx + 10)])
+            layer.dots(NE['iron'], [(x, y - 2) for x in range(fx, fx + 10, 2)])
+            k = (y // 6) % 2
+            layer.dots(NE['iron'], [(fx + 2 + k * 5 + (d if k == 0 else -d) // 2, y + d)
+                                    for d in range(1, 6)])
+    if tank:  # wooden water tank on the roof
+        tx = x0 + 4
+        vpart(layer, rect(tx, top - 10, tx + 7, top - 3), NE['tank'])
+        layer.dots(NE['hoop'], [(x, y) for x in range(tx, tx + 8) for y in (top - 8, top - 5)])
+        vpart(layer, tri(tx - 1, tx + 8, top - 11, 3), darker(NE['tank'], 0.8))
+        layer.dots(NE['iron'], [(tx + 1, top - 2), (tx + 6, top - 2)])
+    # Ground floor: a roller shutter or a lit shopfront
+    if shutter:
+        vpart(layer, rect(x0 + 2, NEON_GROUND - 8, x0 + w - 3, NEON_GROUND), NE['shutter'])
+        layer.dots(darker(NE['shutter'], 0.8), [(x, y) for y in range(NEON_GROUND - 7, NEON_GROUND, 2)
+                                                for x in range(x0 + 3, x0 + w - 3)])
+    else:
+        vpart(layer, rect(x0 + 2, NEON_GROUND - 7, x0 + w - 9, NEON_GROUND - 2), NE['lit'], 0.9)
+        vpart(layer, rect(x0 + w - 7, NEON_GROUND - 8, x0 + w - 3, NEON_GROUND), NE['iron'])
+
+
+def graffiti(layer, x0, y0, colors):
+    """A scribbled tag low on a wall: three loopy letters."""
+    for i, c in enumerate(colors):
+        bx = x0 + i * 5
+        layer.dots(c, [(bx, y0 + 1), (bx, y0 + 2), (bx + 1, y0), (bx + 2, y0 + 1),
+                       (bx + 2, y0 + 2), (bx + 3, y0 + 3), (bx + 1, y0 + 3)])
+
+
+def neon_sign(layer, x, y, h, color):
+    """Vertical sign on a bracket: dark board, glowing border and bars."""
+    layer.dots(NE['iron'], [(x - 2, y + 1), (x - 1, y + 1), (x - 2, y + h - 2), (x - 1, y + h - 2)])
+    vpart(layer, rect(x, y, x + 4, y + h - 1), NE['unlit'], 0.9)
+    layer.dots(color, [(x + 1, yy) for yy in range(y + 1, y + h - 1)])
+    layer.dots(color, [(x + 3, yy) for yy in range(y + 1, y + h - 1)])
+    layer.dots(color, [(x + 2, yy) for yy in range(y + 2, y + h - 2, 3)])
+
+
+def street_light(layer, x):
+    layer.dots(NE['iron'], [(x, y) for y in range(NEON_GROUND - 20, NEON_GROUND + 1)])
+    layer.dots(NE['iron'], [(x + 1, NEON_GROUND - 20), (x + 2, NEON_GROUND - 20)])
+    vpart(layer, rect(x + 2, NEON_GROUND - 19, x + 4, NEON_GROUND - 18), NE['lit'], 0.95)
+
+
+def trash_can(layer, cx):
+    vpart(layer, rect(cx - 3, NEON_GROUND - 7, cx + 3, NEON_GROUND), NE['can'])
+    vpart(layer, rect(cx - 4, NEON_GROUND - 9, cx + 4, NEON_GROUND - 8), darker(NE['can'], 0.85))
+    layer.dots(darker(NE['can'], 0.8), [(x, y) for x in (cx - 1, cx + 1) for y in range(NEON_GROUND - 6, NEON_GROUND)])
+
+
+def cone(layer, cx):
+    vpart(layer, tri(cx - 3, cx + 3, NEON_GROUND - 1, 8), NE['cone'])
+    layer.dots(NE['white'], [(x, NEON_GROUND - 4) for x in range(cx - 1, cx + 2)])
+    vpart(layer, rect(cx - 4, NEON_GROUND - 1, cx + 4, NEON_GROUND), NE['cone'], 0.8)
+
+
+def neon_tile_a():
+    layer = neon_base(0)
+    set_outline('#1c1828')
+    tenement(layer, 3, 38, 40, NE['brick'], 1, shutter=True, escape=True)
+    graffiti(layer, 8, NEON_GROUND - 12, (NE['pink'], NE['cyan'], NE['lime']))
+    street_light(layer, 46)
+    tenement(layer, 56, 34, 32, NE['concrete'], 2, tank=True)
+    neon_sign(layer, 92, 22, 16, NE['pink'])
+    trash_can(layer, 104)
+    tenement(layer, 112, 44, 46, NE['plum'], 3, escape=True)
+    cone(layer, 162)
+    tenement(layer, 170, 38, 36, NE['teal'], 0, shutter=True, tank=True)
+    graffiti(layer, 176, NEON_GROUND - 12, (NE['lime'], NE['pink'], NE['cyan']))
+    street_light(layer, 212)
+    tenement(layer, 222, 31, 28, NE['brick'], 2)
+    return layer
+
+
+def neon_tile_b():
+    layer = neon_base(1)
+    set_outline('#1c1828')
+    tenement(layer, 3, 34, 34, NE['teal'], 2, tank=True)
+    trash_can(layer, 43)
+    tenement(layer, 52, 42, 46, NE['brick'], 0, escape=True, shutter=True)
+    graffiti(layer, 56, NEON_GROUND - 12, (NE['cyan'], NE['pink'], NE['lime']))
+    neon_sign(layer, 96, 18, 20, NE['cyan'])
+    street_light(layer, 104)
+    tenement(layer, 114, 36, 30, NE['plum'], 1)
+    cone(layer, 156)
+    cone(layer, 164)
+    tenement(layer, 172, 40, 42, NE['concrete'], 3, escape=True)
+    neon_sign(layer, 214, 24, 14, NE['lime'])
+    tenement(layer, 222, 31, 32, NE['brick'], 1, shutter=True)
+    return layer
+
+
+def neon_start():  # subway stairs going down under the street
+    layer = Layer(LANDMARK)
+    vpart(layer, rect(10, 52, 53, LB), NE['unlit'], 0.95)
+    for i, y in enumerate(range(54, LB + 1, 4)):  # steps fading into the dark
+        layer.dots(darker(NE['concrete'], 1 - i * 0.12), [(x, y) for x in range(12, 52)])
+    for x0 in (8, 52):  # railings
+        layer.dots(NE['iron'], [(x0 + 1, y) for y in range(44, LB + 1)])
+        layer.dots(NE['iron'], [(x0, 44), (x0 + 1, 44), (x0 + 2, 44)])
+    layer.dots(NE['iron'], [(x, 44) for x in range(8, 56)])
+    # Glowing sign on a post: a down arrow
+    layer.dots(NE['iron'], [(32, y) for y in range(24, 44)])
+    vpart(layer, rect(22, 12, 41, 25), NE['unlit'], 0.9)
+    box = rect(23, 13, 40, 24)
+    layer.dots(NE['cyan'], [(x, y) for x, y in box if x in (23, 40) or y in (13, 24)])
+    layer.dots(NE['cyan'], [(x, y) for x in range(31, 33) for y in range(15, 20)])
+    layer.dots(NE['cyan'], [(x, 20 + d) for d in range(3) for x in range(28 + d, 36 - d)])
+    return layer
+
+
+def neon_mid():  # the hideout
+    layer = Layer(LANDMARK)
+    vpart(layer, rect(6, 28, 57, LB), NE['brick'])
+    vpart(layer, rect(4, 25, 59, 28), darker(NE['brick'], 0.75))
+    layer.dots(darker(NE['brick'], 0.9), [(x, y) for y in range(30, LB, 3) for x in range(7, 57) if (x + y) % 5 == 0])
+    vpart(layer, rect(24, 52, 39, LB), NE['iron'])  # door
+    layer.dots(NE['lit'], [(x, 53) for x in range(26, 38)])  # light under the frame
+    vpart(layer, rect(10, 50, 20, 60), NE['lit'], 0.85)
+    vpart(layer, rect(43, 50, 53, 60), NE['lit'], 0.85)
+    # Neon star over the door: outline only, like bent glass tubing
+    import math
+    pts = [(31.5 + (9 if k % 2 == 0 else 4) * math.sin(k * math.pi / 5),
+            40 - (9 if k % 2 == 0 else 4) * math.cos(k * math.pi / 5)) for k in range(10)]
+    for (ax, ay), (bx, by) in zip(pts, pts[1:] + pts[:1]):
+        n = int(max(abs(bx - ax), abs(by - ay))) + 1
+        layer.dots(NE['pink'], [(round(ax + (bx - ax) * t / n), round(ay + (by - ay) * t / n))
+                                for t in range(n + 1)])
+    graffiti(layer, 8, 63, (NE['cyan'], NE['lime']))
+    return layer
+
+
+def neon_goal():  # neon tower with a beacon on top
+    layer = Layer(LANDMARK)
+    vpart(layer, rect(16, 14, 47, LB), NE['plum'])
+    vpart(layer, rect(14, 11, 49, 14), darker(NE['plum'], 0.8))
+    for j, y in enumerate(range(18, 58, 5)):
+        for i, x in enumerate(range(19, 44, 5)):
+            if x not in (39,):
+                lit = (i + j * 2) % 3 != 0
+                vpart(layer, rect(x, y, x + 2, y + 2), NE['lit'] if lit else NE['unlit'], 0.85)
+    neon_sign(layer, 40, 18, 36, NE['pink'])
+    layer.dots(NE['iron'], [(31, y) for y in range(1, 11)] + [(32, y) for y in range(3, 11)])
+    vpart(layer, rect(30, 0, 33, 2), NE['red'], 0.95)  # beacon
+    vpart(layer, rect(10, 62, 53, LB), darker(NE['plum'], 0.85))
+    vpart(layer, rect(26, 63, 37, LB), NE['lit'], 0.9)  # lobby glow
+    layer.dots(NE['iron'], [(31, y) for y in range(63, LB + 1)] + [(32, y) for y in range(63, LB + 1)])
+    return layer
+
+
+def neon_far():  # construction site under a tower crane
+    layer = Layer(LANDMARK)
+    # Mast: a lattice of two rails and cross braces
+    for x in (14, 19):
+        layer.dots(NE['beam'], [(x, y) for y in range(8, LB + 1)])
+    layer.dots(darker(NE['beam'], 0.8), [(15 + (y % 4), y) for y in range(8, LB + 1)])
+    # Jib out to the right, counterweight to the left
+    layer.dots(NE['beam'], [(x, y) for x in range(4, 62) for y in (6, 9)])
+    layer.dots(darker(NE['beam'], 0.8), [(x, 7 + (x % 3) // 2) for x in range(20, 62)])
+    vpart(layer, rect(4, 10, 11, 15), NE['concrete'])
+    layer.dots(NE['iron'], [(16, y) for y in range(0, 6)] + [(17, y) for y in range(0, 6)])
+    vpart(layer, rect(13, 12, 20, 18), NE['lit'], 0.85)  # cab
+    # Cable and a steel beam hanging from it
+    layer.dots(NE['iron'], [(48, y) for y in range(10, 34)])
+    vpart(layer, rect(36, 34, 60, 36), NE['red'], 0.85)
+    # Half-built floor, barrier and cones
+    vpart(layer, rect(24, 52, 60, 54), NE['concrete'])
+    for x in (26, 40, 58):
+        layer.dots(NE['iron'], [(x, y) for y in range(54, LB + 1)] + [(x + 1, y) for y in range(54, LB + 1)])
+    barrier = rect(2, 62, 34, 66)
+    layer.dots(NE['white'], [(x, y) for x, y in barrier if ((x + y) // 3) % 2])
+    layer.dots(NE['cone'], [(x, y) for x, y in barrier if not ((x + y) // 3) % 2])
+    for x in (4, 32):
+        layer.dots(NE['iron'], [(x, y) for y in range(67, LB + 1)])
+    for cx in (44, 54):
+        vpart(layer, tri(cx - 3, cx + 3, LB - 1, 8), NE['cone'])
+        layer.dots(NE['white'], [(x, LB - 4) for x in range(cx - 1, cx + 2)])
+        vpart(layer, rect(cx - 4, LB - 1, cx + 4, LB), NE['cone'], 0.8)
+    layer.dots(NE['red'], [(61, 5), (62, 5), (61, 4)])  # warning light on the jib tip
+    return layer
+
+
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
     body()
@@ -2377,9 +2709,11 @@ if __name__ == '__main__':
     bottom('bottom_pants_black', '#3b3b45', 44)
     bottom('bottom_skirt_pink', '#e87fa6', 0, skirt=True)
 
-    shoes('shoes_white', '#f2f2f2', sole='#b8b8b8')
-    shoes('shoes_red', '#d9534f')
-    shoes('shoes_boots_brown', '#7a4a2a', boots=True, sole='#3b2a20')
+    shoes('shoes_white', '#f2f2f2', sole='#b8b8b8', accent='#9aa3b5')
+    shoes('shoes_red', '#d92b2b', accent='#ffffff')
+    shoes('shoes_boots_brown', '#7a4a2a', 'boot', sole='#3b2a20', accent='#d9b48a')
+
+    more_shoes()
 
     hat_beanie('hat_beanie_teal', '#2a9d8f')
     hat_cap('hat_cap_red', '#d9534f')
@@ -2402,10 +2736,11 @@ if __name__ == '__main__':
                     dungeon_far),
         'space': (space_tile_a, space_tile_b, space_start, space_mid, space_goal, space_far),
         'ocean': (ocean_tile_a, ocean_tile_b, ocean_start, ocean_mid, ocean_goal, ocean_far),
+        'neon': (neon_tile_a, neon_tile_b, neon_start, neon_mid, neon_goal, neon_far),
     }
     OUTLINES = {'village': '#6b5a50', 'forest': '#2f3f25', 'city': '#353a44',
                 'beach': '#7a6a4a', 'mountain': '#3f4250', 'dungeon': '#1e1a26',
-                'space': '#2a2f4a', 'ocean': '#1f4a66'}
+                'space': '#2a2f4a', 'ocean': '#1f4a66', 'neon': '#1c1828'}
     for theme, makers in THEMES.items():
         for name, make in zip(('tile_a', 'tile_b', 'start', 'mid', 'goal', 'far'), makers):
             set_outline(OUTLINES[theme])

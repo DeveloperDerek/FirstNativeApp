@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
 
@@ -16,7 +16,9 @@ import { type LeaderboardRow, type Period, periodRange } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
+import { GroundText } from '@/components/ground-text';
 import { Leaderboard, PeriodPicker } from '@/components/leaderboard';
+import { PlayerCard } from '@/components/player-card';
 import { SharingRequired } from '@/components/sharing-required';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
@@ -38,6 +40,7 @@ const character = (p: PublicProfile) => (
 );
 
 export default function FriendsScreen() {
+  const router = useRouter();
   const { session, profile } = useAuth();
   const myId = session?.user.id ?? '';
   const sharing = Boolean(profile?.sharing_consent_at);
@@ -49,6 +52,8 @@ export default function FriendsScreen() {
   const [results, setResults] = useState<PublicProfile[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The person whose profile card is open
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!sharing) return;
@@ -116,6 +121,8 @@ export default function FriendsScreen() {
   const outgoing = friendships.filter((f) => f.status === 'pending' && f.requester_id === myId);
   const accepted = friendships.filter((f) => f.status === 'accepted');
   const relatedIds = new Set(friendships.map((f) => other(f).id));
+  // Looked up each render, so an open card follows the period picker
+  const selectedRow = board.find((r) => r.user_id === selectedId);
 
   return (
     <Screen title="Friends" onRefresh={pullToRefresh} refreshing={refreshing}>
@@ -129,7 +136,8 @@ export default function FriendsScreen() {
       )}
 
       <PeriodPicker value={period} onChange={setPeriod} />
-      <Leaderboard rows={board} myId={myId} />
+      {board.length > 0 && <GroundText type="small">Tap a name to see their profile.</GroundText>}
+      <Leaderboard rows={board} myId={myId} onSelect={(r) => setSelectedId(r.user_id)} />
 
       {incoming.length > 0 && (
         <Section title="Requests">
@@ -227,6 +235,24 @@ export default function FriendsScreen() {
           </Row>
         ))}
       </Section>
+
+      {/* Opens over the page when a ranking row is tapped */}
+      <PlayerCard
+        walker={
+          selectedRow
+            ? {
+                id: selectedRow.user_id,
+                name: selectedRow.display_name || 'Player',
+                steps: Number(selectedRow.total_steps), // bigint arrives as a number or string
+                avatar: selectedRow.avatar,
+                isMe: selectedRow.user_id === myId,
+              }
+            : null
+        }
+        stepsLabel={period === 'today' ? 'Today' : 'Last 7 days'}
+        onClose={() => setSelectedId(null)}
+        onEditMine={() => router.navigate('/profile')}
+      />
     </Screen>
   );
 }

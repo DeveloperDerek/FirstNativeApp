@@ -220,6 +220,30 @@ export const THEMES: Record<string, MapTheme> = {
       { steps: 15_000, label: 'Submarine', image: require('@/assets/maps/ocean/far.png') },
     ],
   },
+
+  // A rough part of town at dusk: neon signs, fire escapes, a building site
+  map_neon: {
+    id: 'map_neon',
+    label: 'Neon City',
+    sky: '#2e2547',
+    ground: '#3a3b47',
+    ink: '#ffffff',
+    skyInk: '#ffffff',
+    statusBar: 'light',
+    button: '#ff5fae',
+    buttonText: '#1c1828',
+    tiles: [require('@/assets/maps/neon/tile_a.png'), require('@/assets/maps/neon/tile_b.png')],
+    landmarks: [
+      { steps: 0, label: 'Subway stairs', image: require('@/assets/maps/neon/start.png') },
+      { steps: 5_000, label: 'Hideout', image: require('@/assets/maps/neon/mid.png') },
+      {
+        steps: 10_000,
+        label: 'Neon tower, the 10,000 step goal',
+        image: require('@/assets/maps/neon/goal.png'),
+      },
+      { steps: 15_000, label: 'Building site', image: require('@/assets/maps/neon/far.png') },
+    ],
+  },
 };
 
 export const THEME_LIST = Object.values(THEMES);

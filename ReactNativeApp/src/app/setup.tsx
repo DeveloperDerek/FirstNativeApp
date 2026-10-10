@@ -5,12 +5,14 @@ import {
   BackHandler,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { saveAvatar } from '@/api/avatar';
 import { completeSignup, RegisterError, usernameAvailable } from '@/api/register';
 import { useAuth } from '@/auth/AuthProvider';
 import {
@@ -22,7 +24,7 @@ import {
 } from '@/auth/register';
 import { signOut } from '@/auth/signIn';
 import { Avatar } from '@/avatar/Avatar';
-import { DEFAULT_AVATAR } from '@/avatar/types';
+import { DEFAULT_AVATAR, STARTER_LOOKS } from '@/avatar/types';
 import { BirthdayField } from '@/components/birthday-field';
 import { LegalAgreementText } from '@/components/legal-links';
 import { ThemedText } from '@/components/themed-text';
@@ -31,6 +33,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { TextField } from '@/components/ui/text-field';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 type Check = 'empty' | 'invalid' | 'checking' | 'available' | 'taken' | 'unknown';
 
@@ -59,6 +62,7 @@ export default function SetupScreen() {
   const [displayName, setDisplayName] = useState(viaProvider ? (providerName ?? '') : '');
   const [birthDay, setBirthDay] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
+  const [look, setLook] = useState<(typeof STARTER_LOOKS)[number] | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const typed = useRef(false);
@@ -133,19 +137,26 @@ export default function SetupScreen() {
     check !== 'taken' &&
     isValidDisplayName(displayName) &&
     birthDay !== null &&
+    look !== null &&
     (termsToAccept.length === 0 || agreed);
 
   async function save() {
-    if (!ready || !birthDay) return;
+    if (!ready || !birthDay || !look) return;
     setSaving(true);
     setError(null);
     try {
-      await completeSignup({
+      const result = await completeSignup({
         username,
         displayName: displayName.trim(),
         birthDate: birthDay,
         terms: termsToAccept.length ? termsToAccept : undefined,
       });
+      // Dress the new character. Only possible once the account is active,
+      // so after the step above; if it fails they start in the default
+      // look and can change it in Customize.
+      if (result !== 'UNDER_AGE' && user) {
+        await saveAvatar(user.id, look.avatar).catch(() => {});
+      }
       // OK, ALREADY_ONBOARDED (an earlier try worked) and UNDER_AGE all
       // move on from here: the root layout follows the server's answer.
       await reloadAccount();
@@ -183,7 +194,11 @@ export default function SetupScreen() {
             <View style={styles.header}>
               <ThemedText type="subtitle">Set up your profile</ThemedText>
               <View style={styles.preview}>
-                <Avatar config={DEFAULT_AVATAR} scale={3} accessibilityLabel="Your character" />
+                <Avatar
+                  config={look?.avatar ?? DEFAULT_AVATAR}
+                  scale={3}
+                  accessibilityLabel="Your character"
+                />
                 <ThemedText type="smallBold" numberOfLines={1}>
                   {displayName.trim() || ' '}
                 </ThemedText>
@@ -231,6 +246,8 @@ export default function SetupScreen() {
               </ThemedText>
             </View>
 
+            <StarterLookPicker value={look} onChange={setLook} />
+
             <BirthdayField
               label="Birthday"
               hint="Used to check your age. Never shown to anyone."
@@ -263,6 +280,48 @@ export default function SetupScreen() {
         </KeyboardAvoidingView>
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+/** Men's or women's clothes to start in. Everything can be changed later. */
+function StarterLookPicker({
+  value,
+  onChange,
+}: {
+  value: (typeof STARTER_LOOKS)[number] | null;
+  onChange: (look: (typeof STARTER_LOOKS)[number]) => void;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.field}>
+      <ThemedText type="smallBold" nativeID="lookLabel">
+        Starting clothes
+      </ThemedText>
+      <View style={styles.looks} accessibilityRole="radiogroup" accessibilityLabelledBy="lookLabel">
+        {STARTER_LOOKS.map((l) => {
+          const selected = value?.id === l.id;
+          return (
+            <Pressable
+              key={l.id}
+              onPress={() => onChange(l)}
+              accessibilityRole="radio"
+              accessibilityLabel={l.label}
+              accessibilityState={{ checked: selected }}
+              style={({ pressed }) => [styles.flex, pressed && styles.pressed]}>
+              <ThemedView
+                type={selected ? 'backgroundSelected' : 'backgroundElement'}
+                style={[styles.look, { borderColor: selected ? theme.accent : 'transparent' }]}>
+                <Avatar config={l.avatar} scale={2} accessibilityLabel={l.label} />
+                <ThemedText type="smallBold">{l.label}</ThemedText>
+              </ThemedView>
+            </Pressable>
+          );
+        })}
+      </View>
+      <ThemedText type="small" themeColor="textSecondary">
+        You can change your hair and clothes any time in Customize.
+      </ThemedText>
+    </View>
   );
 }
 
@@ -329,6 +388,20 @@ const styles = StyleSheet.create({
   },
   field: {
     gap: Spacing.two,
+  },
+  looks: {
+    flexDirection: 'row',
+    gap: Spacing.three,
+  },
+  look: {
+    alignItems: 'center',
+    gap: Spacing.one,
+    padding: Spacing.two,
+    borderRadius: Spacing.three,
+    borderWidth: 2,
+  },
+  pressed: {
+    opacity: 0.7,
   },
   usernameRow: {
     flexDirection: 'row',
