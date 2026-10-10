@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { type AccountStatus, parseAccountStatus, routeFor } from './route.ts';
+import { type AccountStatus, parseAccountStatus, redirectFor, routeFor } from './route.ts';
 
 const active: AccountStatus = {
   onboarded: true,
@@ -102,5 +102,47 @@ describe('parseAccountStatus', () => {
       minimumAge: 13,
       termsToAccept: [],
     });
+  });
+});
+
+describe('redirectFor: each state on its own screen', () => {
+  test('under 13 lands on the blocked screen, wherever the router fell back to', () => {
+    assert.equal(redirectFor('blocked', '/auth/reset', false), '/age-blocked');
+    assert.equal(redirectFor('blocked', '/', false), '/age-blocked');
+    assert.equal(redirectFor('blocked', '/age-blocked', false), null);
+  });
+
+  test('a link page without a link is never a place to stay', () => {
+    for (const route of ['signedOut', 'setup', 'updatedTerms', 'app'] as const) {
+      assert.notEqual(redirectFor(route, '/auth/confirm', false), null, route);
+    }
+  });
+
+  test('a link page with a link stays, to check it (or ask to sign out first)', () => {
+    assert.equal(redirectFor('signedOut', '/auth/confirm', true), null);
+    assert.equal(redirectFor('app', '/auth/confirm', true), null);
+    assert.equal(redirectFor('setup', '/auth/reset', true), null);
+  });
+
+  test('a reset comes before everything, links included', () => {
+    assert.equal(redirectFor('recovery', '/auth/reset', true), '/new-password');
+    assert.equal(redirectFor('recovery', '/new-password', false), null);
+  });
+
+  test("in the app: anywhere but the other states' screens", () => {
+    assert.equal(redirectFor('app', '/profile', false), null);
+    assert.equal(redirectFor('app', '/shop', false), null);
+    assert.equal(redirectFor('app', '/setup', false), '/');
+    assert.equal(redirectFor('app', '/sign-in', false), '/');
+  });
+
+  test('step 2, Terms and signed out each have their screen', () => {
+    assert.equal(redirectFor('setup', '/auth/reset', false), '/setup');
+    assert.equal(redirectFor('updatedTerms', '/', false), '/updated-terms');
+    assert.equal(redirectFor('signedOut', '/profile', false), '/sign-in');
+  });
+
+  test('nothing while starting, loading or failed', () => {
+    assert.equal(redirectFor('loading', '/auth/reset', false), null);
   });
 });

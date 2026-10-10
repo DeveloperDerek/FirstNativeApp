@@ -59,3 +59,35 @@ export function parseAccountStatus(raw: unknown): AccountStatus {
     termsToAccept: Array.isArray(r.terms_to_accept) ? (r.terms_to_accept as LegalDoc[]) : [],
   };
 }
+
+// Each state's own screen. The guards in the root layout only say which
+// screens are allowed; when the current one stops being allowed, Expo
+// Router falls back to some screen that is, which can be an email-link page
+// with no link on it. So the root layout also sends each state to its
+// screen with `redirectFor`.
+const HOME: Record<Exclude<Route, 'starting' | 'loading' | 'loadFailed'>, string> = {
+  signedOut: '/sign-in',
+  recovery: '/new-password',
+  blocked: '/age-blocked',
+  setup: '/setup',
+  updatedTerms: '/updated-terms',
+  app: '/',
+};
+const STATE_SCREENS = Object.values(HOME).filter((p) => p !== '/');
+
+/**
+ * Where to go instead of `pathname`, or null to stay. An email-link page
+ * (/auth/...) may stay only while it has a link to check
+ * (`hasLinkToken`), in any state but a reset (which comes first).
+ */
+export function redirectFor(route: Route, pathname: string, hasLinkToken: boolean): string | null {
+  if (route === 'starting' || route === 'loading' || route === 'loadFailed') return null;
+  const isLinkPage = pathname.startsWith('/auth/');
+  if (isLinkPage && hasLinkToken && route !== 'recovery') return null;
+
+  const home = HOME[route];
+  if (route === 'app') {
+    return isLinkPage || STATE_SCREENS.includes(pathname) ? home : null;
+  }
+  return pathname === home ? null : home;
+}

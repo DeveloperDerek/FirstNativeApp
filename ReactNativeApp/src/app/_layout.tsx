@@ -1,8 +1,10 @@
 import {
   DarkTheme,
   DefaultTheme,
+  type Href,
   Stack,
   ThemeProvider,
+  useGlobalSearchParams,
   usePathname,
   useRouter,
 } from 'expo-router';
@@ -12,6 +14,7 @@ import { StyleSheet, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
+import { redirectFor } from '@/auth/route';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { LoadFailedScreen, LoadingScreen } from '@/components/startup-screens';
 import { MapThemeProvider } from '@/hooks/use-map-theme';
@@ -52,11 +55,14 @@ function RootNavigator() {
   const pathname = usePathname();
   useMarkSeen(route === 'app' ? session?.user.id : undefined);
 
-  // A reset link signed someone in: "Set a new password" before anything
-  // else. The guards alone can land on the link page instead.
+  // Each state on its own screen. The guards alone can land on an
+  // email-link page with no link, and its Continue would come straight
+  // back there (route.ts, redirectFor).
+  const { token_hash } = useGlobalSearchParams<{ token_hash?: string }>();
   useEffect(() => {
-    if (route === 'recovery' && pathname !== '/new-password') router.replace('/new-password');
-  }, [route, pathname, router]);
+    const to = redirectFor(route, pathname, !!token_hash);
+    if (to) router.replace(to as Href);
+  }, [route, pathname, token_hash, router]);
 
   if (route === 'starting') return null; // reading the saved session takes a moment
   if (route === 'loading') return <LoadingScreen />;
