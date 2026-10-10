@@ -30,7 +30,6 @@ const TILE_WIDTH = 88;
 
 /** How a row of tiles talks back to the screen while being rearranged. */
 type Arrange = {
-  dragging: boolean;
   onDragChange: (dragging: boolean) => void;
   onReorder: (ids: string[]) => void;
 };
@@ -48,17 +47,15 @@ function ItemRow<T extends { id: string }>({
   arrange: Arrange;
 }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEnabled={!arrange.dragging}>
-      <DraggableRow
-        items={items}
-        itemWidth={TILE_WIDTH}
-        gap={Spacing.two}
-        leading={leading}
-        renderItem={renderItem}
-        onReorder={arrange.onReorder}
-        onDragChange={arrange.onDragChange}
-      />
-    </ScrollView>
+    <DraggableRow
+      items={items}
+      itemWidth={TILE_WIDTH}
+      gap={Spacing.two}
+      leading={leading}
+      renderItem={renderItem}
+      onReorder={arrange.onReorder}
+      onDragChange={arrange.onDragChange}
+    />
   );
 }
 
@@ -230,7 +227,6 @@ export default function AvatarEditorScreen() {
     );
   };
   const arrange: Arrange = {
-    dragging,
     onDragChange: setDragging,
     onReorder: reorder,
   };
