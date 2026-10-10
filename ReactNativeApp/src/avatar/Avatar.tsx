@@ -83,6 +83,7 @@ export function Avatar({ config, scale = 4, accessibilityLabel = 'Character' }: 
   const cape = findItem('cape', config.cape);
   // A one-piece outfit is drawn instead of the top and bottom
   const outfit = findItem('outfit', config.outfit);
+  const hand = findItem('hand', config.hand);
   return (
     <Canvas
       style={{ width: SPRITE_W * scale, height: SPRITE_H * scale }}
@@ -92,6 +93,7 @@ export function Avatar({ config, scale = 4, accessibilityLabel = 'Character' }: 
       {/* Back to front */}
       <Layer source={cape?.back} scale={scale} />
       <Layer source={hair?.back} scale={scale} tint={config.hairColor} />
+      <Layer source={hand?.back} scale={scale} />
       <Layer source={BODY} scale={scale} tint={config.skin} />
       {!outfit && <Layer source={findItem('bottom', config.bottom)?.image} scale={scale} />}
       <Layer source={findItem('shoes', config.shoes)?.image} scale={scale} />
@@ -101,7 +103,7 @@ export function Avatar({ config, scale = 4, accessibilityLabel = 'Character' }: 
       <Layer source={hair?.image} scale={scale} tint={config.hairColor} />
       <Layer source={findItem('hat', config.hat)?.image} scale={scale} />
       <Layer source={cape?.image} scale={scale} />
-      <Layer source={findItem('hand', config.hand)?.image} scale={scale} />
+      <Layer source={hand?.image} scale={scale} />
     </Canvas>
   );
 }

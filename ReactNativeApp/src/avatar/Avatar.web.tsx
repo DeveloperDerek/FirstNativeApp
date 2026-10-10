@@ -27,9 +27,11 @@ export function Avatar({
   const hair = findItem('hair', config.hair);
   const cape = findItem('cape', config.cape);
   const outfit = findItem('outfit', config.outfit);
+  const hand = findItem('hand', config.hand);
   const layers = [
     cape?.back,
     hair?.back,
+    hand?.back,
     BODY,
     outfit ? undefined : findItem('bottom', config.bottom)?.image,
     findItem('shoes', config.shoes)?.image,
@@ -39,7 +41,7 @@ export function Avatar({
     hair?.image,
     findItem('hat', config.hat)?.image,
     cape?.image,
-    findItem('hand', config.hand)?.image,
+    hand?.image,
   ];
   const size = { width: SPRITE_W * scale, height: SPRITE_H * scale };
   return (

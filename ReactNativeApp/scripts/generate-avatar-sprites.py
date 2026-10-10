@@ -867,6 +867,125 @@ def hand_lantern(name):
     layer.save(name)
 
 
+def line(x0, y0, x1, y1):
+    """Pixels of a 1-pixel line from (x0, y0) to (x1, y1), ends included."""
+    points = []
+    dx, dy = abs(x1 - x0), -abs(y1 - y0)
+    sx, sy = (1 if x0 < x1 else -1), (1 if y0 < y1 else -1)
+    err = dx + dy
+    while True:
+        points.append((x0, y0))
+        if (x0, y0) == (x1, y1):
+            return points
+        e2 = 2 * err
+        if e2 >= dy:
+            err += dy
+            x0 += sx
+        if e2 <= dx:
+            err += dx
+            y0 += sy
+
+
+def hand_sunflower(name):
+    layer = Layer()
+    layer.dots(hexc('#3d7f3d'), [(6, y) for y in range(3, 40)])
+    layer.dots(hexc('#5cb85c'), [(7, y) for y in range(3, 40)])
+    layer.part(ell(3.5, 22.5, 3, 1.6), hexc('#5cb85c'), hexc('#3d7f3d'), hexc('#2a5a2a'))
+    cx, cy = 6.5, -2.5
+    petals = ell(cx, cy, 4, 4)
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (0.7, 0.7), (-0.7, 0.7), (0.7, -0.7), (-0.7, -0.7)):
+        petals |= ell(cx + 3.6 * dx, cy + 3.6 * dy, 2, 2)
+    layer.part(petals, hexc('#f7c934'), hexc('#e0a020'), hexc('#8a5a1a'))
+    layer.part(ell(cx, cy, 2.6, 2.6), hexc('#7a4a2a'), hexc('#5a3a20'), hexc('#3a2a1a'))
+    layer.dots(hexc('#a8703a'), [(5, -4), (7, -3), (5, -2)])
+    layer.save(name)
+
+
+# Held across the body it would cover the face, so the rod leans up to
+# the right behind the head (the _back layer); only the grip is in front.
+def hand_fishing_rod(name):
+    back = Layer()
+    rod = line(8, 37, 30, -7)
+    back.dots(hexc('#2f3340'), rod).dots(hexc('#6a7080'), [(x + 1, y) for x, y in rod])
+    back.dots(hexc('#c8ccd6'), [(30, y) for y in range(-6, 23)])
+    bobber = ell(30.5, 24.5, 1.8, 2.4)
+    back.part(bobber, hexc('#e2483d'), hexc('#b8302a'))
+    back.dots(WHITE, [(x, y) for x, y in bobber if y >= 25 and back.px[(x, y)] != OUTLINE])
+    back.save(f'{name}_back')
+    front = Layer()
+    grip = line(8, 37, 6, 42)
+    front.dots(OUTLINE, grip).dots(hexc('#c89a62'), [(x + 1, y) for x, y in grip])
+    front.part(rect(10, 31, 13, 34), hexc('#b8bcc8'), hexc('#8a8e9a'))
+    front.save(name)
+
+
+def hand_bug_net(name):
+    layer = Layer()
+    layer.dots(hexc('#7a5a30'), [(6, y) for y in range(2, 41)])
+    layer.dots(hexc('#c89a62'), [(7, y) for y in range(2, 41)])
+    cx, cy = 7, -3
+    mesh = ell(cx, cy, 3.8, 3.8)
+    layer.dots(hexc('#eef6f0'), mesh)
+    layer.dots(hexc('#a8cdb4'), [(x, y) for x, y in mesh if x % 2 == 0 or y % 2 == 0])
+    layer.part(ring(cx, cy, 5, 5, 1.6), hexc('#2a9d8f'), hexc('#1f7a6f'))
+    layer.save(name)
+
+
+def hand_flag(name, color):
+    c = hexc(color)
+    layer = Layer()
+    layer.part(rect(5, -6, 7, 40), (0xD8, 0xDC, 0xE6), (0xA8, 0xAC, 0xB8))
+    layer.part(ell(6.5, -6.5, 1.6, 1.6), GOLD, darker(GOLD, 0.8))
+    # A swallowtail banner with a gentle wave in it
+    cloth = {(x, y + ((x - 8) // 4) % 2) for x in range(8, 21) for y in range(-6, 0)}
+    cloth -= {(20, -4), (20, -3), (19, -3), (20, -2), (21, -3)}
+    cloth -= {(x, y) for x, y in cloth if x >= 19 and (x - 8) // 4 % 2 and y in (-3, -2)}
+    layer.part(cloth, c, darker(c))
+    star = {(13, -5), (12, -4), (13, -4), (14, -4), (11, -3), (12, -3), (13, -3), (14, -3), (15, -3), (12, -2), (14, -2)}
+    layer.dots(WHITE, star)
+    layer.save(name)
+
+
+def hand_shield(name, color):
+    c = hexc(color)
+    steel = (0xC9, 0xD1, 0xDC)
+    outer = rect(1, 25, 12, 35) | {(x, y) for y in range(36, 44) for x in range(1 + (y - 35) * 2 // 3, 13 - (y - 35) * 2 // 3)}
+    inner = rect(3, 27, 10, 35) | {(x, y) for y in range(36, 42) for x in range(3 + (y - 35) * 2 // 3, 11 - (y - 35) * 2 // 3)}
+    layer = Layer().part(outer, steel, darker(steel, 0.8))
+    layer.part(inner, c, darker(c))
+    emblem = {(6, 29), (7, 29), (5, 30), (6, 30), (7, 30), (8, 30), (4, 31), (5, 31), (6, 31), (7, 31), (8, 31), (9, 31),
+              (5, 32), (6, 32), (7, 32), (8, 32), (6, 33), (7, 33)}
+    layer.dots(GOLD, emblem)
+    layer.dots(WHITE, [(3, 27), (4, 27), (3, 28)])
+    layer.save(name)
+
+
+def hand_guitar(name, color):
+    c = hexc(color)
+    layer = Layer()
+    # Slung across the body, the neck passing just left of the chin
+    neck = [(12 - k, 29 - k) for k in range(9)]
+    layer.dots(OUTLINE, neck).dots(hexc('#a0683a'), [(x + 1, y) for x, y in neck])
+    layer.dots(hexc('#e8e0d0'), [(x + 1, y) for x, y in neck[1::3]])
+    layer.part(rect(1, 17, 4, 20) - {(1, 17), (4, 20)}, hexc('#7a4a2a'), hexc('#5a3a20'))
+    layer.dots(hexc('#e8e0d0'), [(0, 18), (0, 20), (2, 16), (4, 16)])
+    body = ell(19, 36, 5.5, 4.8) | ell(14.5, 31.5, 3.8, 3.4) | rect(14, 32, 18, 35)
+    layer.part(body, c, darker(c))
+    layer.part(ell(16.5, 33.5, 1.4, 1.4), OUTLINE, OUTLINE)
+    layer.dots(OUTLINE, [(20, 37), (21, 37), (21, 38), (22, 38)])
+    layer.dots(lighter(c), [(14, 29), (13, 30), (18, 33)])
+    layer.save(name)
+
+
+def hand_surfboard(name):
+    # Stands beside the character, a little behind the head and arm
+    board = rect(1, -3, 6, 35) | ell(3.5, -3, 2.6, 4.8) | ell(3.5, 35, 2.6, 3)
+    back = Layer().part(board, hexc('#f4efe1'), hexc('#d8d0bc'))
+    back.dots(hexc('#2a9d8f'), [(x, y) for x, y in board if x in (3, 4) and back.px[(x, y)] != OUTLINE])
+    back.dots(hexc('#f08a3c'), [(x, y) for x, y in board if y in (2, 3) and back.px[(x, y)] != OUTLINE])
+    back.save(f'{name}_back')
+
+
 # ---------------------------------------------------------------- outfits (replace top and bottom)
 OUTFIT_BODY = TOP_BODY | TOP_ARMS
 
@@ -1021,6 +1140,13 @@ def shop_collection():
     hand_wand('hand_wand', '#f2c94c')
     hand_lollipop('hand_lollipop', '#e85a9a')
     hand_lantern('hand_lantern')
+    hand_sunflower('hand_sunflower')
+    hand_fishing_rod('hand_fishing_rod')
+    hand_bug_net('hand_bug_net')
+    hand_flag('hand_flag', '#3f6fd8')
+    hand_shield('hand_shield', '#c0392b')
+    hand_guitar('hand_guitar', '#d9883a')
+    hand_surfboard('hand_surfboard')
 
     outfit_sailor('outfit_sailor')
     outfit_tuxedo('outfit_tuxedo')

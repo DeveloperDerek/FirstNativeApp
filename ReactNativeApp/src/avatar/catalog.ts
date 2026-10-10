@@ -282,7 +282,8 @@ export const CATALOG: Record<Slot, Item[]> = {
       back: require('@/assets/avatar/wings_fairy_back.png'),
     },
   ],
-  // Held in the hand on the left
+  // Held in the hand on the left. back (if any) is drawn just behind the
+  // body, for long things that would otherwise cover the face.
   hand: [
     {
       id: 'hand_balloon',
@@ -294,6 +295,26 @@ export const CATALOG: Record<Slot, Item[]> = {
     { id: 'hand_wand', label: 'Star wand', image: require('@/assets/avatar/hand_wand.png') },
     { id: 'hand_lollipop', label: 'Lollipop', image: require('@/assets/avatar/hand_lollipop.png') },
     { id: 'hand_lantern', label: 'Lantern', image: require('@/assets/avatar/hand_lantern.png') },
+    {
+      id: 'hand_sunflower',
+      label: 'Sunflower',
+      image: require('@/assets/avatar/hand_sunflower.png'),
+    },
+    {
+      id: 'hand_fishing_rod',
+      label: 'Fishing rod',
+      image: require('@/assets/avatar/hand_fishing_rod.png'),
+      back: require('@/assets/avatar/hand_fishing_rod_back.png'),
+    },
+    { id: 'hand_bug_net', label: 'Bug net', image: require('@/assets/avatar/hand_bug_net.png') },
+    { id: 'hand_flag', label: 'Flag', image: require('@/assets/avatar/hand_flag.png') },
+    { id: 'hand_shield', label: 'Big shield', image: require('@/assets/avatar/hand_shield.png') },
+    { id: 'hand_guitar', label: 'Guitar', image: require('@/assets/avatar/hand_guitar.png') },
+    {
+      id: 'hand_surfboard',
+      label: 'Surfboard',
+      back: require('@/assets/avatar/hand_surfboard_back.png'),
+    },
   ],
   // One-piece outfits: drawn instead of the top and bottom
   outfit: [
@@ -357,9 +378,11 @@ export function wornLayers(config: AvatarConfig): number[] {
   const hair = findItem('hair', config.hair);
   const cape = findItem('cape', config.cape);
   const outfit = findItem('outfit', config.outfit);
+  const hand = findItem('hand', config.hand);
   const layers = [
     cape?.back,
     hair?.back,
+    hand?.back,
     BODY,
     outfit ? undefined : findItem('bottom', config.bottom)?.image,
     findItem('shoes', config.shoes)?.image,
@@ -369,7 +392,7 @@ export function wornLayers(config: AvatarConfig): number[] {
     hair?.image,
     findItem('hat', config.hat)?.image,
     cape?.image,
-    findItem('hand', config.hand)?.image,
+    hand?.image,
   ];
   return layers.filter((l): l is number => l !== undefined);
 }
