@@ -7,8 +7,10 @@ Original art drawn in code, following the spec in step-tracker-stage3.txt:
 every layer is a 32 x 56 PNG with a transparent background: the 32 x 48
 character, feet on its row 46, plus HEADROOM rows above it for tall hats,
 ears and held items (drawing rows -8 to -1), a 1-pixel dark outline, no anti-aliasing (every pixel fully opaque or
-fully transparent), light from the top-left with one shadow tone per
-color. Body and hair are grayscale so the app can tint them.
+fully transparent), light from the top-left: on clothes and items a
+warm highlight along the top-left and a slightly cool shadow per color.
+Body and hair are grayscale so the app can tint them; hair sits a little
+below white so a shine can show on it.
 
 Replace these files with hand-drawn art whenever you like; keep the same
 file names and canvas size.
@@ -28,6 +30,7 @@ LAYERS = {}  # name -> pixels, for previews
 # Tintable layers: white becomes the chosen color, gray its shadow,
 # and the dark outline stays dark after tinting.
 GRAY_BASE, GRAY_SHADOW, GRAY_OUTLINE = (255, 255, 255), (196, 196, 196), (58, 58, 58)
+INNER_LINE = 0.6  # lines inside a sprite: this much of the colors beside them
 
 
 # ---------------------------------------------------------------- shapes
@@ -51,8 +54,20 @@ def mirror(points):
 
 
 # ---------------------------------------------------------------- painting
-def shade(mask, base, shadow, outline, size=(W, H), top=0):
-    """Outline the edge of a shape and shade its bottom/right inner band."""
+def rim_lit(mask, x, y):
+    """The band just inside the top edge, and the left edge of shapes wide
+    enough to keep some base color."""
+    return (x, y - 2) not in mask or ((x - 2, y) not in mask and (x + 4, y) in mask)
+
+
+def shine_lit(mask, x, y):
+    """Hair shine: a band two pixels deep along the top, on the upper left."""
+    return 6 <= x <= 15 and ((x, y - 2) not in mask or (x, y - 3) not in mask)
+
+
+def shade(mask, base, shadow, outline, size=(W, H), top=0, highlight=None, lit=rim_lit):
+    """Outline the edge of a shape and shade its bottom/right inner band;
+    with a highlight, the pixels lit() picks catch the light."""
     px = {}
     for x, y in mask:
         if not (0 <= x < size[0] and top <= y < size[1]):
@@ -61,9 +76,27 @@ def shade(mask, base, shadow, outline, size=(W, H), top=0):
             px[(x, y)] = outline
         elif (x + 2, y) not in mask or (x, y + 2) not in mask:
             px[(x, y)] = shadow  # light comes from the top-left
+        elif highlight and lit(mask, x, y):
+            px[(x, y)] = highlight
         else:
             px[(x, y)] = base
     return px
+
+
+def is_tintable(outline):
+    """Body and hair parts (gray, tinted in the app) use the gray outline."""
+    return outline == GRAY_OUTLINE
+
+
+def warm_light(c, f=0.32):
+    """Highlight tone: lighter, and a touch warm, like the light source."""
+    return tuple(int(v + (t - v) * f) for v, t in zip(c, (255, 250, 232)))
+
+
+def cool_shadow(c):
+    """Shadows lean a little blue-violet instead of just going darker."""
+    r, g, b = c
+    return (int(r * 0.93), int(g * 0.95), min(255, int(b * 1.04) + 6))
 
 
 class Layer:
@@ -72,9 +105,22 @@ class Layer:
         self.size = size
         # Character layers can draw into the headroom (negative rows)
         self.top = -HEADROOM if size == (W, H) else 0
+        self.edges = {}  # outline pixels drawn by part(), to soften the inner ones
 
-    def part(self, mask, base, shadow, outline=OUTLINE):
-        self.px.update(shade(mask, base, shadow, outline, self.size, self.top))
+    def part(self, mask, base, shadow, outline=OUTLINE, highlight=None):
+        # Colored character parts get a highlight and a cooler shadow; gray
+        # parts stay neutral so the app's tint comes out true (hair passes
+        # its own highlight, drawn as a shine). Maps and the flag keep their
+        # flat look.
+        lit = rim_lit
+        if self.size == (W, H) and not is_tintable(outline):
+            highlight = highlight or warm_light(base)
+            shadow = cool_shadow(shadow)
+        elif highlight:
+            lit = shine_lit
+        shaded = shade(mask, base, shadow, outline, self.size, self.top, highlight, lit)
+        self.px.update(shaded)
+        self.edges.update({p: c for p, c in shaded.items() if c == outline})
         return self
 
     def dots(self, color, points):
@@ -82,7 +128,36 @@ class Layer:
             self.px[p] = color
         return self
 
+    def flip(self):
+        """Mirror left to right (e.g. to move a held item to the other hand)."""
+        self.px = {(self.size[0] - 1 - x, y): c for (x, y), c in self.px.items()}
+        self.edges = {(self.size[0] - 1 - x, y): c for (x, y), c in self.edges.items()}
+        return self
+
+    def soften_inner_lines(self, over_body):
+        """Outline pixels with something drawn on all four sides are lines
+        inside the character (a pocket, a sleeve against the arm, bangs on
+        the forehead): draw them as a dark shade of their neighbors instead
+        of the near-black outline. Layers in front of the body count the
+        body, always drawn behind them, as something drawn. The silhouette
+        keeps its dark outline so it still reads small."""
+        body = LAYERS.get('body_base', {}) if over_body else {}
+        inner = {}
+        for (x, y), c in self.edges.items():
+            if self.px.get((x, y)) != c:
+                continue  # painted over since
+            around = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+            if not all(q in self.px or q in body for q in around):
+                continue
+            fills = [self.px[q] for q in around if q in self.px and q not in self.edges]
+            if fills:
+                avg = tuple(sum(v) // len(fills) for v in zip(*fills))
+                inner[(x, y)] = darker(avg, INNER_LINE)
+        self.px.update(inner)
+
     def save(self, name, size=None, folder=None, scale=1, suffix=''):
+        if self.size == (W, H):
+            self.soften_inner_lines(over_body=not name.endswith('_back'))
         LAYERS[name] = dict(self.px)
         w, h = size or self.size
         h -= self.top  # headroom rows go above row 0
@@ -148,12 +223,14 @@ EYE_DARK = (0x2B, 0x1E, 0x24)
 WHITE = (255, 255, 255)
 BLUSH = (0xF2, 0x9C, 0x9C)
 MOUTH = (0x8A, 0x3B, 0x3B)
+EYE_IRIS = (0x6B, 0x45, 0x5A)
 
 
-def eye(x, y):
-    """2x3 eye with a highlight pixel; (x, y) is its top-left."""
-    pts = {(x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1), (x, y + 2), (x + 1, y + 2)}
-    return pts, (x, y)
+def open_eye(layer, x, y):
+    """2x3 eye, (x, y) its top-left: dark, a softer iris tone along the
+    bottom, and a highlight pixel."""
+    layer.dots(EYE_DARK, rect(x, y, x + 1, y + 1))
+    layer.dots(EYE_IRIS, [(x, y + 2), (x + 1, y + 2)]).dots(WHITE, [(x, y)])
 
 
 def face(name, left='open', mouth='smile', brows=False, blush=True):
@@ -161,8 +238,7 @@ def face(name, left='open', mouth='smile', brows=False, blush=True):
     for side, ex in (('left', 10), ('right', 20)):
         state = left if side == 'left' else 'open'
         if state == 'open':
-            pts, hl = eye(ex, 14)
-            layer.dots(EYE_DARK, pts).dots(WHITE, [hl])
+            open_eye(layer, ex, 14)
         else:  # closed: a little curve
             layer.dots(EYE_DARK, [(ex - 1, 15), (ex, 16), (ex + 1, 16), (ex + 2, 15)])
     if brows:
@@ -183,6 +259,10 @@ def face(name, left='open', mouth='smile', brows=False, blush=True):
 
 # ---------------------------------------------------------------- hair (grayscale)
 GRAY = (GRAY_BASE, GRAY_SHADOW, GRAY_OUTLINE)
+# Hair sits a little below white so a shine can catch the light above
+# it, and the back layer (behind the head) is a shade deeper for depth.
+HAIR = ((216, 216, 216), (168, 168, 168), GRAY_OUTLINE, (255, 255, 255))
+HAIR_BACK = ((204, 204, 204), (158, 158, 158), GRAY_OUTLINE)
 CAP = ellipse(16, 13, 12.5, 12) & rect(0, 0, W - 1, 9)  # top of the head, a little bigger
 
 
@@ -195,34 +275,34 @@ def hair_spiky():
             spikes |= rect(cx - half, y, cx + half, y)
     fringe = {(x, 10) for x in range(6, 26) if x % 4 != 1} | {(x, 11) for x in range(7, 25) if x % 4 == 3}
     sides = mirror(rect(4, 8, 6, 14))
-    Layer().part(CAP | spikes | fringe | sides, *GRAY).save('hair_spiky')
+    Layer().part(CAP | spikes | fringe | sides, *HAIR).save('hair_spiky')
 
 
 def hair_short():
     fringe = rect(6, 9, 25, 10) | {(x, 11) for x in range(6, 18)}
     sides = mirror(rect(3, 8, 6, 18))
-    Layer().part(CAP | fringe | sides, *GRAY).save('hair_short')
+    Layer().part(CAP | fringe | sides, *HAIR).save('hair_short')
 
 
 def hair_buzz():
     buzz = ellipse(16, 13, 12, 11.5) & rect(0, 0, W - 1, 7)
-    Layer().part(buzz | mirror(rect(4, 7, 5, 10)), *GRAY).save('hair_buzz')
+    Layer().part(buzz | mirror(rect(4, 7, 5, 10)), *HAIR).save('hair_buzz')
 
 
 def hair_long():
     fringe = rect(6, 9, 25, 10) | mirror({(x, 11) for x in range(6, 12)})
     sides = mirror(rect(2, 8, 6, 24))
-    Layer().part(CAP | fringe | sides, *GRAY).save('hair_long')
+    Layer().part(CAP | fringe | sides, *HAIR).save('hair_long')
     back = ellipse(16, 13, 13.5, 12.5) | rect(3, 13, 28, 33) | ellipse(16, 33, 12.5, 3)
-    Layer().part(back, *GRAY).save('hair_long_back')
+    Layer().part(back, *HAIR_BACK).save('hair_long_back')
 
 
 def hair_ponytail():
     fringe = rect(7, 9, 24, 10) | {(x, 11) for x in range(14, 25)}
     sides = mirror(rect(4, 8, 6, 15))
-    Layer().part(CAP | fringe | sides, *GRAY).save('hair_ponytail')
+    Layer().part(CAP | fringe | sides, *HAIR).save('hair_ponytail')
     tail = ellipse(16, 12, 13, 11.5) | ellipse(26, 16, 4, 5) | ellipse(27.5, 25, 3.5, 8)
-    Layer().part(tail, *GRAY).save('hair_ponytail_back')
+    Layer().part(tail, *HAIR_BACK).save('hair_ponytail_back')
 
 
 # ---------------------------------------------------------------- clothes
@@ -444,8 +524,7 @@ def face_joy():
 def face_surprised():
     layer = Layer()
     for ex in (10, 20):
-        pts, hl = eye(ex, 14)
-        layer.dots(EYE_DARK, pts).dots(WHITE, [hl])
+        open_eye(layer, ex, 14)
     layer.dots(OUTLINE, [(9, 11), (10, 10), (11, 10), (20, 10), (21, 10), (22, 11)])
     layer.dots(MOUTH, [(15, 19), (16, 19), (14, 20), (17, 20), (15, 21), (16, 21)])
     layer.save('face_surprised')
@@ -475,8 +554,7 @@ def face_starry():
 def face_cat():
     layer = Layer()
     for ex in (10, 20):
-        pts, hl = eye(ex, 14)
-        layer.dots(EYE_DARK, pts).dots(WHITE, [hl])
+        open_eye(layer, ex, 14)
     layer.dots(MOUTH, [(13, 19), (14, 20), (15, 19), (16, 19), (17, 20), (18, 19)])  # w mouth
     layer.dots(OUTLINE, [(4, 17), (5, 17), (4, 19), (5, 19), (26, 17), (27, 17), (26, 19), (27, 19)])
     layer.dots(BLUSH, [(8, 18), (9, 18), (22, 18), (23, 18)])
@@ -487,24 +565,24 @@ def face_cat():
 def hair_bob():
     fringe = rect(6, 9, 25, 11)  # blunt bangs
     sides = mirror(rect(3, 8, 6, 20) | rect(4, 21, 7, 21))
-    Layer().part(CAP | fringe | sides, *GRAY).save('hair_bob')
+    Layer().part(CAP | fringe | sides, *HAIR).save('hair_bob')
     back = ell(16, 13, 13.5, 12.5) | rect(3, 13, 28, 21)
-    Layer().part(back, *GRAY).save('hair_bob_back')
+    Layer().part(back, *HAIR_BACK).save('hair_bob_back')
 
 
 def hair_twintails():
     fringe = rect(7, 9, 24, 10) | {(x, 11) for x in range(8, 24) if x % 3}
     sides = mirror(rect(4, 8, 6, 14))
-    Layer().part(CAP | fringe | sides, *GRAY).save('hair_twintails')
+    Layer().part(CAP | fringe | sides, *HAIR).save('hair_twintails')
     tails = ell(16, 12, 13, 11.5) | mirror(ell(3, 12, 3, 3) | ell(2.5, 24, 2.6, 10))
-    Layer().part(tails, *GRAY).save('hair_twintails_back')
+    Layer().part(tails, *HAIR_BACK).save('hair_twintails_back')
 
 
 def hair_afro():
     puff = ell(16, 8, 15.5, 10.5)
     front = (puff & rect(0, -HEADROOM, W - 1, 10)) | mirror(puff & rect(0, 0, 4, 18))
-    Layer().part(front, *GRAY).save('hair_afro')
-    Layer().part(ell(16, 10, 15.5, 12), *GRAY).save('hair_afro_back')
+    Layer().part(front, *HAIR).save('hair_afro')
+    Layer().part(ell(16, 10, 15.5, 12), *HAIR_BACK).save('hair_afro_back')
 
 
 def hair_mohawk():
@@ -514,7 +592,7 @@ def hair_mohawk():
     for cx, apex in ((13, -3), (16, -7), (19, -4)):
         crest |= {(x, y) for y in range(apex, 1) for x in range(cx - (y - apex) // 2, cx + 1 + (y - apex) // 2)}
     layer = Layer().part(buzz | mirror(rect(4, 7, 5, 10)), (230, 230, 230), (200, 200, 200), GRAY_OUTLINE)
-    layer.part(crest & rect(11, -HEADROOM, 20, 6), *GRAY)
+    layer.part(crest & rect(11, -HEADROOM, 20, 6), *HAIR)
     layer.save('hair_mohawk')
 
 
@@ -522,7 +600,7 @@ def hair_bun():
     fringe = rect(7, 9, 24, 10) | {(x, 11) for x in range(18, 25)}
     sides = mirror(rect(4, 8, 6, 14))
     bun = ell(16, -1, 5.5, 4.5)
-    Layer().part(bun, *GRAY).part(CAP | fringe | sides, *GRAY).save('hair_bun')
+    Layer().part(bun, *HAIR).part(CAP | fringe | sides, *HAIR).save('hair_bun')
 
 
 def hair_wavy():
@@ -532,11 +610,11 @@ def hair_wavy():
     for y in range(8, 27):
         off = round(math.sin(y / 2.5))
         sides |= {(x + off, y) for x in range(2, 6)}
-    Layer().part(CAP | fringe | mirror(sides), *GRAY).save('hair_wavy')
+    Layer().part(CAP | fringe | mirror(sides), *HAIR).save('hair_wavy')
     back = ell(16, 13, 13.5, 12.5) | rect(3, 13, 28, 34)
     for x in range(3, 29):  # wavy ends
         back |= {(x, 35)} if x % 4 in (0, 1) else set()
-    Layer().part(back, *GRAY).save('hair_wavy_back')
+    Layer().part(back, *HAIR_BACK).save('hair_wavy_back')
 
 
 # ---------------------------------------------------------------- more tops
@@ -812,6 +890,8 @@ def wings(name, color, shape):
 
 
 # ---------------------------------------------------------------- held items (in the hand on the left)
+# The first six are drawn on the left and flipped into the right hand,
+# where the committed sprites have always held them.
 def hand_balloon(name, color):
     c = hexc(color)
     layer = Layer()
@@ -820,7 +900,7 @@ def hand_balloon(name, color):
     heart |= {(x, y) for y in range(-5, 3) for x in range(1 + (y + 5), 12 - (y + 5))}
     layer.part(heart, c, darker(c))
     layer.dots(WHITE, [(3, -6), (2, -5)])
-    layer.save(name)
+    layer.flip().save(name)
 
 
 def hand_umbrella(name, color):
@@ -830,7 +910,7 @@ def hand_umbrella(name, color):
     layer.dots(hexc('#8a6a4a'), [(8, y) for y in range(-1, 37)] + [(9, 37), (10, 36)])
     layer.part(canopy, c, darker(c))
     layer.dots(WHITE, [(x, y) for x, y in canopy if (x // 3) % 2 and layer.px.get((x, y)) != OUTLINE])
-    layer.save(name)
+    layer.flip().save(name)
 
 
 def hand_sword(name):
@@ -838,7 +918,7 @@ def hand_sword(name):
     layer = Layer().part(rect(6, 14, 8, 33) | {(7, 13)}, steel, hexc('#b8bcc8'))
     layer.part(rect(4, 34, 10, 35), GOLD, darker(GOLD, 0.8))
     layer.part(rect(6, 36, 8, 39), hexc('#7a4a2a'), hexc('#5a3a20'))
-    layer.save(name)
+    layer.flip().save(name)
 
 
 def hand_wand(name, color):
@@ -847,7 +927,7 @@ def hand_wand(name, color):
     star = rect(5, 18, 10, 19) | rect(6, 17, 9, 20) | {(7, 15), (8, 15), (7, 16), (8, 16), (4, 18), (11, 18), (5, 21), (10, 21)}
     layer.part(star, c, darker(c, 0.85))
     layer.dots(WHITE, [(6, 18)])
-    layer.save(name)
+    layer.flip().save(name)
 
 
 def hand_lollipop(name, color):
@@ -855,7 +935,7 @@ def hand_lollipop(name, color):
     layer = Layer().part(rect(7, 28, 8, 38), WHITE, (0xD8, 0xD8, 0xD8))
     layer.part(ell(7.5, 24, 4.5, 4.5), c, darker(c))
     layer.dots(WHITE, [(6, 22), (7, 22), (8, 23), (9, 24), (8, 25), (7, 25), (6, 24)])
-    layer.save(name)
+    layer.flip().save(name)
 
 
 def hand_lantern(name):
@@ -864,7 +944,7 @@ def hand_lantern(name):
     layer.part(rect(5, 39, 11, 45), GOLD, darker(GOLD, 0.8))
     layer.dots(hexc('#fff3b0'), rect(7, 41, 9, 43))
     layer.part(rect(6, 46, 10, 46), darker(GOLD, 0.7), darker(GOLD, 0.6))
-    layer.save(name)
+    layer.flip().save(name)
 
 
 def line(x0, y0, x1, y1):
