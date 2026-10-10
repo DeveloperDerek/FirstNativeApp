@@ -26,6 +26,7 @@ import { Screen } from '@/components/ui/screen';
 import { Row, Section } from '@/components/ui/section';
 import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
+import { useNotificationCounts } from '@/hooks/use-notification-counts';
 import { errorMessage } from '@/lib/error-message';
 
 const name = (p: PublicProfile) => p.display_name || p.username;
@@ -44,6 +45,7 @@ export default function FriendsScreen() {
   const { session, profile } = useAuth();
   const myId = session?.user.id ?? '';
   const sharing = Boolean(profile?.sharing_consent_at);
+  const { refreshCounts } = useNotificationCounts();
 
   const [period, setPeriod] = useState<Period>('week');
   const [board, setBoard] = useState<LeaderboardRow[]>([]);
@@ -57,6 +59,9 @@ export default function FriendsScreen() {
 
   const load = useCallback(async () => {
     if (!sharing) return;
+    // The tab badge reloads with the list: on opening the tab, and right
+    // after accept / decline so it drops straight away.
+    refreshCounts();
     setError(null);
     try {
       const { fromDay, toDay } = periodRange(period);
@@ -69,7 +74,7 @@ export default function FriendsScreen() {
     } catch (e) {
       setError(errorMessage(e));
     }
-  }, [sharing, period]);
+  }, [sharing, period, refreshCounts]);
 
   // Reload whenever the tab is opened, so new requests show up.
   useFocusEffect(

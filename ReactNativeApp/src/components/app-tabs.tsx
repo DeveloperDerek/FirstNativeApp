@@ -1,11 +1,15 @@
 import { NativeTabs } from 'expo-router/native-tabs';
 
 import { useMapTheme } from '@/hooks/use-map-theme';
+import { useNotificationCounts } from '@/hooks/use-notification-counts';
+import { badgeText } from '@/lib/badge-text';
 
 // The tab bar is the map's ground color, so the ground runs all the way
 // down. (On iOS 26 and later the system draws the bar and ignores it.)
 export default function AppTabs() {
   const { theme } = useMapTheme();
+  const { counts } = useNotificationCounts();
+  const friendsBadge = badgeText(counts.friendRequests);
   const faded = theme.ink + '99'; // same color, faded
 
   return (
@@ -33,6 +37,8 @@ export default function AppTabs() {
       <NativeTabs.Trigger name="friends">
         <NativeTabs.Trigger.Label>Friends</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="person.2" md="group" />
+        {/* Friend requests waiting for you; hidden at 0 */}
+        <NativeTabs.Trigger.Badge hidden={!friendsBadge}>{friendsBadge}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="groups">

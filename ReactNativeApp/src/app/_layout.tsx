@@ -19,6 +19,7 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { LoadFailedScreen, LoadingScreen } from '@/components/startup-screens';
 import { MapThemeProvider } from '@/hooks/use-map-theme';
 import { useMarkSeen } from '@/hooks/use-mark-seen';
+import { NotificationCountsProvider } from '@/hooks/use-notification-counts';
 import { useWebFonts } from '@/hooks/use-web-fonts';
 import { WalletProvider } from '@/hooks/use-wallet';
 
@@ -33,10 +34,12 @@ export default function RootLayout() {
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <AuthProvider>
           <WalletProvider>
-            <MapThemeProvider>
-              <RootNavigator />
-              <AnimatedSplashOverlay />
-            </MapThemeProvider>
+            <NotificationCountsProvider>
+              <MapThemeProvider>
+                <RootNavigator />
+                <AnimatedSplashOverlay />
+              </MapThemeProvider>
+            </NotificationCountsProvider>
           </WalletProvider>
         </AuthProvider>
       </ThemeProvider>
