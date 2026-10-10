@@ -30,6 +30,7 @@ import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
 import { useNotificationCounts } from '@/hooks/use-notification-counts';
 import { errorMessage } from '@/lib/error-message';
+import { askForPush } from '@/notifications/push';
 
 const name = (p: PublicProfile) => p.display_name || p.username;
 
@@ -195,7 +196,14 @@ export default function FriendsScreen() {
               <Button
                 title="Add"
                 size="small"
-                onPress={() => act(() => sendFriendRequest(myId, p.id))}
+                onPress={() =>
+                  act(async () => {
+                    await sendFriendRequest(myId, p.id);
+                    // A good moment to ask (only ever asked once): they
+                    // will want to hear when someone adds them back
+                    askForPush().catch(() => {});
+                  })
+                }
               />
             )}
           </Row>

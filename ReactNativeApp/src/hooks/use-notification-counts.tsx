@@ -16,6 +16,7 @@ import {
   watchFriendRequests,
 } from '@/api/notifications';
 import { useAuth } from '@/auth/AuthProvider';
+import { setAppIconCount } from '@/notifications/push';
 
 type CountsState = {
   counts: NotificationCounts;
@@ -77,6 +78,15 @@ export function NotificationCountsProvider({ children }: { children: ReactNode }
     });
     return () => sub.remove();
   }, [userId, sharing, refreshCounts]);
+
+  // The app icon number. While the app is closed only a push can set it,
+  // and nothing lowers it (a cancelled request leaves it stale), so it is
+  // set to the real total whenever the counts load, and cleared on
+  // sign-out.
+  const iconTotal = current.friendRequests + current.questVotes;
+  useEffect(() => {
+    setAppIconCount(iconTotal);
+  }, [iconTotal]);
 
   // Live while the app is open. Any change: just ask for the counts again.
   useEffect(() => {

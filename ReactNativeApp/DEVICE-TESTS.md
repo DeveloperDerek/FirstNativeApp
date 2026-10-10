@@ -152,6 +152,24 @@ on Profile (section 8e), before writing any help text.
 - [ ] iPhone  - [ ] Android — **Rename:** a new username saves; the old one can't be taken by another account for 30 days (try it from a second account: "That username is taken."). *(database tests)*
 - [ ] iPhone  - [ ] Android — **Signed in with Apple / Google:** shows "Signed in with Apple/Google" instead of Change password.
 
+## 10. Notifications (`step-tracker-notifications.txt`)
+
+Needs a build with `EXPO_PUBLIC_PUSH_NOTIFICATIONS=true` and
+`EXPO_PUBLIC_EAS_PROJECT_ID` set (see `app.config.ts`), and two accounts on
+two phones (or one phone and the web). iPhone first; Android is a
+follow-up on a real phone (section 4 of the blueprint).
+
+- [ ] iPhone  - [ ] Android — **Tab badges:** a request sent to you while you are on Today shows a red number on Friends within a few seconds; accepting or declining clears it at once; "9+" above 9.
+- [ ] iPhone  - [ ] Android — **Cancelled live:** the sender cancels; your Friends badge drops without leaving Today.
+- [ ] iPhone  - [ ] Android — **Groups badge:** a quest proposed in your group shows on Groups (after returning to the app); voting clears it; a vote deadline passing while the app is open clears it.
+- [ ] iPhone  - [ ] Android — **Permission prompt:** not asked on first launch; asked once, right after you send a friend request.
+- [ ] iPhone  - [ ] Android — **Push:** with the app closed, a request sent to you shows "@name wants to be friends", with the total on the app icon. Tapping it opens Friends.
+- [ ] iPhone  - [ ] Android — **Icon number:** after a request is cancelled while the app is closed, the icon keeps the old number until you open the app, then shows the real total.
+- [ ] iPhone  - [ ] Android — **Profile switch:** turning Notifications off stops pushes (the tab badges stay). Turning it on after denying the prompt offers Open Settings.
+- [ ] iPhone  - [ ] Android — **Sign-out:** after signing out, requests to that account no longer reach this phone. Signing in to another account on it brings only the new account's pushes.
+- [ ] iPhone  - [ ] Android — **Sign out other devices:** the other phone stops getting this account's pushes.
+- [ ] iPhone  - [ ] Android — **Dead address:** delete the app, send a request to that account, and within about half an hour (Expo's receipt + the 10-minute cleanup job) its row is gone from `push_devices`.
+
 ---
 
 ## Sign-off

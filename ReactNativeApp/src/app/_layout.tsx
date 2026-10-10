@@ -20,6 +20,7 @@ import { LoadFailedScreen, LoadingScreen } from '@/components/startup-screens';
 import { MapThemeProvider } from '@/hooks/use-map-theme';
 import { useMarkSeen } from '@/hooks/use-mark-seen';
 import { NotificationCountsProvider } from '@/hooks/use-notification-counts';
+import { usePush } from '@/hooks/use-push';
 import { useWebFonts } from '@/hooks/use-web-fonts';
 import { WalletProvider } from '@/hooks/use-wallet';
 
@@ -57,6 +58,7 @@ function RootNavigator() {
   const router = useRouter();
   const pathname = usePathname();
   useMarkSeen(route === 'app' ? session?.user.id : undefined);
+  usePush(route === 'app' ? session?.user.id : undefined);
 
   // Each state on its own screen. The guards alone can land on an
   // email-link page with no link, and its Continue would come straight

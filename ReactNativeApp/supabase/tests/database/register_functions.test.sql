@@ -21,7 +21,10 @@ select is(
             -- the caller's own status, needed to pick the screen
             'account_status',
             -- for unfinished accounts; they refuse blocked ones (checked below)
-            'complete_signup', 'username_available', 'accept_legal_documents')
+            'complete_signup', 'username_available', 'accept_legal_documents',
+            -- sign-out removes only the caller's own push addresses, and
+            -- must work on the blocked and Updated Terms screens too
+            'unregister_push_device', 'unregister_other_push_devices')
         order by 1),
   '{}'::text[],
   'every function the app can call checks is_active_account()');

@@ -25,6 +25,13 @@ import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
 import { errorMessage } from '@/lib/error-message';
 import { privacyUrl } from '@/lib/supabase';
+import {
+  askForPush,
+  getPushEnabled,
+  pushAvailable,
+  pushPermission,
+  setPushEnabled,
+} from '@/notifications/push';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -113,6 +120,8 @@ export default function ProfileScreen() {
 
       {profile && <BirthdaySection userId={profile.id} />}
 
+      {profile && pushAvailable && <NotificationsSection userId={profile.id} />}
+
       <Section title="Privacy">
         <Row
           title="Share my steps"
@@ -168,6 +177,63 @@ export default function ProfileScreen() {
  * 6g): corrections go to support. Hidden for accounts made before
  * birthdays were asked.
  */
+/**
+ * Push notifications on or off for this account (the server checks it
+ * before every push). Shown as on only when this phone also allows them.
+ */
+function NotificationsSection({ userId }: { userId: string }) {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [allowed, setAllowed] = useState(false);
+
+  // Re-read on every visit: permission can change in the Settings app
+  useFocusEffect(
+    useCallback(() => {
+      getPushEnabled(userId)
+        .then(setEnabled)
+        .catch(() => {});
+      pushPermission()
+        .then((p) => setAllowed(p === 'granted'))
+        .catch(() => {});
+    }, [userId])
+  );
+
+  async function toggle(next: boolean) {
+    try {
+      if (next) {
+        const permission = await askForPush();
+        setAllowed(permission === 'granted');
+        if (permission === 'denied') {
+          Alert.alert(
+            'Notifications are off for StepTracker',
+            'Turn them on in Settings to hear about friend requests.',
+            [
+              { text: 'Not now', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]
+          );
+          return;
+        }
+      }
+      await setPushEnabled(next);
+      setEnabled(next);
+    } catch (e) {
+      Alert.alert('Could not change notifications', errorMessage(e));
+    }
+  }
+
+  return (
+    <Section title="Notifications">
+      <Row title="Friend requests" detail="When someone wants to be your friend">
+        <Switch
+          value={Boolean(enabled && allowed)}
+          disabled={enabled === null}
+          onValueChange={toggle}
+        />
+      </Row>
+    </Section>
+  );
+}
+
 function BirthdaySection({ userId }: { userId: string }) {
   const router = useRouter();
   const [birthday, setBirthday] = useState<Birthday | null>(null);

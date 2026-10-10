@@ -3,6 +3,7 @@ import { createClient, type UserAttributes } from '@supabase/supabase-js';
 
 import { classifyAuthError } from '@/auth/links';
 import { supabase, supabaseKey, supabaseUrl } from '@/lib/supabase';
+import { unregisterOtherPushDevices } from '@/notifications/push';
 
 // Saving a new password does not by itself sign out other phones
 // (step-tracker-register.txt, 8d). So after every password change the
@@ -18,6 +19,13 @@ export const isRevocationPending = (userId: string) =>
 
 /** Signs out every session of this account except this phone's. True when done. */
 export async function signOutOtherDevices(userId: string): Promise<boolean> {
+  // Their push addresses first: a signed-out phone can't remove its own.
+  // If this fails, the whole sign-out is retried later.
+  try {
+    await unregisterOtherPushDevices();
+  } catch {
+    return false;
+  }
   const { error } = await supabase.auth.signOut({ scope: 'others' });
   if (error) return false;
   await AsyncStorage.removeItem(pendingKey(userId)).catch(() => {});

@@ -16,6 +16,7 @@ import { type SocialProvider, SocialSignInError } from '@/auth/social';
 import { rememberSignupEmail } from '@/auth/verify-link';
 import { errorMessage } from '@/lib/error-message';
 import { supabase } from '@/lib/supabase';
+import { unregisterPushDevice } from '@/notifications/push';
 
 const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
@@ -178,6 +179,9 @@ export async function signOut() {
       // Otherwise the next Google sign-in silently reuses this account.
       await GoogleSignin.signOut().catch(() => {});
     }
+    // While still signed in: this phone stops getting the account's
+    // notifications (a shared phone must not keep them)
+    await unregisterPushDevice().catch(() => {});
     // Removes the saved session even when the server can't be reached
     await supabase.auth.signOut();
     await clearLocalUserData(data.session?.user.id);
