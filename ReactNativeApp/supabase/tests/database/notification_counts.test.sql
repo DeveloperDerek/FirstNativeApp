@@ -32,7 +32,7 @@ values ('000002c1-0000-0000-0000-000000000000', now());
 
 set local role authenticated;
 set local request.jwt.claim.sub = '000002a1-0000-0000-0000-000000000000';
-select is(public.notification_counts(), '{"friend_requests": 2}'::jsonb,
+select is(public.notification_counts(), '{"quest_votes": 0, "next_vote_deadline": null, "friend_requests": 2}'::jsonb,
           'counts pending requests sent to you, without the blocked sender''s');
 select is((public.notification_counts()->>'friend_requests')::int,
           (select count(*)::int from public.friendships
@@ -41,22 +41,23 @@ select is((public.notification_counts()->>'friend_requests')::int,
 
 update public.friendships set status = 'accepted'
 where requester_id = '000002b1-0000-0000-0000-000000000000';
-select is(public.notification_counts(), '{"friend_requests": 1}'::jsonb,
+select is(public.notification_counts(), '{"quest_votes": 0, "next_vote_deadline": null, "friend_requests": 1}'::jsonb,
           'accepting drops the count');
-delete from public.friendships where requester_id = '000002b2-0000-0000-0000-000000000000';
-select is(public.notification_counts(), '{"friend_requests": 0}'::jsonb,
+update public.friendships set status = 'declined'
+where requester_id = '000002b2-0000-0000-0000-000000000000';
+select is(public.notification_counts(), '{"quest_votes": 0, "next_vote_deadline": null, "friend_requests": 0}'::jsonb,
           'declining drops the count');
 
 set local request.jwt.claim.sub = '000002b1-0000-0000-0000-000000000000';
-select is(public.notification_counts(), '{"friend_requests": 0}'::jsonb,
+select is(public.notification_counts(), '{"quest_votes": 0, "next_vote_deadline": null, "friend_requests": 0}'::jsonb,
           'requests you sent are never counted');
 
 set local request.jwt.claim.sub = '000002d1-0000-0000-0000-000000000000';
-select is(public.notification_counts(), '{"friend_requests": 0}'::jsonb,
+select is(public.notification_counts(), '{"quest_votes": 0, "next_vote_deadline": null, "friend_requests": 0}'::jsonb,
           'not sharing: no Requests section, so no count');
 
 set local request.jwt.claim.sub = '000002c1-0000-0000-0000-000000000000';
-select is(public.notification_counts(), '{"friend_requests": 0}'::jsonb,
+select is(public.notification_counts(), '{"quest_votes": 0, "next_vote_deadline": null, "friend_requests": 0}'::jsonb,
           'a blocked account gets no counts');
 
 reset role;

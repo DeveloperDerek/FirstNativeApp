@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Row, Section } from '@/components/ui/section';
 import { TextField } from '@/components/ui/text-field';
+import { useNotificationCounts } from '@/hooks/use-notification-counts';
 import { useSteps } from '@/hooks/use-steps';
 import { errorMessage } from '@/lib/error-message';
 
@@ -27,16 +28,18 @@ export default function GroupsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { refreshQuests } = useSteps();
+  const { refreshCounts } = useNotificationCounts();
 
   const load = useCallback(async () => {
     if (!sharing) return;
+    refreshCounts(); // the tab badge reloads with the list
     try {
       const [list] = await Promise.all([listMyGroups(), refreshQuests()]);
       setGroups(list);
     } catch (e) {
       setError(errorMessage(e));
     }
-  }, [sharing, refreshQuests]);
+  }, [sharing, refreshQuests, refreshCounts]);
 
   useFocusEffect(
     useCallback(() => {

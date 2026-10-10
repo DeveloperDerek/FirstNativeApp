@@ -4,11 +4,13 @@ import { Alert, StyleSheet } from 'react-native';
 
 import {
   acceptFriendRequest,
+  cancelFriendRequest,
+  declineFriendRequest,
   type Friendship,
   friendsLeaderboard,
   listFriendships,
   type PublicProfile,
-  removeFriendship,
+  removeFriend,
   searchUsers,
   sendFriendRequest,
 } from '@/api/friends';
@@ -110,7 +112,7 @@ export default function FriendsScreen() {
   const confirmRemove = (f: Friendship, other: PublicProfile) =>
     Alert.alert('Remove friend?', `${name(other)} will no longer see your steps.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => act(() => removeFriendship(f.id)) },
+      { text: 'Remove', style: 'destructive', onPress: () => act(() => removeFriend(f.id)) },
     ]);
 
   if (!sharing) {
@@ -161,7 +163,7 @@ export default function FriendsScreen() {
                 title="Decline"
                 size="small"
                 variant="secondary"
-                onPress={() => act(() => removeFriendship(f.id))}
+                onPress={() => act(() => declineFriendRequest(f.id))}
               />
             </Row>
           ))}
@@ -212,7 +214,7 @@ export default function FriendsScreen() {
                 title="Cancel"
                 size="small"
                 variant="secondary"
-                onPress={() => act(() => removeFriendship(f.id))}
+                onPress={() => act(() => cancelFriendRequest(f.id))}
               />
             </Row>
           ))}

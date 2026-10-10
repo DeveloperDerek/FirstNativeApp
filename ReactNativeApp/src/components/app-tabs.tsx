@@ -10,6 +10,7 @@ export default function AppTabs() {
   const { theme } = useMapTheme();
   const { counts } = useNotificationCounts();
   const friendsBadge = badgeText(counts.friendRequests);
+  const groupsBadge = badgeText(counts.questVotes);
   const faded = theme.ink + '99'; // same color, faded
 
   return (
@@ -44,6 +45,8 @@ export default function AppTabs() {
       <NativeTabs.Trigger name="groups">
         <NativeTabs.Trigger.Label>Groups</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="trophy" md="trophy" />
+        {/* Quests waiting for your vote; hidden at 0 */}
+        <NativeTabs.Trigger.Badge hidden={!groupsBadge}>{groupsBadge}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="profile">

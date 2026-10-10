@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Row, Section } from '@/components/ui/section';
 import { TextField } from '@/components/ui/text-field';
+import { useNotificationCounts } from '@/hooks/use-notification-counts';
 import { useSteps } from '@/hooks/use-steps';
 import { useWallet } from '@/hooks/use-wallet';
 import { errorMessage } from '@/lib/error-message';
@@ -38,6 +39,7 @@ export default function GroupDetailScreen() {
   const [voting, setVoting] = useState(false);
   const { refresh: refreshSteps, refreshQuests, error: stepsError } = useSteps();
   const { refreshBalance } = useWallet();
+  const { refreshCounts } = useNotificationCounts();
   const [newName, setNewName] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +55,8 @@ export default function GroupDetailScreen() {
       if (mine.coins_paid) refreshBalance().catch(() => {});
     }
     refreshQuests(); // keep the banners in step with the card
-  }, [id, myId, refreshBalance, refreshQuests]);
+    refreshCounts(); // and the Groups badge (it clears once you vote)
+  }, [id, myId, refreshBalance, refreshQuests, refreshCounts]);
 
   const load = useCallback(async () => {
     setError(null);

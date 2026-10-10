@@ -9,7 +9,12 @@ import {
 } from 'react';
 import { AppState } from 'react-native';
 
-import { getNotificationCounts, NO_COUNTS, type NotificationCounts } from '@/api/notifications';
+import {
+  getNotificationCounts,
+  NO_COUNTS,
+  type NotificationCounts,
+  watchFriendRequests,
+} from '@/api/notifications';
 import { useAuth } from '@/auth/AuthProvider';
 
 type CountsState = {
@@ -23,10 +28,11 @@ const CountsContext = createContext<CountsState | null>(null);
 type Loaded = { userId: string; counts: NotificationCounts };
 
 /**
- * The red numbers on the tab bar (step-tracker-notifications.txt, Phase 1),
- * shared like the coin wallet. Refreshed on launch, on every return to the
- * foreground, and by the Friends screen when it loads or after accept /
- * decline.
+ * The red numbers on the tab bar (step-tracker-notifications.txt), shared
+ * like the coin wallet. Refreshed on launch, on every return to the
+ * foreground, by the Friends and Groups screens when they load or after
+ * acting, live when a friend request to you changes (and on every
+ * reconnect), and when the soonest quest vote deadline passes.
  */
 export function NotificationCountsProvider({ children }: { children: ReactNode }) {
   const { session, profile } = useAuth();
@@ -71,6 +77,25 @@ export function NotificationCountsProvider({ children }: { children: ReactNode }
     });
     return () => sub.remove();
   }, [userId, sharing, refreshCounts]);
+
+  // Live while the app is open. Any change: just ask for the counts again.
+  useEffect(() => {
+    if (!userId) return;
+    return watchFriendRequests(userId, refreshCounts);
+  }, [userId, refreshCounts]);
+
+  // Nothing on the server moves a quest on when its vote deadline passes,
+  // so ask again the moment it does (the count only includes deadlines
+  // still ahead).
+  const deadline = current.nextVoteDeadline?.getTime();
+  useEffect(() => {
+    if (deadline === undefined) return;
+    // A second late, so the server's clock is past it too. setTimeout
+    // can't wait longer than about 24 days.
+    const wait = Math.min(Math.max(deadline - Date.now() + 1000, 0), 2 ** 31 - 1);
+    const t = setTimeout(refreshCounts, wait);
+    return () => clearTimeout(t);
+  }, [deadline, refreshCounts]);
 
   return (
     <CountsContext.Provider value={{ counts: current, refreshCounts }}>

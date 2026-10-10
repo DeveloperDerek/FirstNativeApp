@@ -42,31 +42,38 @@ export async function sendFriendRequest(myId: string, otherId: string) {
   if (error) throw error;
 }
 
-// READ - friends and pending requests
+// READ - friends and pending requests. Declined, cancelled and removed
+// rows are kept as history and never shown.
 export async function listFriendships(): Promise<Friendship[]> {
-  const { data, error } = await supabase.from('friendships').select(`
+  const { data, error } = await supabase
+    .from('friendships')
+    .select(
+      `
       id, status, requester_id, addressee_id,
       requester:profiles!friendships_requester_id_fkey(id, username, display_name, avatar),
       addressee:profiles!friendships_addressee_id_fkey(id, username, display_name, avatar)
-    `);
+    `
+    )
+    .in('status', ['pending', 'accepted']);
   if (error) throw error;
   return data as unknown as Friendship[];
 }
 
-// UPDATE - accept
-export async function acceptFriendRequest(friendshipId: string) {
-  const { error } = await supabase
-    .from('friendships')
-    .update({ status: 'accepted' })
-    .eq('id', friendshipId);
+// UPDATE - every ending is a status change, never a delete, so the other
+// person hears about it live (step-tracker-notifications.txt, section 3).
+// The database checks who may make which change.
+async function setStatus(
+  friendshipId: string,
+  status: 'accepted' | 'declined' | 'cancelled' | 'removed'
+) {
+  const { error } = await supabase.from('friendships').update({ status }).eq('id', friendshipId);
   if (error) throw error;
 }
 
-// DELETE - decline, cancel, or unfriend
-export async function removeFriendship(friendshipId: string) {
-  const { error } = await supabase.from('friendships').delete().eq('id', friendshipId);
-  if (error) throw error;
-}
+export const acceptFriendRequest = (id: string) => setStatus(id, 'accepted');
+export const declineFriendRequest = (id: string) => setStatus(id, 'declined');
+export const cancelFriendRequest = (id: string) => setStatus(id, 'cancelled');
+export const removeFriend = (id: string) => setStatus(id, 'removed');
 
 // Compare
 export async function friendsLeaderboard(fromDay: string, toDay: string): Promise<LeaderboardRow[]> {
