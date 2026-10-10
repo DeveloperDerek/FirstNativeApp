@@ -1,13 +1,22 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { deleteAccount } from '@/api/account';
 import { withdrawConsent } from '@/api/consent';
-import { isValidUsername, normalizeUsername, type Profile, updateProfile } from '@/api/profile';
+import { type Profile, updateDisplayName } from '@/api/profile';
+import { type Birthday, changeUsername, getMyBirthday } from '@/api/register';
 import { useAuth } from '@/auth/AuthProvider';
+import {
+  ageOn,
+  cleanUsernameInput,
+  isoDayToDate,
+  isValidDisplayName,
+  isValidUsername,
+} from '@/auth/register';
 import { signOut } from '@/auth/signIn';
 import { Avatar } from '@/avatar/Avatar';
+import { formatDay } from '@/components/birthday-field';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -19,7 +28,11 @@ import { privacyUrl } from '@/lib/supabase';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { session, profile, reloadProfile } = useAuth();
+  const { session, profile, reloadProfile, revocationPending, signOutOtherDevices } = useAuth();
+  const provider = session?.user.app_metadata.provider;
+  const hasPassword = (session?.user.app_metadata.providers as string[] | undefined)?.includes(
+    'email'
+  );
   const myId = session?.user.id ?? '';
   const sharing = Boolean(profile?.sharing_consent_at);
 
@@ -98,6 +111,8 @@ export default function ProfileScreen() {
 
       {profile && <DetailsForm key={profile.id} profile={profile} onSaved={reloadProfile} />}
 
+      {profile && <BirthdaySection userId={profile.id} />}
+
       <Section title="Privacy">
         <Row
           title="Share my steps"
@@ -109,11 +124,84 @@ export default function ProfileScreen() {
         </Pressable>
       </Section>
 
+      <Section title="Sign-in and security">
+        {hasPassword ? (
+          <Button
+            title="Change password"
+            variant="secondary"
+            onPress={() => router.push('/change-password')}
+          />
+        ) : (
+          <ThemedText themeColor="textSecondary">
+            Signed in with{' '}
+            {provider === 'apple' ? 'Apple' : provider === 'google' ? 'Google' : provider}
+          </ThemedText>
+        )}
+        {revocationPending && (
+          <ThemedText type="small" themeColor="danger" accessibilityRole="alert">
+            Your other devices may still be signed in.
+          </ThemedText>
+        )}
+        <Button
+          title="Sign out other devices"
+          variant="secondary"
+          onPress={async () => {
+            if (await signOutOtherDevices()) {
+              Alert.alert('Done', 'Your other devices have been signed out.');
+            } else {
+              Alert.alert("Couldn't reach StepTracker", 'Check your connection and try again.');
+            }
+          }}
+        />
+      </Section>
+
       <Section title="Account">
         <Button title="Sign out" variant="secondary" onPress={() => signOut()} />
         <Button title="Delete account" variant="danger" onPress={confirmDelete} />
       </Section>
     </Screen>
+  );
+}
+
+/**
+ * Your birthday, to you only and read-only (step-tracker-register.txt,
+ * 6g): corrections go to support. Hidden for accounts made before
+ * birthdays were asked.
+ */
+function BirthdaySection({ userId }: { userId: string }) {
+  const router = useRouter();
+  const [birthday, setBirthday] = useState<Birthday | null>(null);
+
+  // Again on every visit, so a request just sent shows straight away
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      getMyBirthday(userId)
+        .then((b) => alive && setBirthday(b))
+        .catch(() => {});
+      return () => {
+        alive = false;
+      };
+    }, [userId])
+  );
+
+  if (!birthday?.birthDate) return null;
+  return (
+    <Section title="Birthday">
+      <Row
+        title={formatDay(isoDayToDate(birthday.birthDate))}
+        detail={`${ageOn(birthday.birthDate)} years old · only you can see this`}
+      />
+      {birthday.openRequestSince ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          Correction requested. Support will be in touch.
+        </ThemedText>
+      ) : (
+        <Pressable onPress={() => router.push('/birthday-correction')} accessibilityRole="button">
+          <ThemedText type="linkPrimary">Wrong date?</ThemedText>
+        </Pressable>
+      )}
+    </Section>
   );
 }
 
@@ -123,15 +211,20 @@ function DetailsForm({ profile, onSaved }: { profile: Profile; onSaved: () => Pr
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
-  const changed =
-    displayName.trim() !== (profile.display_name ?? '') ||
-    normalizeUsername(username) !== profile.username;
+  const nameChanged = displayName.trim() !== (profile.display_name ?? '');
+  const usernameChanged = username !== profile.username;
 
   async function save() {
-    const cleanUsername = normalizeUsername(username);
-    if (!isValidUsername(cleanUsername)) {
+    if (!isValidUsername(username)) {
       setMessage({
         text: 'Usernames are 3-20 characters: lowercase letters, numbers, and _.',
+        error: true,
+      });
+      return;
+    }
+    if (nameChanged && !isValidDisplayName(displayName)) {
+      setMessage({
+        text: 'Use 1 to 30 characters for your name.',
         error: true,
       });
       return;
@@ -139,10 +232,10 @@ function DetailsForm({ profile, onSaved }: { profile: Profile; onSaved: () => Pr
     setSaving(true);
     setMessage(null);
     try {
-      await updateProfile(profile.id, {
-        username: cleanUsername,
-        display_name: displayName.trim(),
-      });
+      // The username only changes through the server, which holds the old
+      // one for 30 days (step-tracker-register.txt, 9C)
+      if (usernameChanged) await changeUsername(username);
+      if (nameChanged) await updateDisplayName(profile.id, displayName.trim());
       await onSaved();
       setMessage({ text: 'Saved.', error: false });
     } catch (e) {
@@ -157,13 +250,13 @@ function DetailsForm({ profile, onSaved }: { profile: Profile; onSaved: () => Pr
       <ThemedText type="small" themeColor="textSecondary">
         Display name (shown on leaderboards)
       </ThemedText>
-      <TextField value={displayName} onChangeText={setDisplayName} maxLength={40} />
+      <TextField value={displayName} onChangeText={setDisplayName} maxLength={30} />
       <ThemedText type="small" themeColor="textSecondary">
         Username (friends search for this)
       </ThemedText>
       <TextField
         value={username}
-        onChangeText={setUsername}
+        onChangeText={(t) => setUsername(cleanUsernameInput(t))}
         autoCapitalize="none"
         autoCorrect={false}
         maxLength={20}
@@ -173,7 +266,12 @@ function DetailsForm({ profile, onSaved }: { profile: Profile; onSaved: () => Pr
           {message.text}
         </ThemedText>
       )}
-      <Button title="Save" onPress={save} loading={saving} disabled={!changed} />
+      <Button
+        title="Save"
+        onPress={save}
+        loading={saving}
+        disabled={!nameChanged && !usernameChanged}
+      />
     </Section>
   );
 }

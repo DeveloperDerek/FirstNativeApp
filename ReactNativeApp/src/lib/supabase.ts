@@ -1,7 +1,8 @@
 import 'react-native-url-polyfill/auto';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
+
+import { sessionStorage } from '@/lib/session-storage';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const key = process.env.EXPO_PUBLIC_SUPABASE_KEY;
@@ -11,12 +12,16 @@ export const supabaseConfigured = Boolean(url && key);
 
 // Placeholder values keep the app from crashing on launch before .env is
 // filled in. No request is made until someone tries to sign in.
+export const supabaseUrl = url || 'https://not-configured.supabase.co';
+export const supabaseKey = key || 'not-configured';
+
 export const supabase = createClient(
-  url || 'https://not-configured.supabase.co',
-  key || 'not-configured',
+  supabaseUrl,
+  supabaseKey,
   {
     auth: {
-      storage: AsyncStorage,
+      // Encrypted on the phone (step-tracker-register.txt, 8a)
+      storage: sessionStorage,
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
