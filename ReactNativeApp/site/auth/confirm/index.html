@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- The link carries a one-time token: never send it to another site -->
+    <meta name="referrer" content="no-referrer" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https:; base-uri 'none'; form-action 'none'" />
+    <title>Confirm your email · StepTracker</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --text: #000000;
+        --muted: #60646c;
+        --accent: #208aef;
+        --danger: #d93025;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #000000;
+          --text: #ffffff;
+          --muted: #b0b4ba;
+          --accent: #4fa6f5;
+          --danger: #ff6b5e;
+        }
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg);
+        color: var(--text);
+        font: 17px/1.5 -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
+      }
+      main {
+        max-width: 420px;
+        padding: 24px 16px;
+      }
+      h1 {
+        font-size: 26px;
+        margin: 0 0 8px;
+      }
+      p {
+        color: var(--muted);
+        margin: 0 0 16px;
+      }
+      button {
+        font: inherit;
+        color: #fff;
+        background: var(--accent);
+        border: 0;
+        border-radius: 12px;
+        padding: 12px 20px;
+        cursor: pointer;
+      }
+      [hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main aria-live="polite">
+      <h1 id="title">Checking your link…</h1>
+      <p id="body"></p>
+      <button id="retry" hidden>Try again</button>
+    </main>
+    <script src="/config.js"></script>
+    <script>
+      // A StepTracker confirmation link opened without the app
+      // (step-tracker-register.txt, 8c): check the token, then send the
+      // person back to their phone. Nothing is kept here: the sign-in this
+      // creates in the browser is thrown away.
+      (function () {
+        var params = new URLSearchParams(location.search);
+        var tokenHash = params.get('token_hash');
+        var type = params.get('type');
+        var config = window.STEPTRACKER || {};
+
+        function show(title, body, canRetry) {
+          document.getElementById('title').textContent = title;
+          document.getElementById('body').textContent = body;
+          document.getElementById('retry').hidden = !canRetry;
+        }
+
+        // Drop the token from the address bar (and the history) straight away
+        history.replaceState(null, '', location.pathname);
+
+        if (!tokenHash || !/^[A-Za-z0-9_-]{16,200}$/.test(tokenHash) ||
+            (type !== 'email' && type !== 'signup')) {
+          show("This link doesn't look right",
+               'Open it again from the email, or ask for a new one in StepTracker.', false);
+          return;
+        }
+        if (!config.supabaseUrl || !config.supabaseKey) {
+          show("Can't check this link right now", 'Please try again later.', false);
+          return;
+        }
+
+        function check() {
+          show('Checking your link…', '', false);
+          fetch(config.supabaseUrl + '/auth/v1/verify', {
+            method: 'POST',
+            headers: { apikey: config.supabaseKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: type, token_hash: tokenHash }),
+          })
+            .then(function (res) {
+              if (res.ok) {
+                show('Email confirmed',
+                     'Go back to StepTracker on your phone and sign in.', false);
+                return;
+              }
+              return res.json().catch(function () { return {}; }).then(function (err) {
+                // Used, expired and made-up links all get this answer
+                if (err.error_code === 'otp_expired') {
+                  show('This link has expired',
+                       'Links work once and only for an hour. If you already confirmed your ' +
+                       'email, sign in on your phone. Otherwise open StepTracker and send a ' +
+                       'new link.', false);
+                } else {
+                  show("Couldn't check this link", 'Please try again in a minute.', true);
+                }
+              });
+            })
+            .catch(function () {
+              show('No connection', 'Check your internet and try again.', true);
+            });
+        }
+
+        document.getElementById('retry').addEventListener('click', check);
+        check();
+      })();
+    </script>
+  </body>
+</html>
