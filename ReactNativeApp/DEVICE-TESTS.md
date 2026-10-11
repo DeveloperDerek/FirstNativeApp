@@ -250,6 +250,34 @@ Also run `bash supabase/tests/concurrency/group_owner_race.sh` against the local
 
 Also run `bash supabase/tests/concurrency/streak_race.sh` against the local database (two phones claiming at once).
 
+## 17. Longer History (`step-tracker-history-reminders.txt`, Part A)
+
+Needs the `my_history` migration on the Supabase project the build uses.
+
+- [ ] iPhone  - [ ] Android — **Views:** History shows Week, Month and Year; ‹ goes back a week / month / year and › comes forward; ‹ stops after a period with no data.
+- [ ] iPhone  - [ ] Android — **Agrees with Today:** walk, then open History before the next upload: today's row (Week) and this month's bar (Year) match Today; the streak at the top matches Today's.
+- [ ] iPhone  - [ ] Android — **Goals:** change the goal near the end of a month; in the next month, days before and after the change are judged by their own goals, in Month and Year.
+- [ ] iPhone  - [ ] Android — **Not synced:** a sharer who didn't open the app for over a week sees "N days not synced"; "What's this?" explains it.
+- [ ] iPhone  - [ ] Android — **New phone:** sign in on another phone (sharer, then non-sharer): the same days at goal as on the first phone.
+- [ ] iPhone  - [ ] Android — **Not sharing:** History shows a month and a year from Health, no streak ("Share your steps to keep a streak"), and days before your first steps as "without step data", not 0.
+- [ ] iPhone  - [ ] Android — **Health access:** turn Steps access off: iPhone shows the "Seeing 0?" hint, not a history of zero days; Android shows that access is off with Open settings. Turn it back on and pull to refresh: the real steps return.
+- [ ] Android — **Year speed (decision 5):** not sharing, with a large dataset (a year of phone plus watch), open Year in a development build and note the Metro log lines `[history] Health …: N ms` and `[history] working out the year: N ms`, first open and after going back and forth. Only if it still feels slow (about 2 seconds as a guide) does the 90-day limit go in. Result: ______
+- [ ] iPhone  - [ ] Android — **Midnight:** leave History open across midnight, switch away and back: the new day is Today.
+
+## 18. Goal reminders (`step-tracker-history-reminders.txt`, Part B)
+
+Local notifications: these work without push being set up. To see what's scheduled, temporarily log `Notifications.getAllScheduledNotificationsAsync()` ids in a development build.
+
+- [ ] iPhone  - [ ] Android — **Turning on:** a fresh install never asks for notifications on launch. Profile > Reminders > Goal reminder asks once; the time shows 7:00 PM.
+- [ ] iPhone  - [ ] Android — **Refused:** say no to the prompt: the switch stays off, "Notifications are off for StepTracker" with Open Settings.
+- [ ] iPhone  - [ ] Android — **It comes:** set the time a few minutes ahead, goal not reached: the reminder comes, also with the app open (a banner). With a streak of 2+ (sharing) it says "Keep your N-day streak going…". Tapping it opens Today.
+- [ ] iPhone  - [ ] Android — **Not after the goal:** reach the goal, open the app, wait past the time: no reminder today.
+- [ ] iPhone  - [ ] Android — **Off, and signing out:** turn it off: none comes. Turn it on, sign out: none comes, and signing in as someone else shows reminders off.
+- [ ] iPhone  - [ ] Android — **Permission taken away:** turn notifications off for the app in Settings: Profile says so and none come; turn them back on and open the app: reminders return without turning the switch on again.
+- [ ] iPhone  - [ ] Android — **Time zone:** change the phone's time zone and open the app: the reminder comes at the picked time in the new zone.
+- [ ] iPhone  - [ ] Android — **Timing:** open the app a minute before the reminder time without reaching the goal: it still comes. Open it just before and just after midnight: the next day's reminder is there.
+- [ ] iPhone  - [ ] Android — **Ids (scheduled list):** change the time: exactly one `goal-reminder:` per date, at the new time. Open the app five times quickly: still at most one per date. Turn reminders off: none left. Schedule a test notification with another id first: it's still there after each of these. Schedule the same id twice directly and note whether this phone replaces it (cancelling first covers it either way): ______
+
 ---
 
 ## Sign-off

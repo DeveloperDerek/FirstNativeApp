@@ -1,5 +1,6 @@
 import { Linking } from 'react-native';
 import {
+  aggregateGroupByPeriod,
   aggregateRecord,
   getGrantedPermissions,
   getSdkStatus,
@@ -10,6 +11,8 @@ import {
   requestPermission,
   SdkAvailabilityStatus,
 } from 'react-native-health-connect';
+
+import { dayKey } from '@/storage/step-log';
 
 import type { PermissionResult } from './types';
 
@@ -80,6 +83,73 @@ export async function getSteps(start: Date, end: Date): Promise<number> {
   } while (pageToken);
 
   return Math.max(0, total - manual);
+}
+
+/**
+ * One total per local day from `start` to `end`, with the same sources and
+ * rules as getSteps: the daily totals in one query, then every record read
+ * to take hand-typed steps off the day they started. Days with no steps
+ * are left out.
+ */
+export async function getDailySteps(start: Date, end: Date): Promise<Record<string, number>> {
+  await ensureInitialized();
+  const timeRangeFilter = {
+    operator: 'between' as const,
+    startTime: start.toISOString(),
+    endTime: end.toISOString(),
+  };
+  // Grouped by the phone's local calendar days
+  const groups = await aggregateGroupByPeriod({
+    recordType: 'Steps',
+    timeRangeFilter,
+    timeRangeSlicer: { period: 'DAYS', length: 1 },
+    dataOriginFilter: TRUSTED_ORIGINS,
+  });
+  const days: Record<string, number> = {};
+  for (const g of groups) {
+    const count = g.result.COUNT_TOTAL ?? 0;
+    if (count > 0) days[g.startTime.slice(0, 10)] = count; // "2026-10-01T00:00"
+  }
+
+  let pageToken: string | undefined;
+  do {
+    const page = await readRecords('Steps', {
+      timeRangeFilter,
+      dataOriginFilter: TRUSTED_ORIGINS,
+      pageSize: 5000,
+      pageToken,
+    });
+    for (const r of page.records) {
+      if (r.metadata?.recordingMethod !== RecordingMethod.RECORDING_METHOD_MANUAL_ENTRY) continue;
+      const day = dayKey(new Date(r.startTime));
+      if (day in days) days[day] = Math.max(0, days[day] - r.count);
+    }
+    pageToken = page.pageToken || undefined;
+  } while (pageToken);
+
+  for (const day of Object.keys(days)) if (days[day] === 0) delete days[day];
+  return days;
+}
+
+/** The first local day with any counted steps; null if there are none (or no access). */
+export async function getFirstStepDay(): Promise<string | null> {
+  await ensureInitialized();
+  let pageToken: string | undefined;
+  do {
+    const page = await readRecords('Steps', {
+      timeRangeFilter: { operator: 'after', startTime: new Date(2000, 0, 1).toISOString() },
+      dataOriginFilter: TRUSTED_ORIGINS,
+      ascendingOrder: true,
+      pageSize: 100,
+      pageToken,
+    });
+    const first = page.records.find(
+      (r) => r.count > 0 && r.metadata?.recordingMethod !== RecordingMethod.RECORDING_METHOD_MANUAL_ENTRY
+    );
+    if (first) return dayKey(new Date(first.startTime));
+    pageToken = page.pageToken || undefined;
+  } while (pageToken);
+  return null;
 }
 
 export function openHealthSettings(permission: PermissionResult) {

@@ -10,6 +10,16 @@ export async function getSteps(_start: Date, _end: Date): Promise<number> {
   return 0;
 }
 
+/** One total per local day ('YYYY-MM-DD'); days with no steps left out. */
+export async function getDailySteps(_start: Date, _end: Date): Promise<Record<string, number>> {
+  return {};
+}
+
+/** The first local day with any counted steps; null if none. */
+export async function getFirstStepDay(): Promise<string | null> {
+  return null;
+}
+
 export function openHealthSettings(_permission?: PermissionResult) {}
 
 export const permissionHelp: Record<Exclude<PermissionResult, 'granted'>, string> = {

@@ -7,6 +7,7 @@ import { listMyQuests, type MyQuest } from '@/api/quests';
 import { syncSteps } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
 import { dayRange, getSteps, type PermissionResult, requestStepPermission } from '@/health';
+import { useGoalReminders } from '@/hooks/use-goal-reminders';
 import { useWallet } from '@/hooks/use-wallet';
 import { singleFlight } from '@/lib/single-flight';
 import { syncQuestSteps } from '@/quests/sync';
@@ -182,6 +183,9 @@ export function StepsProvider({ children }: { children: ReactNode }) {
     });
     return () => sub.remove();
   }, [run, refreshIfStale]);
+
+  // Goal reminders follow every refresh (step-tracker-history-reminders.txt, B)
+  useGoalReminders({ userId, loading, today, goal, streak });
 
   return (
     <StepsContext.Provider
