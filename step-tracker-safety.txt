@@ -1,0 +1,1079 @@
+STEP TRACKER - BLOCK, REPORT AND NAME LIMITS (BLUEPRINT)
+Keep people safe from each other, and keep names on screen clean:
+  A. Block another person
+  B. Report a person or a group name
+  C. Limits on usernames, display names and group names
+  D. What you (the admin) do with reports
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. It
+describes what each part does, what the database and screens need, and
+the decisions made (section 11). Items 1a and 1b of
+step-tracker-recommendations.txt. Revised after four reviews: the
+security contract for group functions, allowed periods, report history
+and the action log, hiding, hidden characters and race-proof report
+limits are now spelled out (sections 2, 4, 5, 6, 7).
+
+Why now: Apple's App Review guideline 1.2 (apps where people see
+things other people made) asks for all four: a filter for objectionable
+names, a way to report, a way to block, and someone acting on reports
+in a timely way. Google Play asks for the same. Teens 13-17 use the
+app, which makes it matter more (RELEASE-GATE.md, gate 1).
+
+Builds on what the app already has: usernames with a reserved / bad
+word list (reserved_usernames), display names (1-30 characters),
+groups with invite codes, the player card (tap a name in a ranking),
+friend requests that end in a status (declined / cancelled / removed),
+"active accounts" (people who aren't active are hidden from everyone),
+push notifications sent by the database, app_settings, and the admins
+table.
+
+======================================================================
+1. WHAT PEOPLE SEE AND WRITE TODAY
+======================================================================
+
+  Text one person writes that other people see:
+  - Username       a-z, 0-9, _, 3-20 long. Checked on the server
+                   against the reserved / bad word list. But "sh1t"
+                   gets through. MOSTLY GOOD.
+  - Display name   Checked (1-30 characters) only when signing up.
+                   Changing it later in Profile is a plain update that
+                   the database doesn't check at all: any length, any
+                   word, even an empty name. GAP.
+  - Group name     Not checked anywhere: any length, any word. GAP.
+  - Character      Picked from the shop's items only, so nothing to
+                   filter.
+
+  Ways to reach a stranger today:
+  - Search usernames, send a friend request. A declined person can send
+    another request straight away, as often as they like. (Left as it
+    is: decision 6.)
+  - Join a group with its invite code.
+
+  Who can read what today:
+  - Profiles: any active person can read any active person's profile.
+  - Steps and "last seen": your own, your friends', and anyone's you
+    share a group with, ALL days (not just what the group screen
+    shows).
+
+  No block, no report. GAP.
+
+======================================================================
+2. SECURITY RULES (SETTLE THESE BEFORE ANY CODE)
+======================================================================
+
+  The database decides who can read what. The app hiding someone is
+  never enough: anyone signed in can ask the database directly, outside
+  the app's screens. Every rule below is enforced by the database and
+  tested by reading directly (section 10).
+
+  THE PROBLEM
+  - The database's read rules ("row level security") answer "may this
+    person read this row?". They can't know which SCREEN is asking. A
+    rule like "blocked pairs may read each other only when they share a
+    group" would let them read each other everywhere: search, the
+    player card, any query, as long as they share a group.
+
+  THE RULE (DECIDED)
+  - A blocked pair can NEVER read each other through the tables:
+      profiles, daily_steps, last_seen   no exception for groups
+  - Search, Friends, the Today ranking and the player card read the
+    tables, so a blocked person disappears from all of them without
+    each screen having to remember to filter. Screens added later get
+    this for free.
+  - Inside a shared group, they still see each other (decision 1), but
+    ONLY through group functions (below).
+  - The group functions:
+      group_leaderboard(gid, period, ...) exists; today it reads the
+                                          tables AS THE CALLER, so the
+                                          new rules would hide blocked
+                                          members from it. It is
+                                          rebuilt to the contract below.
+      group_quest(group)                  exists; already runs with
+                                          extra rights. Checked against
+                                          the contract below.
+      group_member_card(gid, person, ...) NEW: the player card opened
+                                          from a group screen
+  - The player card takes where it was opened from. From a group, it
+    calls group_member_card; anywhere else, it reads the tables as
+    today (and finds nothing for a blocked pair, so the card says
+    "This player isn't available").
+
+  THE CONTRACT EVERY GROUP FUNCTION FOLLOWS
+  A database function normally runs with the CALLER's rights, so it
+  can't show anything the caller couldn't read directly. To show a
+  blocked group mate, a group function has to run with extra rights
+  ("security definer"). That is safe only if the function itself does
+  every check the table rules would have done. Each group function:
+  1. Runs with extra rights, with a fixed search_path (like every
+     existing function here), so it can't be tricked into using
+     someone else's table or function.
+  2. Takes the caller from the sign-in (auth.uid()), never from an
+     argument. Refuses if not signed in or not active.
+  3. Checks the caller is a member of THAT group, and refuses
+     otherwise.
+  4. group_member_card also checks the PERSON is a member of that same
+     group, and refuses otherwise (so it can't be used to look up
+     anyone by naming a group you're in).
+  5. Keeps every other hiding rule: people who aren't active (age
+     block, not finished sign-up, Terms not accepted, paused by an
+     admin) are left out exactly as the table rules leave them out.
+     The ONLY thing a group function skips is the block between the
+     caller and a group mate.
+  6. Returns only what the group screen shows: name, character, map,
+     steps for an allowed period, quest progress, "last seen" for
+     group mates (as the card shows today). Never full step history,
+     birthday, email, or anything else.
+  7. Allowed periods only (next part).
+
+  ALLOWED PERIODS, ENFORCED BY THE DATABASE
+  - Today the leaderboards take any from / to dates. Even if each call
+    returned a little, calling again and again with different dates
+    would rebuild someone's whole step history.
+  - The app only ever asks for two periods, "today" and "this week"
+    (the last 7 days). Both leaderboards take the PERIOD, never dates:
+      group_leaderboard(gid uuid, period text, my_today date)
+      friends_leaderboard(period text, my_today date)
+    period is exactly 'today' or 'week'; anything else is refused.
+  - my_today is the phone's local date (days are local, see
+    step-tracker-step-refresh.txt). The database doesn't trust it
+    further than it has to.
+  - The catch: time zones run from UTC-12 to UTC+14, 26 hours apart.
+    So for about 2 hours every day, THREE different dates are "today"
+    somewhere on Earth (and two the rest of the time). If each call
+    simply returned "7 days ending on my_today", calling once with
+    each valid date would add up to 9 different days. A limit per call
+    isn't enough; the limit has to hold across ALL calls.
+  - So the database works out ONE window from its own clock, the same
+    for every caller and every my_today:
+      THE WINDOW   from (the date in UTC-12 right now) minus 6 days
+                   to   (the date in UTC+14 right now)
+    No group function ever returns a day outside the window, whatever
+    it is asked. Repeating calls with different my_today values can
+    only ever add up to the window.
+  - my_today must be one of the dates that is "today" somewhere right
+    now (between the UTC-12 date and the UTC+14 date); anything else
+    is refused. 'today' returns that one day; 'week' returns the 7
+    days ending on it, which always lie inside the window.
+  - How big the window is: 8 days most of the day, 9 days for the
+    roughly 2 hours when three dates are valid.
+  - WHOSE HISTORY THIS LIMITS: access that comes from being in the same
+    group, and nothing else. Someone who is ONLY your group mate can
+    see the last 8-9 days of your steps, never older, by any route.
+    It doesn't change what accepted friends can see: friends keep
+    their own, separate access to each other's step history (the
+    daily_steps rule allows "yourself or a friend"), whether or not
+    they also share a group. So for a group mate who is also your
+    friend, the friendship rule is the one that applies
+    (decision 19).
+  - Why not exactly 7: a week has to be 7 days for EVERYONE's local
+    calendar, and local calendars disagree by up to 2 days. Exactly 7
+    would mean either cutting days off some people's week, or storing
+    a time zone per person that the server trusts (recommendation 3d),
+    which the person could change too.
+  - group_member_card shows today's and this week's steps by the same
+    rules (it takes my_today too), nothing older.
+  - friends_leaderboard follows the same rules for consistency, though
+    friends can read each other's step history from the table anyway
+    (that's what being friends allows today; see WHOSE HISTORY THIS
+    LIMITS above).
+
+  TIGHTER FOR EVERYONE (A SIDE BENEFIT)
+  - Today any group mate can read your whole step history by asking
+    the table directly. With group screens going through group
+    functions, the steps and last_seen rules can drop "shares a group"
+    and keep only "yourself or a friend". Group mates who aren't also
+    friends then see only what the group screens show, within the
+    window above. Nothing visible changes in the app.
+  - Check every screen that reads a group mate's steps or last seen
+    before dropping it (Today in group mode, the group screen, the
+    player card).
+
+  THE BLOCK CHECK USED BY THE RULES
+  - A rule on a table runs with the caller's rights, so any function
+    it uses must be callable by every signed-in person. It can't be
+    locked away like the admin functions. So the helper is built so
+    calling it directly teaches nothing new:
+      can_see(person)   true only if ALL of these hold:
+                          - the CALLER is active (signed up, not under
+                            age, Terms accepted, not paused)
+                          - that person is active
+                          - neither of you has blocked the other
+                        Always about the CALLER and one person: never
+                        "do X and Y block each other".
+  - It answers false for a blocked person, a paused account, an
+    unfinished sign-up and a deleted account alike, so it doesn't say
+    WHY. The profiles, daily_steps and last_seen rules use it.
+  - How it runs:
+      - It has to see blocks in BOTH directions, but a person can only
+        read their own block rows (the ones they made). So it runs
+        with extra rights (security definer), like is_active_user does
+        today.
+      - Fixed search_path = '' and every table named in full
+        (public.user_blocks), as all functions here already do.
+      - Reads only: the two block rows between the caller and that one
+        person, and whether the caller and that person are active. Takes the caller
+        from auth.uid(), never from an argument.
+      - Returns one true / false and nothing else.
+      - Execute rights: signed-in users (authenticated) only; taken
+        away from signed-out users (anon) and from public.
+  - Every read rule that uses can_see still keeps "your own row"
+    (people always see their own profile and steps; the app needs that
+    to choose the right screen). Everything else goes through can_see,
+    so a paused or unfinished account sees nobody else, the same as
+    the rules today.
+  - Tests check the model, not only who can call it: a PAUSED account
+    reading an active person's profile, steps and last seen directly
+    gets nothing (and the same for an under-age and an unfinished
+    account); B calling
+    can_see(A) after A blocked B gets false, exactly as for a deleted
+    account; B still can't read the block row (select from user_blocks
+    returns only B's own blocks); signed out, it can't be called.
+  - Functions with extra rights use a separate internal check,
+    is_blocked_between(a, b), which the app can't call at all (no
+    execute rights for app users).
+
+  WHAT A BLOCKED PERSON CAN STILL WORK OUT (ACCEPTED, decision 1)
+  - Outside groups, a blocked person just finds nobody, the same as
+    for a deleted or paused account.
+  - Inside a shared group, B sees A in the group but can't find A in
+    search. B can work out that A has blocked them, or that something
+    is wrong. This follows from decision 1 (blocked people still see
+    each other in shared groups) and no database rule can hide it.
+    The app never SAYS it.
+
+  PERMISSIONS ON EVERY NEW FUNCTION
+  - Postgres lets everyone run a new function unless told otherwise.
+    Every new function says who may run it:
+      app functions (block_user, report_user, group functions...)
+                        signed-in people only, never signed-out
+      internal helpers (is_blocked_between...)  nobody from the app
+      admin functions   nobody from the app; SQL Editor only
+  - A database test lists every function and checks its permissions,
+    so a new one can't slip through open.
+
+======================================================================
+3. PART A - BLOCK
+======================================================================
+
+  WHAT BLOCKING DOES (A blocks B)
+  - Any friendship between them ends, whatever state it is in:
+      accepted friendship         -> removed
+      request from A to B         -> cancelled
+      request from B to A         -> declined
+      already declined / cancelled / removed: nothing to change
+  - They disappear for each other, both ways, outside shared groups:
+    search results, friend rankings, the player card, requests (by the
+    security rules in section 2).
+  - Neither can send the other a friend request. The error is the same
+    one a person who can't be found gets, so it reveals nothing.
+  - B is never told. To B it looks like A isn't there.
+  - Works both ways on purpose: if only A stopped seeing B, B could
+    still watch A's steps and character.
+  - Blocking yourself, or blocking twice, does nothing.
+  - Both blocking each other at once: two rows, both kept; either
+    unblocking leaves the other's block in place.
+
+  UNBLOCKING
+  - From Profile > Blocked people. They can find each other again;
+    the old friendship does NOT come back (a new request is needed).
+
+  SHARED GROUPS (DECIDED: BLOCKING DOESN'T CHANGE GROUPS)
+  - Groups are joined by invite code, and a quest needs every member's
+    vote, so hiding people inside a shared group would break voting.
+  - In a shared group they see each other as any members do, through
+    the group functions only (section 2).
+  - The person who BLOCKED sees a note on the player card opened from
+    the group: "You've blocked this person. You're both in <group>:
+    leave it, or ask the owner to remove them." The owner can already
+    remove members.
+  - The person who was blocked sees nothing different: no note, no
+    change on any screen. Nothing in what the group functions return
+    tells them who has blocked them (the "you've blocked" flag is
+    worked out for the caller only).
+
+  JOINING THE SAME GROUP LATER (DECIDED)
+  - Allowed. Refusing the invite code would tell B that someone in the
+    group has blocked them.
+  - A sees the same player card note once they share the group, and can
+    leave. No other warning.
+
+  NOTIFICATIONS (DECIDED)
+  - Friend request pushes: never sent between a blocked pair (a request
+    can't be made anyway).
+  - Badges: the Friends badge counts only pending requests, and blocking
+    ends them, so it drops on the next count.
+  - Group activity: carries on as for any member. The Groups badge
+    counts quests waiting for YOUR vote, not anything a person did.
+    There are no group pushes yet; when they are built (quest proposed,
+    started, won), they are about the group, and go to every member
+    the same way.
+  - Already sent: a push that reached the phone before the block can't
+    be taken back. The badge and app icon number are worked out fresh
+    on the next open, so they are right from then on.
+  - In flight: a request and a block at the same moment. Two people
+    who have never been friends have no friendship row to lock, so a
+    row lock isn't enough. Instead, a PAIR LOCK:
+      - a database lock named after the two people (the two ids in a
+        fixed order, so A+B and B+A are the same lock), held until the
+        step finishes ("transaction-scoped advisory lock")
+      - block_user takes it first, then adds the block and ends any
+        friendship
+      - a friend request takes it first too: requests are inserted
+        into the table by the app, so a check that runs before every
+        new request (a trigger) takes the pair lock, THEN checks for a
+        block, and refuses if there is one
+      - the check reads the block table fresh after getting the lock
+        (each statement in it sees what was saved before it, the
+        Postgres default), so it sees a block saved a moment earlier
+    Whichever gets the lock second sees what the first did: either the
+    request is made and then ended by the block, or it is refused. It
+    works the same whether or not a friendship row ever existed.
+
+  IN THE DATABASE
+  - A new table, user_blocks: who blocked whom, and when. One row per
+    pair and direction. Each person can read their own rows (for the
+    Blocked people screen) and nothing else; nobody can read who has
+    blocked THEM.
+  - Functions the app calls: block_user(person), unblock_user(person),
+    and my_blocks() (the people YOU blocked, with username and
+    character, for the Blocked people list; never who blocked you).
+    block_user ends the friendship in the same step (table above).
+  - Where blocks are checked (section 2 for which helper is which):
+      profiles, daily_steps, last_seen read    can_see
+      friendships insert                       can_see (refuse)
+      notification counts (both versions)      is_blocked_between
+      push for friend requests                 is_blocked_between
+      group functions                          is_blocked_between, only
+                                               to work out the
+                                               blocker's own note
+  - Deleting either account deletes their block rows.
+
+  FRIEND REQUESTS (DECIDED: NO LIMITS)
+  - No daily limit and no wait after a decline. Blocking is how
+    someone stops repeat requests for good. A report without "Also
+    block" doesn't stop them; the phone test in section 10 checks
+    exactly this so the trade-off is seen, not assumed.
+
+======================================================================
+4. PART B - REPORT
+======================================================================
+
+  HIDDEN UNTIL THE REVIEW PROCESS WORKS (DECIDED)
+  - The Report option is behind a server setting, app_settings
+    "reports_enabled", off to start. It is turned on only when the
+    admin query, the admin actions and the push alerts (Part D) all
+    work. Block ships first, on its own.
+  - The report functions also refuse while the setting is off, so it
+    can't be used by calling the database directly either.
+
+  WHAT CAN BE REPORTED
+  - A person: their username, display name, or how they're acting.
+    Reasons:
+      - Offensive name
+      - Pretending to be someone else
+      - Bullying or harassment
+      - Spam
+      - Something else
+  - A group's NAME (any member can report it, not just the owner).
+    Reasons:
+      - Offensive name
+      - Something else
+    How people act in a group is reported against the person, not the
+    group.
+  - Optional note with either, up to 500 characters.
+
+  WHO CAN BE REPORTED
+  - A person you can see through the tables (section 2).
+  - A member of a group you're in.
+  - A person YOU have blocked: Report is on each row of your Blocked
+    people list, so you can report someone after blocking them without
+    unblocking first. The database allows this route explicitly (you
+    have a block row for them); it doesn't make them visible.
+  - A group you're in.
+  - Never yourself.
+
+  REPORT AND BLOCK ARE SEPARATE (DECIDED: OFF BY DEFAULT)
+  - The report screen has "Also block this person", OFF by default:
+    reporting doesn't block unless the person ticks it.
+  - Not shown when reporting a group name.
+
+  AFTER SENDING
+  - "Thanks. We review every report." No promise of hours: Apple asks
+    for "timely", and a promise that's missed once is a broken promise.
+    The person reported is never told who reported them, and the
+    reporter isn't promised an outcome.
+
+  REPEAT REPORTS
+  - One OPEN report per reporter per person (or group). Sending another
+    while it's open adds nothing (the app still says "Thanks").
+  - Once that report is closed (dismissed or acted on), the same
+    reporter can report the same person again: it might be something
+    new.
+  - Reports about one person from different people are separate rows.
+    The admin query adds them up (Part D), so nothing is lost.
+  - "One open report" is a unique rule in the database itself (the
+    two unique indexes in IN THE DATABASE below), not a
+    check-then-insert. Two reports sent at the same moment: one is
+    saved, the other adds nothing.
+
+  CHECKED BY THE DATABASE, EVERY TIME
+  - The report functions check everything themselves, the same whether
+    the app calls them or someone calls them directly:
+      - signed in, active account, reports_enabled is on
+      - the target exists and the reporter may report it (above)
+      - not yourself
+      - the reason is one of the list, and fits the target (a group
+        can't be reported for "Spam")
+      - the note is 500 characters or fewer
+      - the daily limit
+  - Daily limit: at most 10 reports in any 24 hours (counted back from
+    now, not by calendar day, so time zones can't matter).
+  - The limit can't be raced: the function first locks the reporter
+    (a per-person database lock held until it finishes), then counts,
+    then saves. Ten reports sent at once from two phones still make
+    at most 10.
+
+  IN THE DATABASE
+  - A new table, reports. How the target is stored:
+      target_kind   'person' or 'group', never empty
+      person_id     set for a person report, empty for a group
+      group_id      set for a group report, empty for a person
+    A database check makes kind and columns agree (a person report
+    has no group_id, and the reverse). After a deletion the id is
+    emptied but target_kind stays, so the report still says what it
+    was about.
+  - One open report per reporter per target: two separate unique
+    rules, one for open person reports (reporter + person_id), one for
+    open group reports (reporter + group_id). A person and a group can
+    never be mixed up, even with the same id.
+  - It also holds: who reported, reason,
+    note, when, and a SNAPSHOT of the names as they were when reported:
+      a person   BOTH their username and display name (the reporter
+                 picks a reason, not a field, so keep both)
+      a group    its name
+    Names can change, so the snapshot shows what the reporter saw.
+  - Plus status (open / closed), when it was opened, and when the
+    20-hour reminder was sent. WHAT WAS DONE is not a field on the
+    report: every admin action is its own row in the action log
+    (Part D), so a report that goes hide -> unhide -> rename keeps
+    every step.
+  - Nobody can read reports from the app, including the reporter (same
+    as reserved_usernames). Admins read them in the SQL Editor.
+  - Two functions: report_user(person, reason, note, also_block) and
+    report_group(group, reason, note).
+
+======================================================================
+5. REPORT HISTORY WHEN ACCOUNTS ARE DELETED
+======================================================================
+
+  Today every table is deleted along with its account. Reports must
+  not be: the history of what was reported and done is the point.
+
+  - Reported account deleted (by the admin or by the person): the
+    report stays. Its link to the account is emptied; the snapshot of
+    the name, the reason, and what was done stay. It still counts in
+    the admin query.
+  - Reported group deleted: the same.
+  - Reporter deletes their account: the report stays, without who sent
+    it (anonymous from then on).
+  - Admin who acted deletes their account: the action log keeps what
+    was done and when, without who did it.
+  - The action log follows the same rules as the reports: it survives
+    every kind of account deletion, and its rows for a report are
+    deleted with that report after the year.
+  - The note is kept with the report: it describes what happened, and
+    the reporter chose to write it.
+
+  OPEN REPORTS WHEN THEIR TARGET IS DELETED (DECIDED: CLOSED
+  AUTOMATICALLY)
+  - When an account is deleted, every OPEN report about it is closed in
+    the same step, with an action log row each (action auto_close,
+    except the one an admin deleted from, which is "delete"):
+      deleted by an admin     action "delete", that admin, on the
+                              report it came from; the others get
+                              "closed: account deleted" by that admin
+      deleted by its owner    "closed: account deleted by its owner",
+                              no admin
+      deleted by the age job  "closed: account deleted (under age)"
+  - The same for a group deleted by its owner or as part of an account
+    deletion: "closed: group deleted".
+  - So nothing waits in the queue for a target that no longer exists,
+    and every report still ends with a recorded reason. They stay
+    readable in the history (who, what, the snapshot) for the year.
+  - A HIDDEN account that deletes itself: the same; its reports close
+    "account deleted by its owner", and the hidden-accounts query no
+    longer lists it.
+  - A year after it's closed, the report is deleted completely, by a
+    daily database job like the existing cleanup jobs. Until then,
+    nothing else removes it. Open reports are never deleted.
+  - Tested: deleting each kind of account leaves the report readable
+    with its snapshot and history (section 10).
+
+======================================================================
+6. PART C - NAME LIMITS
+======================================================================
+
+  THE RULES
+  - Username: as today (a-z, 0-9, _, 3-20, reserved and offensive
+    words), with the better matching below.
+  - Display name: 1-30 characters after trimming spaces (as at sign-up
+    today). No line breaks or hidden characters (below). Not only
+    spaces. No offensive words.
+  - Group name: 1-15 characters (decided), same rules.
+  - The "staff" words (admin, moderator, official, support,
+    steptracker) stay banned in usernames only, as today. Display names
+    and group names may use them (decided). Someone pretending to be
+    staff can be reported ("Pretending to be someone else").
+
+  FIRST: ONE FORM FOR EVERY NAME (NFC)
+  - The same letter can arrive two ways: é as one character, or e plus
+    a separate accent. Before ANYTHING else (checking, counting,
+    saving), every name is turned into the composed form ("NFC"): the
+    app with name.normalize('NFC'), the database with
+    normalize(name, NFC). The database does it again itself, so a
+    name sent directly is treated the same. What is saved is the NFC
+    form.
+
+  WHAT COUNTS AS ONE CHARACTER
+  - One Unicode character of the NFC form, the same in the app and the
+    database (the app's Array.from and the database's char_length both
+    count this way, after trimming).
+  - So é counts as 1 however it was typed. An emoji counts as 1, but
+    emoji made of several joined together count as several: the
+    family 👨‍👩‍👧 is 5, a flag is 2. The app's counter shows the same
+    number the database will, so it never says "OK" to a name the
+    server refuses.
+
+  SPACES: ONE DEFINITION FOR BOTH SIDES
+  - Line breaks and control characters are NOT spaces here: they are
+    refused first (HIDDEN CHARACTERS below, step 0 of the order), so
+    "Ana<line break>Lee" is refused, never quietly turned into
+    "Ana Lee". That includes tab, line feed, carriage return
+    (U+0009-000D), U+0085, and the line / paragraph separators
+    (U+2028, U+2029).
+  - JavaScript's trim() and Postgres's btrim() don't remove the same
+    characters (btrim() only removes ordinary spaces by default; a
+    non-breaking space survives it). So neither is used as is. Both
+    sides use this exact list of ALLOWED space characters:
+      U+0020 (space), U+00A0 (non-breaking space), U+1680,
+      U+2000-200A, U+202F, U+205F, U+3000
+  - The rule, in both the app and the database, AFTER the refusals:
+      - remove these from the start and end
+      - inside the name, each run of them becomes ONE ordinary space
+        (so "Ana<non-breaking space>Lee" is saved as "Ana Lee", and
+        two names can't differ only by a kind of space)
+  - Then the name must have VISIBLE CONTENT: at least one character
+    that is not a space (list above), not a hidden character (below),
+    and not a blank-looking character (U+2800 braille blank, U+3164
+    and U+115F / U+1160 Hangul fillers, U+FFA0). Those blank-looking
+    characters are refused anywhere in a name.
+
+  HIDDEN CHARACTERS
+  - Some characters take no space on screen and can be used to make
+    two names look the same, or hide a bad word ("sh<invisible>it").
+    The rule, the same in the app and the database:
+      ALWAYS REFUSED   control characters (Unicode category Cc, which
+                       includes tab, line feed, carriage return and
+                       U+0085); line and paragraph separators (U+2028,
+                       U+2029); zero-width
+                       space (U+200B); zero-width non-joiner (U+200C);
+                       word joiner (U+2060); U+FEFF; soft hyphen
+                       (U+00AD); text-direction controls (U+200E,
+                       U+200F, U+202A-202E, U+2066-2069); and every
+                       other "format" character (Unicode category Cf)
+                       not allowed below
+      ALLOWED ONLY IN EMOJI
+                       zero-width joiner (U+200D) only BETWEEN two
+                       emoji (so 👨‍👩‍👧 works, "a<ZWJ>b" doesn't);
+                       emoji style (U+FE0F) only right after an emoji;
+                       skin tones (U+1F3FB-1F3FF) only after an emoji
+  - One known trade-off: the zero-width non-joiner is needed in some
+    writing (Persian, some Indian scripts). Refusing it keeps the rule
+    simple; revisit if people writing those languages hit it.
+  - The word check (below) runs on the name AFTER hidden characters
+    are refused, so none can split a word.
+
+  CHECKED ON THE SERVER, EVERY TIME
+  - A check that runs whenever a name is saved, by any route: sign-up,
+    Profile, changing username, creating or renaming a group. Today
+    only sign-up checks display names, so Profile and group screens can
+    send anything.
+  - The app also checks length as you type, for a quick message, but
+    the server is what counts. The word list stays on the server only
+    (never readable from the app, like today).
+  - Error codes the app turns into messages, like the username ones:
+      BAD_DISPLAY_NAME   "Use 1 to 30 characters."
+      BAD_GROUP_NAME     "Use 1 to 15 characters."
+      NAME_NOT_ALLOWED   "That name isn't allowed. Try another."
+
+  THE WORD LIST: TWO SETTINGS PER WORD
+  - reserved_usernames keeps one row per word, with two separate
+    settings:
+      kind    reserved    usernames only (help, me, null, root, admin,
+                          support, official, steptracker...)
+              offensive   every kind of name
+      match   contains    anywhere, even inside another word
+              whole_word  only as a word of its own
+  - Today's "exact" becomes kind reserved + match whole_word; today's
+    "contains" keeps match contains (the reserved staff words stay
+    "contains" for usernames, as now).
+  - Both settings live only in this table. No word's behaviour is
+    written into the code.
+
+  HOW A NAME IS CHECKED, IN THIS ORDER
+  0. In this order: NFC; refuse control characters, line breaks,
+     hidden and blank-looking characters; then trim and collapse the
+     allowed spaces; then visible content; then length (all above). Refused here means BAD_DISPLAY_NAME / BAD_GROUP_NAME.
+  1. Lower-case.
+  2. Split letters from their accents and drop the accents (é -> e,
+     whether it was typed as one character or two). This is only for
+     checking words; the saved name keeps its accents.
+  3. Undo common swaps: 0->o, 1->i, 3->e, 4->a, 5->s, 7->t, $->s, @->a,
+     !->i.
+  4. Two versions of the result:
+       words    split on anything that isn't a letter: "big sh1t fan"
+                -> big, shit, fan
+       joined   every non-letter removed: "s h i t" -> shit,
+                "s.h.i.t" -> shit
+  5. A "contains" word matches if it's anywhere in JOINED.
+     A "whole_word" word matches if it equals any of WORDS, or equals
+     JOINED (so "s h i t" can't dodge a whole-word entry by being
+     spread out).
+  - Usernames go through the same steps (they have no spaces, so WORDS
+    is split on "_" and digits after swapping).
+  - The Scunthorpe problem: "contains" catches innocent names with a
+    bad word inside. Use "contains" only for words that almost never
+    appear inside real names; everything else is "whole_word". The
+    tests include real names that must pass.
+
+  NAMES THAT ALREADY BREAK THE RULES
+  - The check only runs when a name is saved, so adding it can't break
+    the update or lock anyone out.
+  - Before deploying, a one-off query lists every existing name that
+    would fail, of all three kinds: usernames, display names, group
+    names (including group names over 15 characters). For each: who,
+    which name, and WHICH rule it breaks (too long, which word).
+  - You decide each one and fix it with the admin rename (Part D). No
+    name is changed automatically.
+  - Names nobody fixes keep working, and are refused only when next
+    changed. The same query is saved in the SQL Editor and run again
+    after any change to the word list, so old names are checked
+    against new words too.
+
+======================================================================
+7. PART D - ACTING ON REPORTS (ADMIN)
+======================================================================
+
+  WHO AND HOW OFTEN (DECIDED)
+  - You are the reviewer. You check open reports at least once a day,
+    and straight away when a push arrives.
+  - When you're away, turn reports_enabled off (Part B), or add
+    another admin first. Reports are never left with nobody watching.
+
+  PUSH ALERTS TO ADMINS (DECIDED)
+  - The database already sends pushes (friend requests). The same way:
+      - a new report: a push to every admin's phone, "New report (3
+        open)". No names or details in the push.
+      - every hour, a job looks for reports open more than 20 hours
+        and pushes "A report has been waiting 20 hours" (once per
+        report).
+  - Admins need push turned on for this phone in Profile. Checked by
+    sending a test report before turning reports_enabled on.
+  - An email version comes later, once there is an email sender
+    (RELEASE-GATE.md gate 2, item 8). Not needed to launch.
+
+  THE SAVED QUERY (SQL Editor)
+  - Open reports, oldest first, each with:
+      - how long it has been open (over 20 hours stands out)
+      - the snapshot, the reason and the note
+      - how many OTHER open and past reports name the same person or
+        group, and how many different people sent them
+      - what was done about that person before
+  - A second saved query: hidden accounts (below) and how long each
+    has been hidden.
+
+  WHAT YOU CAN DO (one admin-only function each, each written to the
+  action log below)
+  - Dismiss         nothing wrong; the report is closed.
+  - Rename          reset a display name to the username, a group name
+                    to "Group", or (for usernames) make them pick a new
+                    username on next open, like the "Updated Terms"
+                    screen.
+  - Hide            for a serious report you need time to look into
+                    (DECIDED). Nobody sees them, and they see a screen
+                    "Your account is paused while we look into a
+                    report" with the support address. It is temporary:
+                    every hidden account ends in Unhide or Delete, and
+                    shows in the hidden accounts query until it does.
+  - Unhide          after a hide, nothing wrong found.
+  - Delete          for the worst cases, the same as "Delete account":
+                    the account and everything it owns, except the
+                    report history (section 5).
+
+  HIDING IS ITS OWN RESTRICTION
+  - An account can be restricted for more than one reason at once:
+    under age, sign-up not finished, Terms not accepted, and now
+    hidden by an admin. Each is its own field, and "active" means none
+    of them applies.
+  - Hide sets a separate field (hidden_at, with the report it's for)
+    in profile_private, next to the age block. It does NOT change the
+    age block or anything else.
+  - Unhide clears only that field. An account that is also under age,
+    or hasn't accepted the Terms, stays inactive for that reason.
+  - The app's screen choice follows the same order as today, with
+    paused added: the age-block screen wins over the paused screen (an
+    under-age account is deleted within the hour anyway).
+  - The hidden-accounts query lists only accounts hidden BY AN ADMIN,
+    with the report, how long ago, and any other restriction they
+    also have.
+
+  THE ACTION LOG (APPEND-ONLY)
+  - A new table, moderation_actions: one row per action. Each row: the
+    report (if any), the account or group acted on, the action, when,
+    which admin (empty for automatic ones), what changed (e.g. the old
+    and new name for a rename), and a short reason.
+  - Actions:
+      dismiss, rename, hide, unhide, delete    by an admin
+      auto_close                               by the database, when
+                                               a report's target is
+                                               deleted; its reason is
+                                               one of: account deleted
+                                               by an admin, account
+                                               deleted by its owner,
+                                               account deleted (under
+                                               age), group deleted
+  - Append-only means: nothing can add to, edit or delete a row in
+    normal use; a trigger refuses it, for admins too. Exactly two
+    exceptions, both automatic:
+      - emptying ids when an account or group is deleted (the admin
+        who acted, the account or group acted on), so the log no
+        longer says who. Nothing else in the row changes.
+      - the one-year cleanup, which deletes a report's rows with it.
+  - Every admin function writes its row in the same step as the change
+    itself, so an action can't happen without its log row. auto_close
+    rows are written by the deletion itself, before the ids are
+    emptied, so they still record what was deleted.
+  - A report is closed by the action that settles it (dismiss, rename,
+    delete, or unhide after looking into it). Hide leaves it open.
+  - The saved query shows each person's whole history from this log:
+    every report and every action, in order.
+  - All admin functions can't be called from the app, only from the SQL
+    Editor (like the existing admin functions).
+
+  AN URGENT REPORT (serious abuse)
+  - Hide the account at once, then look into it. Keep the report open
+    until you've decided. If it involves a risk to someone's safety,
+    the next step is outside the app (the police); the report history
+    is kept for that (section 5).
+
+  SUPPORT ADDRESS
+  - The store listing and the "paused" screen need a support email
+    (already an open item in RELEASE-GATE.md).
+
+  TERMS
+  - Apple expects the Terms to say there's no tolerance for offensive
+    content or abusive people, and that accounts can be paused or
+    deleted. Add a line when the Terms are written (RELEASE-GATE.md
+    gate 3).
+
+======================================================================
+8. SCREENS
+======================================================================
+
+  PLAYER CARD (tap a name in any ranking)
+  - A "..." button in the corner: Report (when reports_enabled), Block
+    (or Unblock). Not on your own card.
+  - Opened from a group: shows the blocker's note (section 3).
+  - Opened anywhere else for someone blocked either way: "This player
+    isn't available."
+
+  FRIENDS
+  - A request waiting for you: Accept, Decline, and in "...": Block.
+  - Search results: "..." with Report and Block.
+
+  GROUP SCREEN
+  - Members (not the owner): "Report group name" in the group's menu.
+  - A member's row: Report and Block. Blocking from here hides them
+    everywhere outside the group; inside it they stay visible.
+
+  PROFILE > BLOCKED PEOPLE
+  - Each row: their username and character, Unblock, and Report
+    (when reports_enabled). Read through my_blocks() (Part A), since
+    the profiles table no longer shows them to you.
+
+  REPORT SCREEN (a sheet)
+  - Who or what is being reported, the reasons for that kind of target
+    as a list, an optional note, "Also block this person" (off, people
+    only), Send.
+
+  PROFILE
+  - New row: "Blocked people" (the list above).
+
+  PAUSED SCREEN
+  - Shown to a hidden account instead of the app, with the support
+    address and Sign out.
+
+  CONFIRMATIONS
+  - Block: "Block @name? They won't be able to find you or see your
+    steps. You'll stop being friends. They won't be told."
+  - Unblock: "Unblock @name? You can find each other again, but you
+    won't be friends until one of you sends a request."
+
+======================================================================
+9. BUILDING ORDER
+======================================================================
+
+  1. Settle the rules (this file): the security rules (section 2), name
+     matching (section 6), report history (section 5). Done when you
+     approve this blueprint.
+  2. Names: run the audit query on all three kinds of name and decide
+     the failures. Then the word list settings, the matching, the
+     server check on every route, and the app messages.
+  3. Block: the table, can_see and is_blocked_between, block_user /
+     unblock_user / my_blocks, the tighter read rules, the group
+     functions to the contract in section 2 (group_leaderboard and
+     friends_leaderboard by period, the new group_member_card), the
+     player card changes, the Blocked people screen. Tested by reading
+     the database directly, not only through the app.
+  4. Reports and the admin side together, with reports_enabled OFF:
+     the reports table and the action log, the functions, the report
+     sheet, the saved queries, dismiss / rename / hide / unhide /
+     delete, the paused screen, the admin pushes.
+  5. Phone tests (section 10) for everything, a test report end to end.
+  6. Before turning reports_enabled on: the support email is live and
+     in the store listings, and the published Terms include the
+     content rules (below).
+
+  RELEASE REQUIREMENTS OUTSIDE THIS FILE
+  - Google Play's user-generated content policy: people must accept
+    the Terms before they can post anything others see. The app
+    already has that step: sign-up step 2 has the Terms checkbox,
+    recorded in legal_acceptances, and "Updated Terms" asks again for
+    new versions. What's missing is the Terms themselves
+    (RELEASE-GATE.md gates 2 and 3). The first published Terms must
+    include the content rules (no offensive names, no harassment, and
+    that accounts can be paused or deleted), and must require
+    acceptance (requires_reacceptance = true) so existing accounts
+    accept them too.
+  - Apple 1.2: published contact information. The support email
+    (RELEASE-GATE.md, open items) must be live before release.
+  Later: report emails, once there is an email sender.
+
+======================================================================
+10. TESTS
+======================================================================
+
+  DATABASE (supabase/tests/database, like the register tests)
+
+  Block security (read the tables directly, as each person)
+  - A blocks B, no shared group: neither can read the other's profile,
+    steps or last seen; search doesn't find them.
+  - A blocks B, shared group: the SAME direct reads still return
+    nothing. group_leaderboard, group_quest and group_member_card for
+    that group do return them. The same functions for a group the
+    caller isn't in return nothing.
+  - group_member_card says "you blocked them" to A only; B's answer is
+    the same as for any member.
+  - group_member_card for a person who isn't in that group: refused,
+    even when the caller is.
+  - Group functions leave out a paused, under-age or unfinished
+    account in the group, exactly as the tables do: the block
+    exception doesn't open anything else.
+  - group_leaderboard / friends_leaderboard: 'today' and 'week' work;
+    any other period is refused; a my_today that isn't "today"
+    anywhere on Earth right now is refused.
+  - Across calls: steps on every one of the last 12 days; call 'today'
+    and 'week' with EVERY accepted my_today (at a moment with two valid
+    dates, and at one with three); put all the answers together: no
+    day outside the window, at most 8 days (two valid dates) or 9
+    (three). Each 'week' answer is 7 days.
+  - Exact fields: for group_leaderboard, group_quest and
+    group_member_card, the keys returned are compared with an approved
+    list; anything extra fails the test (no birthday, email, full step
+    history, map of someone hidden). Run as a blocked group mate too,
+    since that's when the extra rights matter.
+  - Inactive members (paused, under age, unfinished, Terms not
+    accepted) are missing from EVERY group function's answer, not
+    just the leaderboard and the card.
+  - can_see answers false alike for a blocked person, a paused account
+    and a deleted one.
+  - is_blocked_between, the admin functions and the cleanup jobs can't
+    be called from the app. A test lists every function in the
+    database with who may run it, so a new function left open fails.
+  - Group mates who aren't friends can't read each other's steps or
+    last seen directly any more; the group functions still work.
+  - A third person sees both A and B as normal.
+
+  Block and friendships
+  - A block with each friendship state: accepted, pending A->B, pending
+    B->A, already declined, already cancelled, already removed, none.
+    Each ends as in the table in section 3.
+  - After a block, neither can send a request (same error as "not
+    found"). After unblocking, they can, but aren't friends.
+  - Both block each other; one unblocks; the other's block still
+    holds.
+  - A request and a block at the same moment, from two database
+    sessions: never a live request left between a blocked pair. Run
+    with NO friendship row beforehand, and with each existing state.
+  - A's request badge and the push counts don't include B.
+
+  Reports
+  - Refused while reports_enabled is off, even when called directly.
+  - One open report per pair; another after it's closed is accepted.
+  - Two identical reports sent at the same moment (two database
+    sessions): one saved. Run for a person AND for a group.
+  - A person report and a group report with the same id value: both
+    saved (the kinds never collide).
+  - Twelve reports sent at once from two sessions: at most 10 saved.
+  - Report someone you blocked, from the Blocked people route: accepted.
+  - A person report keeps both username and display name in the
+    snapshot; changing either afterwards doesn't change the report.
+  - The 11th in 24 hours is refused; one 24 hours later is accepted.
+  - Refused: reporting yourself, someone hidden from you who isn't in
+    your group, a group you're not in, a reason not on the list,
+    "Spam" for a group, a note over 500 characters.
+  - Without "Also block" nothing is blocked; with it, they are.
+  - Nobody can read reports from the app; no admin function can be
+    called from the app.
+
+  Deleting accounts
+  - Deleting the reported account, the reporter, the admin, or the
+    group: the report and its action log rows are still there with
+    the snapshot, reason and history, with the deleted side emptied.
+
+  Admin actions
+  - Hide -> unhide -> rename on one report: three rows in the action
+    log, in order; nothing overwritten.
+  - An account that is under age (or hasn't accepted the Terms) AND
+    hidden: unhide leaves it inactive. The hidden-accounts query shows
+    it with its other restriction.
+  - Every admin action writes its log row; an admin action that fails
+    halfway leaves neither the change nor the row.
+  - Editing or deleting a log row is refused, for admins too. Deleting
+    an admin's account empties only their id in the log. Deleting a
+    reported account writes auto_close rows that say what was deleted.
+  - After a year the cleanup job deletes it.
+  - Three people report B; the admin deletes B from one report: all
+    three are closed, each with its own log row.
+  - B deletes their own account with reports open (and once while
+    hidden): all closed "account deleted by its owner", none left
+    open, all still readable.
+  - A group deleted with open reports: closed "group deleted".
+
+  Names (each for usernames, display names and group names, and each
+  saving route: sign-up, Profile, username change, group create, group
+  rename)
+  - Length: 30 passes, 31 fails (display); 15 passes, 16 fails (group).
+  - Spaces only: fails. "Ana\nLee" (line feed), a tab, a carriage
+    return, U+2028 inside a name: refused, NOT turned into spaces. A non-breaking space only: fails.
+    Only a braille blank or a Hangul filler: fails.
+  - Leading / trailing non-breaking space or ideographic space
+    (U+3000): removed; "Ana<non-breaking space>Lee" saved as "Ana
+    Lee", counted 7 in the app and the database.
+  - Hidden characters: "Ana<zero-width space>" fails; "sh<ZWJ>it"
+    fails; "a<ZWJ>b" fails; a text-direction control fails. The family
+    emoji 👨‍👩‍👧, a skin-tone emoji and ❤️ (with U+FE0F) pass.
+  - "José" typed both ways (é as one character, and e + accent):
+    passes, counts 4, and is SAVED as one form (NFC).
+  - "Sh1t", "s h i t", "s.h.i.t", "SHÍT" (accent typed as one
+    character AND as two): fail.
+  - A "whole_word" entry: fails alone and spread out ("s h i t"),
+    passes inside a longer innocent word.
+  - Real names that must pass, including "Scunthorpe" and names with
+    accents.
+  - "Official" passes as a display name and group name, fails as a
+    username.
+  - Emoji: the database counts the same as the app's test cases below.
+  - The audit query names the rule each failing name breaks.
+
+  APP (npm test)
+  - Name length, spaces, visible-content and hidden-character checks,
+    with the same emoji, accent, non-breaking space and zero-width
+    cases as the database tests (one shared list of examples, so both
+    sides agree).
+  - The error-code-to-message mapping.
+
+  ON A PHONE (add to DEVICE-TESTS.md)
+  - Block from the player card: they vanish from Friends at once.
+  - On the blocked person's phone: you're gone from search and their
+    ranking, no message about it.
+  - In a shared group: both still in the group ranking and quests; only
+    the blocker sees the note on the card.
+  - Repeat requests: decline a request, the sender sends again at once
+    and gets through (decision 6). Report them without "Also block":
+    they can still send. Block them: they can't.
+  - Report sheet hidden while reports_enabled is off.
+  - Block someone, then report them from Profile > Blocked people
+    without unblocking.
+  - A test report: the admin push arrives; it shows in the saved query
+    with the snapshot; hide shows the paused screen on their phone;
+    unhide brings them back.
+  - Change your display name to a bad word in Profile: refused with the
+    message. Rename a group to 16 characters: refused.
+  - VoiceOver / TalkBack read the "..." button as "More options".
+
+======================================================================
+11. DECISIONS
+======================================================================
+
+  1. Groups: blocking doesn't change shared groups. Blocked people
+     still see each other inside a group they share, through group
+     functions only (section 2); never through the tables.
+  2. Hearing about reports: push alerts to admins (new report, and
+     any open over 20 hours); an email later, once there is an email
+     sender.
+  3. "Also block" on the report screen: OFF by default.
+  4. Staff words (admin, official, steptracker...): banned in usernames
+     only, as today. Allowed in display names and group names.
+  5. Group names: 1-15 characters.
+  6. Friend requests: no daily limit, and no wait after declines. The
+     trade-off (a report alone doesn't stop repeat requests) is tested
+     on a phone.
+  7. Admin actions: dismiss, rename, hide while reviewing (temporary,
+     always ends in unhide or delete), delete.
+  8. Joining the same group after a block: allowed, no warning to the
+     blocked person; the blocker sees the card note.
+  9. Group activity and its future pushes carry on for blocked pairs as
+     for any member.
+  10. Reviewer: you, at least daily and on each push. Reports turned
+      off when nobody can review.
+  11. Report ships hidden (reports_enabled off) until the admin side
+      works end to end.
+  12. Reports and their action log kept a year after closing, through
+      account deletion, then deleted.
+  13. Group functions run with extra rights under the contract in
+      section 2; the only rule they skip is the block between the
+      caller and a group mate.
+  14. Leaderboards take a period ('today' or 'week'), never dates.
+  15. Hiding is its own field; unhide never lifts another restriction.
+  16. You can report someone you've blocked, from the Blocked people
+      list.
+  17. Hidden characters: refused, except the joiner, emoji style and
+      skin tones inside emoji. The zero-width non-joiner is refused
+      (trade-off noted in section 6).
+  18. A blocked person in a shared group can work out the block from
+      search (they see you in the group but can't find you). Accepted
+      as part of decision 1; the app never says it.
+  19. Local days: my_today must be "today" somewhere on Earth right
+      now. One window from the database clock limits every answer and
+      every combination of answers: 8 days, or 9 for about 2 hours a
+      day. Each 'week' is 7 days. Kept at 8-9 days (not cut to 7) so
+      every local week stays correct. The window limits access that
+      comes from sharing a group only; accepted friends keep their
+      separate access to each other's step history.
+  20. When an account or group is deleted, its open reports close
+      automatically, each with a log row saying why.
+  21. Spaces: one listed set, trimmed at the ends and collapsed to one
+      ordinary space inside, the same in the app and database; names
+      need visible content.
+  22. can_see runs with extra rights under the rules in section 2;
+      execute for signed-in users only. It also requires the CALLER to
+      be active.
+  23. Requests and blocks between the same two people take a pair
+      lock, so they can't race, with or without a friendship row.
+  24. Line breaks and control characters are refused before spaces are
+      trimmed, never turned into spaces.
+  25. The action log is append-only, with two automatic exceptions:
+      emptying ids on deletion and the one-year cleanup. Automatic
+      closures are logged as auto_close with the reason.
