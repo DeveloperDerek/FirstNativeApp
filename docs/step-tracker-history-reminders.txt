@@ -1,0 +1,194 @@
+STEP TRACKER - LONGER HISTORY, AND REMINDERS (BLUEPRINT)
+Two things that keep people coming back:
+  A. History beyond the last 7 days: week, month and year
+  B. Opt-in reminders: "still time for your goal", "keep your streak"
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. It
+describes what changes, what the database, phone and screens need, and
+the choices to make before building (section 6). Items 2c and 2d of
+step-tracker-recommendations.txt; step 6 of its suggested order.
+
+======================================================================
+1. HOW IT WORKS TODAY
+======================================================================
+
+  - History shows the last 7 days only, from a copy kept on the phone
+    (steps-by-day:<account>, pruned to 7 days on purpose,
+    step-tracker-step-refresh.txt), with an average.
+  - The server keeps every day uploaded since the person started
+    sharing (daily_steps), and each day's goal (daily_goal_changes).
+    That is what coins and streaks are worked out from.
+  - Apple Health / Health Connect on the phone hold the person's whole
+    step history, from before they had the app too, whether or not they
+    share. Both libraries can return one total per day for a long range
+    in a single query.
+  - Notifications: only server pushes for friend requests, and those
+    are off until push is set up (it needs the paid Apple Developer
+    account for iPhones, and Firebase for Android). Nothing reminds
+    anyone to walk.
+
+======================================================================
+2. PART A - LONGER HISTORY
+======================================================================
+
+  VIEWS (CHOICE 2)
+  - Suggested: three tabs at the top of History:
+      Week    the last 7 days as bars (as today), each day judged by
+              the goal you had that day
+      Month   the last 30 days as bars, or a calendar with the days at
+              goal filled in (CHOICE 3)
+      Year    12 bars, one per month: the average steps per day that
+              month
+  - With each view: total steps, average per day, best day (and its
+    date), days at goal (e.g. "18 of 30"), and the current and best
+    streak.
+  - Swipe or arrows to go back a week / month / year.
+
+  WHERE THE NUMBERS COME FROM (CHOICE 1)
+  - Suggested: the SERVER for people who share steps, the PHONE for
+    people who don't.
+      - Sharing: the days uploaded (daily_steps) and each day's goal.
+        That is exactly what coins and streaks use, so History, the
+        streak and the coin history always agree. Days before someone
+        started sharing are simply empty.
+      - Not sharing: read straight from Apple Health / Health Connect,
+        on the phone only, never uploaded. The same views, judged by
+        the same goals (which are kept whether or not you share).
+  - Alternative: the phone for everyone. Longer history for sharers
+    too (from before the app), but History could then disagree with
+    the streak and coins (e.g. a day the phone counts that was never
+    uploaded), which is confusing.
+  - Either way, only YOUR history. Friends and group mates see what
+    they see today (the rankings and the player card), nothing more.
+
+  IN THE DATABASE
+  - my_history(from_day, to_day, my_today): your own days in the range,
+    each with its steps and the goal that applied that day. At most a
+    year and a few days per call, and only for yourself (the server
+    takes you from the sign-in). Needs nothing new in the read rules:
+    you can already read your own steps.
+  - The year view adds the days up by month on the server, so a year is
+    one small answer, not 365 rows.
+
+  ON THE PHONE (people not sharing)
+  - One Health query per view: day-by-day totals for the range, with
+    the same trusted sources and the same "typed-in steps don't count"
+    rule as Today (the anti-cheat rules in src/health). On Android,
+    taking hand-typed steps out of a whole year means reading every
+    record; if that is slow, the year view for non-sharers is limited
+    to the last 90 days (CHOICE 5).
+  - Not stored: read again each time History opens (Health is the
+    source; the 7-day copy stays as it is).
+
+======================================================================
+3. PART B - REMINDERS
+======================================================================
+
+  LOCAL, ON THE PHONE (CHOICE 4)
+  - Suggested: reminders are scheduled by the app on the phone itself
+    (local notifications), not pushed by the server. That means:
+      - they work now, without the push setup, the paid Apple account
+        or Firebase
+      - no server, no tokens, nothing about you leaves the phone
+      - they know only what the app knew when it was last opened
+  - Alternative: server pushes, with today's uploaded steps. Needs push
+    set up first, and the server only knows what was last uploaded,
+    so it isn't fresher anyway.
+
+  WHAT AND WHEN (CHOICE 6)
+  - Off until turned on (Profile > Reminders), asking for notification
+    permission then, never on first launch (like push today).
+  - One a day at most, at a time you pick (default 7pm), and never
+    once today's goal is reached:
+      - with a streak of 2 days or more: "Keep your 6-day streak going.
+        Still time to reach your goal today."
+      - otherwise: "Still time to reach your goal today."
+    Tapping it opens Today.
+  - The numbers in it are as of the last time the app was open, so it
+    doesn't say how many steps are left (the phone can't check Health
+    at reminder time without running in the background, which the
+    phones limit).
+
+  HOW IT STAYS RIGHT
+  - Each time the app refreshes steps, it cancels its reminders and
+    schedules the next ones:
+      - today's, if the time hasn't passed and the goal isn't reached
+      - one for each of the next 6 days
+  - So reaching the goal (and opening the app) cancels today's;
+    changing the time or turning reminders off takes effect at once;
+    and someone who stops opening the app gets reminders for a week,
+    then nothing (it doesn't nag a lapsed user forever).
+  - Signing out cancels them (they belong to the account), and a
+    different account on the same phone starts with reminders off.
+
+  QUEST PUSHES (CHOICE 7)
+  - The notifications blueprint lists pushes for group quests (a quest
+    proposed, about to end, won). Those need server push, which isn't
+    set up. Suggested: not in this step; they come with turning push
+    on (with the paid Apple account and Firebase).
+
+======================================================================
+4. BUILDING ORDER
+======================================================================
+
+  1. History, server side: my_history and the monthly sums.
+  2. History screen: the three views, the stats, going back in time,
+     each day judged by its own goal.
+  3. History for non-sharers from Health (CHOICE 1), with the 90-day
+     limit on Android if needed (CHOICE 5).
+  4. Reminders: the Profile setting and time, permission, scheduling
+     on every refresh, cancel on sign-out, opening Today on tap.
+  Then one build with everything (and the earlier steps), for your
+  friend to try.
+
+======================================================================
+5. TESTS
+======================================================================
+
+  DATABASE (supabase/tests/database)
+  - my_history returns only your own days, each with the goal that
+    applied (a goal change in the middle of the range shows both);
+    more than about a year in one call is refused; a date that isn't
+    "today" somewhere is refused; signed out or inactive: refused.
+  - The monthly sums match the days added up, and days at goal are
+    counted by each day's own goal.
+  - Someone else's history can't be asked for.
+
+  APP (npm test)
+  - The stats from a list of days: total, average (over days with
+    data), best day, days at goal by each day's goal.
+  - Building the month and year views (a month with no days, a goal
+    change in the month, a leap year's February).
+  - The reminder plan: given now, the reminder time, whether today's
+    goal is reached and the streak, which reminders to schedule (none
+    today once reached; none today after the time; 6 more days; none at
+    all when off), and the text with and without a streak.
+
+  ON A PHONE (DEVICE-TESTS.md)
+  - History: Week, Month and Year show; going back a month works;
+    numbers agree with Today and the streak.
+  - Not sharing: History still shows a month, from Health.
+  - Reminders: turned on, permission asked once; at the time, the
+    reminder comes; after reaching the goal and opening the app, it
+    doesn't; turned off, it doesn't; after signing out, it doesn't.
+
+======================================================================
+6. CHOICES TO MAKE BEFORE BUILDING
+======================================================================
+
+  1. Where history comes from: the server for sharers and the phone
+     for non-sharers (suggested), or the phone for everyone.
+  2. Views: Week, Month and Year (suggested), or fewer.
+  3. Month view: 30 bars (suggested; matches Week), or a calendar with
+     the days at goal filled in.
+  4. Reminders scheduled on the phone (suggested), or server pushes
+     (needs push set up first).
+  5. Non-sharers on Android: if a year of Health data is slow, limit
+     their year view to 90 days (suggested), or always read a year.
+  6. Reminders: off until turned on, one a day at most at a time you
+     pick (default 7pm), none once the goal is reached, a streak
+     version from 2 days, and stopping after a week without opening the
+     app (suggested).
+  7. Quest pushes: not in this step; with turning push on later
+     (suggested).

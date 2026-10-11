@@ -14,7 +14,7 @@ import {
   ticksFor,
 } from './scale.ts';
 
-describe('worked examples from step-tracker-stage6.txt', () => {
+describe('worked examples from the step track design', () => {
   const cases: [string, number, number][] = [
     ['scaleMax(0)', scaleMax(0), 10_000],
     ['scaleMax(10000)', scaleMax(10_000), 10_000], // character stands exactly at the flag

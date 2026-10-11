@@ -1,5 +1,9 @@
 # StepTracker
 
+The plans and decisions behind the app are in `../docs/` (the
+`step-tracker-*.txt` files; code comments refer to their sections). Start
+with `step-tracker-recommendations.txt`.
+
 ## Making a build (EAS)
 
 Builds are made in the cloud by EAS, Expo's build service

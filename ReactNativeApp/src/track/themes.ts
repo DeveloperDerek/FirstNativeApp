@@ -1,4 +1,4 @@
-// Map themes for the step road (step-tracker-stage7.txt). A theme is one
+// Map themes for the step road. A theme is one
 // object: colors, background tiles and landmark buildings. The ids double
 // as shop item ids (supabase/migrations/*_map_themes.sql); map_village is
 // free. The sky and ground colors must match the art exactly (see

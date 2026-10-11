@@ -3,7 +3,7 @@
 Generates the placeholder sprites in assets/avatar/, assets/track/ and
 assets/maps/ (one folder per map theme).
 
-Original art drawn in code, following the spec in step-tracker-stage3.txt:
+Original art drawn in code, following the original character spec:
 every layer is a 32 x 56 PNG with a transparent background: the 32 x 48
 character, feet on its row 46, plus HEADROOM rows above it for tall hats,
 ears and held items (drawing rows -8 to -1), a 1-pixel dark outline, no anti-aliasing (every pixel fully opaque or
@@ -1254,8 +1254,8 @@ def goal_flag():
 
 
 # ---------------------------------------------------------------- maps
-# Backgrounds for the scrolling step road (step-tracker-stage6.txt and
-# step-tracker-stage7.txt). One folder per theme in assets/maps/, each
+# Backgrounds for the scrolling step road (the step track and map
+# themes). One folder per theme in assets/maps/, each
 # with tile_a, tile_b (256 x 80) and start, mid, goal, far landmarks
 # (up to 64 x 72), exported at 2x, 4x and 6x with nearest neighbor as
 # name.png, name@2x.png, name@3x.png.
