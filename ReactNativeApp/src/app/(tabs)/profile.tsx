@@ -19,6 +19,7 @@ import {
 import { appleCodeForDeletion, appleSignInEnabled, signOut } from '@/auth/signIn';
 import { Avatar } from '@/avatar/Avatar';
 import { formatDay } from '@/components/birthday-field';
+import { RemindersSection } from '@/components/reminders-section';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -142,6 +143,8 @@ export default function ProfileScreen() {
       {profile && <DetailsForm key={profile.id} profile={profile} onSaved={reloadProfile} />}
 
       {profile && <GoalSection />}
+
+      {profile && <RemindersSection userId={profile.id} />}
 
       {profile && <BirthdaySection userId={profile.id} />}
 
