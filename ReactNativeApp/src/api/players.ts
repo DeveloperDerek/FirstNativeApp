@@ -1,3 +1,4 @@
+import { getPlayerStreak } from '@/api/goals';
 import { myToday } from '@/api/steps';
 import { normalizeAvatar } from '@/avatar/catalog';
 import type { AvatarConfig } from '@/avatar/types';
@@ -12,6 +13,8 @@ export type PlayerProfile = {
   lastSeen: Date | null;
   /** You blocked them (only known on a card opened from a group you share). */
   blockedByMe: boolean;
+  /** Their current streak; null when they don't share steps (or aren't a friend) */
+  streak: number | null;
 };
 
 /**
@@ -22,13 +25,15 @@ export type PlayerProfile = {
  * reason to see.
  */
 export async function loadPlayerProfile(userId: string): Promise<PlayerProfile | null> {
-  const [{ data, error }, lastSeen] = await Promise.all([
+  const [{ data, error }, lastSeen, streak] = await Promise.all([
     supabase
       .from('profiles')
       .select('username, display_name, avatar, map_theme')
       .eq('id', userId)
       .maybeSingle(),
     loadLastSeen(userId),
+    // Friends only (the server says null otherwise); a failure hides the line
+    getPlayerStreak(userId).catch(() => null),
   ]);
   if (error) throw error;
   if (!data) return null;
@@ -39,6 +44,7 @@ export async function loadPlayerProfile(userId: string): Promise<PlayerProfile |
     mapTheme: data.map_theme,
     lastSeen,
     blockedByMe: false,
+    streak,
   };
 }
 
@@ -61,6 +67,7 @@ export async function loadGroupMemberCard(groupId: string, userId: string): Prom
     mapTheme: data.map_theme,
     lastSeen: data.last_seen ? new Date(data.last_seen) : null,
     blockedByMe: Boolean(data.blocked_by_me),
+    streak: typeof data.streak === 'number' ? data.streak : null,
   };
 }
 

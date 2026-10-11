@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { deleteAccount } from '@/api/account';
+import { setDailyGoal } from '@/api/goals';
 import { withdrawConsent } from '@/api/consent';
 import { type Profile, updateDisplayName } from '@/api/profile';
 import { type Birthday, changeUsername, getMyBirthday } from '@/api/register';
@@ -24,7 +25,9 @@ import { Screen } from '@/components/ui/screen';
 import { Row, Section } from '@/components/ui/section';
 import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
+import { useSteps } from '@/hooks/use-steps';
 import { errorMessage } from '@/lib/error-message';
+import { formatStartDay, nudgeGoal } from '@/lib/goal';
 import { privacyUrl } from '@/lib/supabase';
 import {
   askForPush,
@@ -137,6 +140,8 @@ export default function ProfileScreen() {
       )}
 
       {profile && <DetailsForm key={profile.id} profile={profile} onSaved={reloadProfile} />}
+
+      {profile && <GoalSection />}
 
       {profile && <BirthdaySection userId={profile.id} />}
 
@@ -258,6 +263,77 @@ function NotificationsSection({ userId }: { userId: string }) {
           onValueChange={toggle}
         />
       </Row>
+    </Section>
+  );
+}
+
+/**
+ * Profile > Daily goal (step-tracker-goals-streaks.txt): 3,000 to 25,000 in
+ * 500s. A new goal starts on the date the server returns (the day after
+ * your phone's date); today keeps its goal.
+ */
+function GoalSection() {
+  const { goal, streak, refreshGoal } = useSteps();
+  // What's set: the change waiting to start, or today's goal
+  const current = goal?.upcoming?.goal ?? goal?.today ?? null;
+  const [picked, setPicked] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+  const value = picked ?? current;
+
+  async function save() {
+    if (value === null || value === current) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const starts = await setDailyGoal(value);
+      await refreshGoal();
+      setPicked(null);
+      setMessage({ text: `Your new goal starts on ${formatStartDay(starts)}.`, error: false });
+    } catch (e) {
+      setMessage({ text: errorMessage(e), error: true });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (value === null) return null;
+  return (
+    <Section title="Daily goal">
+      {/* Rows show one line of detail: the longer note goes below */}
+      <Row title={`${value.toLocaleString()} steps`} detail="Steps a day">
+        <Button
+          title="−"
+          size="small"
+          variant="secondary"
+          onPress={() => setPicked(nudgeGoal(value, -1))}
+        />
+        <Button title="+" size="small" variant="secondary" onPress={() => setPicked(nudgeGoal(value, 1))} />
+      </Row>
+      {goal?.upcoming && !picked && (
+        <ThemedText type="small" themeColor="textSecondary">
+          Today: {goal.today.toLocaleString()}. Changes to {goal.upcoming.goal.toLocaleString()} on{' '}
+          {formatStartDay(goal.upcoming.starts_on)}.
+        </ThemedText>
+      )}
+      <ThemedText type="small" themeColor="textSecondary">
+        Today, History and your streak follow your goal. Coins are still earned at 10,000 steps
+        a day.
+      </ThemedText>
+      {streak?.sharing && streak.best > 0 && (
+        <ThemedText type="small" themeColor="textSecondary">
+          Best streak: {streak.best} {streak.best === 1 ? 'day' : 'days'}
+        </ThemedText>
+      )}
+      {message && (
+        <ThemedText
+          type="small"
+          themeColor={message.error ? 'danger' : 'textSecondary'}
+          accessibilityLiveRegion="polite">
+          {message.text}
+        </ThemedText>
+      )}
+      <Button title="Save goal" onPress={save} loading={saving} disabled={value === current} />
     </Section>
   );
 }

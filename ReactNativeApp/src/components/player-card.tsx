@@ -183,6 +183,9 @@ export function PlayerCard({
             {profile?.lastSeen && (
               <ThemedText style={{ color: ink }}>Last seen {timeAgo(profile.lastSeen)}</ThemedText>
             )}
+            {!unavailable && profile?.streak ? (
+              <ThemedText style={{ color: ink }}>{profile.streak}-day streak</ThemedText>
+            ) : null}
             {failed && (
               <ThemedText type="small" style={{ color: ink }}>
                 Could not load the rest of this profile.

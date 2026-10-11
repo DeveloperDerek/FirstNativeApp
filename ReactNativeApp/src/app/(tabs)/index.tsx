@@ -19,17 +19,19 @@ import { CheckinCountdown } from '@/components/checkin-countdown';
 import { CoinBalance } from '@/components/coin-balance';
 import { Leaderboard } from '@/components/leaderboard';
 import { PlayerCard } from '@/components/player-card';
+import { StreakLine } from '@/components/streak-line';
 import { QuestBanners } from '@/components/quest-banners';
 import { SharingRequired } from '@/components/sharing-required';
 import { ThemedButton } from '@/components/themed-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, DailyStepGoal, GameFont, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, GameFont, MaxContentWidth, Spacing } from '@/constants/theme';
 import { openHealthSettings, permissionHelp } from '@/health';
 import { useMapTheme } from '@/hooks/use-map-theme';
 import { useSteps } from '@/hooks/use-steps';
 import { useWallet } from '@/hooks/use-wallet';
 import { errorMessage } from '@/lib/error-message';
+import { COIN_STEPS, DEFAULT_GOAL, goalProgress } from '@/lib/goal';
 import { pickShown } from '@/track/scale';
 import { StepTrack, type Walker } from '@/track/StepTrack';
 
@@ -44,7 +46,7 @@ const MAX_ON_TRACK = 30;
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { today, permission, loading, error, refresh, refreshIfStale } = useSteps();
+  const { today, permission, loading, error, refresh, refreshIfStale, goal, streak } = useSteps();
   const { session, profile } = useAuth();
   const { balance, nextCheckin, checkIn } = useWallet();
   const myId = session?.user.id ?? '';
@@ -65,7 +67,11 @@ export default function TodayScreen() {
   // chosen on the Profile page.
   const { theme } = useMapTheme();
 
-  const progress = Math.min((today ?? 0) / DailyStepGoal, 1);
+  // Your goal for today (10,000 until you pick one); daily coins stay at
+  // 10,000 for everyone (step-tracker-goals-streaks.txt)
+  const dailyGoal = goal?.today ?? DEFAULT_GOAL;
+  const progress = goalProgress(today ?? 0, dailyGoal);
+  const earnedCoins = (today ?? 0) >= COIN_STEPS && sharing;
   const blocked = permission === 'denied' || permission === 'unavailable';
   // iOS hides denied read access, so zero steps may really mean "no permission".
   const showIosZeroHint = Platform.OS === 'ios' && permission === 'granted' && today === 0;
@@ -170,9 +176,10 @@ export default function TodayScreen() {
               {today?.toLocaleString() ?? '--'}
             </ThemedText>
             <ThemedText type="small" style={{ color: theme.skyInk }}>
-              {Math.round(progress * 100)}% of {DailyStepGoal.toLocaleString()} goal
-              {progress >= 1 && sharing ? ' · +100 coins' : ''}
+              {Math.round(progress * 100)}% of {dailyGoal.toLocaleString()} goal
+              {earnedCoins ? ' · +100 coins' : ''}
             </ThemedText>
+            <StreakLine streak={streak} steps={today ?? 0} color={theme.skyInk} />
             <CheckinCountdown nextAt={nextCheckin} color={theme.skyInk} />
           </View>
         </View>
@@ -180,7 +187,7 @@ export default function TodayScreen() {
 
       {/* Edge to edge: no padding around the map. It stays put while the list scrolls. */}
       {mode.kind !== 'solo' && !sharing ? null : (
-        <StepTrack walkers={pickShown(walkers, MAX_ON_TRACK)} theme={theme} />
+        <StepTrack walkers={pickShown(walkers, MAX_ON_TRACK)} theme={theme} myGoal={dailyGoal} />
       )}
 
       <ScrollView

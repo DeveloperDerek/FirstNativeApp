@@ -1,0 +1,357 @@
+STEP TRACKER - YOUR OWN DAILY GOAL, AND STREAKS (BLUEPRINT)
+Two things people notice every day:
+  A. A personal daily goal (today everyone's is 10,000)
+  B. Streaks: days in a row at your goal, with coin bonuses
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. It
+describes what changes, what the database and screens need, and the
+decisions made (section 6). Items 2a and 2b of
+step-tracker-recommendations.txt.
+
+======================================================================
+1. HOW IT WORKS TODAY
+======================================================================
+
+  - The goal is 10,000 steps for everyone, written in several places:
+      Today's progress ring and "% of 10,000 goal"
+                                     (DailyStepGoal, constants/theme.ts)
+      History's bars (full colour at 10,000)
+      Coins: 100 coins for each day at 10,000 or more
+                                     (claim_daily_rewards, the server)
+      The step track's scale and its finish flag at 10,000 (scale.ts,
+      themes.ts): the road everyone walks on together
+      The admin view of suspicious steps
+  - No streaks. The server keeps every uploaded day (daily_steps), so a
+    streak can be worked out from what is already there.
+  - Steps reach the server only for people sharing them (the consent
+    screen); coins already need sharing.
+
+======================================================================
+2. PART A - YOUR OWN DAILY GOAL
+======================================================================
+
+  WHAT YOU CAN PICK (DECIDED)
+  - From 3,000 to 25,000, in steps of 500. Starts at 10,000,
+    so nothing changes for anyone until they pick.
+  - Set in Profile ("Daily goal") and offered once on Today the first
+    time (a small "Set your goal" hint, dismissed for good).
+
+  WHAT FOLLOWS YOUR GOAL
+  - Today: the progress percentage and its label are relative to your
+    goal for that day (whatever it is: "% of 10,000 goal" for someone
+    who never changed it, "% of 7,500 goal" after picking 7,500).
+  - History: a day at your goal is shown full colour.
+  - Streaks (Part B).
+
+  WHAT STAYS AT 10,000 FOR EVERYONE
+  - The step track: it's one road that friends and group mates share,
+    so its scale and finish flag stay the same for all. Your own goal
+    shows as a small marker on the road, on your phone only (decided).
+  - Group quests: their goals are the group's, unchanged.
+  - The admin's suspicious-steps view: its checks stay exactly as they
+    are (days over 40,000, round numbers, days at 10,000). Personal
+    goals never change how cheating is spotted; a 3,000 goal makes no
+    difference to it.
+
+  COINS (DECIDED: STAY AT 10,000)
+  - The question: with a goal of 3,000, should a day at 3,000 earn the
+    same 100 coins as 10,000 does today?
+  - Coins stay at 10,000 steps, as today. The shop stays
+    fair between people, and nobody loses coins they earn now. Reaching
+    your own goal is rewarded by the streak (Part B) instead.
+  - Not chosen: coins for reaching your own goal, scaled by it.
+
+  CHANGING YOUR GOAL
+  - A new goal counts from tomorrow: the day after the phone's date
+    (exact rule below). Today keeps the goal it started with, so in the
+    app, lowering it at 9pm doesn't rescue today's streak. A phone
+    whose date has been tampered with can get around that: see "What a
+    tampered phone can do" below (accepted, decision 14).
+    Profile shows the start date the server returns.
+  - Every change is kept (which goal from which day). Changing your
+    goal never changes the goal that applied to a past day. Late step
+    uploads within the accepted window can still update past results:
+    whether a day reached its goal, and the streaks.
+  - Changed more than once on the same day: the LAST choice wins for
+    the start date the server returned, and every change stays in the
+    history. Example: on Monday, 8,000 in the morning, then 6,000 in
+    the afternoon; both start on Tuesday (the date the server returned
+    for each), so Tuesday's goal is 6,000.
+  - Never changed: 10,000, for every past day and every future day,
+    until the first change takes effect.
+  WHICH DAY IS "TOMORROW" (DECIDED: THE PHONE'S TOMORROW)
+  - Goal days are the same local dates the phone uploads steps under
+    (daily_steps.day), so a goal and a day's steps always line up.
+  - set_daily_goal(goal, my_today) takes the phone's local date, the
+    same way the leaderboards do (step-tracker-safety.txt, section 2):
+    the server accepts it only if it is "today" somewhere on Earth
+    right now (between the UTC-12 and UTC+14 dates), and the new goal
+    starts the day after it. The server returns that date and Profile
+    shows it: "Your new goal starts on Tue, Nov 12".
+  - Travelling: the date is the phone's date when the goal is changed;
+    days keep being the phone's local dates, as for steps.
+  WHAT A TAMPERED PHONE CAN DO (ACCEPTED, decision 14)
+  - By sending an earlier date that is still "today" somewhere, it can
+    make a new, lower goal apply to a day already under way:
+      - its own today, almost anywhere
+      - for people in UTC+13 / UTC+14, at some hours, its own yesterday
+        too (the earliest accepted date can be two days behind theirs)
+    So yes: it can rescue a streak on a day it would otherwise have
+    missed, and that can complete a 7- or 30-day bonus.
+  - What it can NOT do: earn more than an honest player who simply set
+    the lowest goal, 3,000, and left it. Every goal is at least 3,000,
+    so any day it rescues has at least 3,000 steps, and the honest
+    3,000 player is credited for that same day. Every streak the
+    exploit can make, the 3,000 player has too, at least as long, so
+    its streaks and bonuses can never be bigger. Friends don't see
+    anyone's goal, so the streak on the player card looks the same too.
+  - What it buys, then: showing a higher goal on your own screen while
+    being judged at no more than 3,000 when that suits you. Every change
+    is in the goal history, so it can be seen afterwards.
+  - Not worth closing at the cost of the strict rule below. If that
+    ever changes (e.g. bonuses become larger), the fix is the strict
+    rule, which no phone can move.
+  - Not chosen: starting from the day after the latest "today" on
+    Earth (UTC+14). It can't be moved by the phone, but for most of the
+    world, for most of the day, the new goal would start the day after
+    tomorrow (US Pacific from about 3am, Western Europe from about
+    11am).
+
+  - In the database: a small table of goal changes (who, from which
+    day, the goal, and when it was chosen), readable by you only,
+    written only through a function that checks the range and works
+    out the day as above. The goal for a day is the latest change whose day
+    is on or before it; two changes for the same day are told apart by
+    when they were chosen, the later one winning.
+  - Friends and group mates don't see your goal (they do see your
+    streak, Part B).
+
+======================================================================
+3. PART B - STREAKS
+======================================================================
+
+  WHAT A STREAK IS
+  - The number of days in a row, ending today or yesterday, on which
+    you reached the goal you had that day.
+  - Today counts as soon as you reach it. Until then, a streak that ran
+    through yesterday is still alive, and Today says so:
+      "5-day streak. 2,140 steps to keep it going."
+  - Missing a whole day ends it. No rest days or "streak freezes" for
+    now (decided).
+  - Your best streak ever is kept too.
+
+  WHERE IT COMES FROM
+  - Worked out by the server from the uploaded days (daily_steps) and
+    your goal history, every time it's asked (it's never stored), so
+    it's the same on every phone and survives a new phone. It needs step sharing, like coins. Someone not sharing
+    sees "Share your steps to keep a streak" instead.
+  - Days are the local dates the phone uploads, as everywhere else
+    (step-tracker-step-refresh.txt), so travelling doesn't break it.
+  - Older days can't be changed (the server already refuses uploads for
+    days more than 8 days back), so a streak can't be built backwards
+    further than that.
+
+  LATE UPLOADS
+  - A day can look missing because the phone hadn't synced yet. When
+    its steps arrive later (within the 8-day window), the streak is
+    simply worked out again with them: a streak that looked broken
+    comes back, and the best streak can go up.
+  - A late upload can make a streak reach 7 or 30, and then the bonus
+    is paid then (see below), but a late upload never causes a second
+    payment for the same run of days (see "Paid once").
+
+  WHEN IT LAUNCHES (DECIDED: SHOW HISTORY, NO BACK-PAY)
+  - Current and best streaks are shown from the days already uploaded,
+    judged against 10,000 (everyone's goal until now). Someone already
+    on a 12-day run sees "12-day streak" on day one.
+  - Bonuses are NOT paid for milestones reached before the launch: a
+    run that is already past 7 days at launch doesn't pay the 7-day
+    bonus. Only a milestone reached on or after the launch day pays.
+    The launch day is stored by the migration, so the rule is exact.
+  - "Reached" means the DAY the run reached the milestone, not the day
+    its steps arrived. A late upload on Nov 12 showing a run reached 7
+    on Nov 8, before a Nov 10 launch, pays nothing; one showing it
+    reached 7 on Nov 11 pays.
+  - So launching never hands out a batch of coins.
+
+  COIN BONUSES (DECIDED: 7 AND 30 DAYS)
+  - 200 coins when a streak reaches 7 days in a row, and 1,000 coins
+    when it reaches 30. Nothing at 100 or beyond. Paid by the server
+    when the streak reaches that length, once per streak: a streak that
+    breaks and builds up to 7 again pays the 7-day bonus again.
+  - NOT tied to the 10,000-step daily coins. The bonus follows YOUR
+    goal: with a 7,500 goal, seven days at 7,500 pay the 7-day bonus,
+    even though none of those days earned the daily coins. The two are
+    checked separately, in the same step.
+
+  PAID ONCE
+  - The whole step is done one at a time per person: the server takes a
+    per-person lock (held until the step finishes), THEN reads the
+    uploaded days fresh, works out the runs and pays. Two phones
+    uploading different missing days at the same moment each claim in
+    turn, and the second sees what the first saw plus its own day.
+  - Each payment is also recorded with the day the run reached the
+    milestone ("streak 7, reached 2026-11-14") in the coin history,
+    which already refuses the same payment twice: a second layer if
+    the lock were ever missed.
+  - A late upload can join two runs into one (days 1-3, a gap on day
+    4, then days 5-11, which already paid its 7-day bonus; day 4
+    arrives late, making days 1-11 one run that reaches 7 on day 7).
+    Before paying, the server checks whether this run of days already
+    has that milestone paid anywhere inside it; if so, nothing more is
+    paid. A late upload never causes an extra payment.
+  - Already paid twice, then joined (DECIDED: NO CLAW-BACK): days 1-7
+    paid a 7-day bonus, days 9-15 paid another, then day 8 arrives
+    late and joins them into one run. Both bonuses were earned as the
+    days looked at the time, and coins already received are never
+    taken back. The joined run pays nothing more for 7 days (it already
+    has that milestone paid inside it); it can still go on to 30.
+    So a joined run may hold two earlier 7-day payments; what's
+    guaranteed is that nothing is paid twice because of a late upload.
+  - Recorded in the coin history like the daily goal coins ("7-day
+    streak", "30-day streak"), and the same "You earned..." message on
+    Today.
+  - Paid in the same step as the daily coins (after steps upload), so
+    it can't be claimed twice, even with two phones at once (the coin
+    history already allows each payment only once).
+
+  WHO SEES YOUR STREAK (DECIDED: FRIENDS AND GROUP MATES)
+  - Shown on your player card to friends and group mates ("12-day
+    streak"), the same people who already see your steps. Off for
+    people who aren't sharing.
+
+  SCREENS
+  - Today: the streak under the progress ("5-day streak · best 12"),
+    and on the day it's at risk, how many steps keep it going.
+  - Profile: Daily goal (the picker, and "Your new goal starts on
+    <date>"), and your best
+    streak.
+  - Player card: "12-day streak".
+  - History: days at your goal stand out, as now, but by your goal.
+
+  BUILT (20261108000000_goals_streaks.sql)
+  - As designed. Notes from building:
+      - Goals: daily_goal_changes, set_daily_goal / my_goal; the goal
+        for a day is goal_on(). Streaks: goal_runs / streak_info, worked
+        out on every read; my_streak, player_streak, and 'streak' in
+        group_member_card (added to its approved fields).
+      - The bonuses are inside claim_daily_rewards, after a per-person
+        lock (coins:<id>). The two-phone race test
+        (supabase/tests/concurrency/streak_race.sh) uses a 7,500 goal so
+        no daily coins are involved: with 10,000-step days the two
+        claims already wait on each other's daily-coin rows, which hid
+        the lock's effect. Without the lock it pays twice; with it, once.
+      - Today counts as done the moment the phone's own steps reach the
+        goal, before the upload, so the streak line moves at once.
+      - The track: when your goal falls on a distance tick (e.g. 7,500)
+        that tick reads MINE; otherwise a small MINE marker is drawn.
+        10,000 reads GOAL only while it is your goal too.
+
+======================================================================
+4. BUILDING ORDER
+======================================================================
+
+  1. The goal: the goal history table and set_daily_goal(), Today and
+     History reading your goal, the Profile picker.
+  2. Streaks: my_streak() (current, best, at risk, steps to go), Today
+     and Profile.
+  3. The 7- and 30-day bonuses: added to the daily coins step; the
+     message.
+  4. The player card.
+  Then a preview build for your friend to try.
+
+======================================================================
+5. TESTS
+======================================================================
+
+  DATABASE (supabase/tests/database)
+  - Goals: 3,000 and 25,000 accepted; 2,500, 25,500 and 7,250 refused;
+    a change counts from the day after the phone's date; only your own goal can be read or
+    changed.
+  - A past day is judged by the goal you had then: lower the goal, and
+    yesterday's streak doesn't change.
+  - Streaks: 5 days at goal ending yesterday = 5 and "at risk" today;
+    reaching today makes it 6; a missed day in between ends it; best
+    streak kept after a break; days not at goal don't count; a day with
+    no upload breaks it.
+  - Bonuses: reaching 7 pays 200 once and reaching 30 pays 1,000 once;
+    100 pays nothing; claiming again pays nothing; a new streak
+    reaching 7 later pays again; two claims at the same moment (two
+    sessions) pay once.
+  - The bonus follows the personal goal: a 7,500 goal met for 7 days
+    with no day at 10,000 pays the 7-day bonus and no daily coins.
+  - Two goal changes on the same day: the later one is the goal from
+    the returned start date; both are kept.
+  - The start date: the day after the phone's date; a date that isn't
+    "today" anywhere on Earth is refused; an earlier date that is still
+    valid starts the goal on that date's next day (the accepted
+    loophole), never on a day before it.
+  - The loophole's limit, tested directly: a tampered date lowering
+    today's goal (and, at a fixed UTC+14 moment, yesterday's) does
+    rescue the streak; over the same days, a player who set 3,000 from
+    the start has a streak at least as long and at least the same
+    bonuses.
+  - Never changed: 10,000 for past and future days.
+  - Launch: a run already 12 days long at launch shows 12 but pays no
+    7-day bonus; a run reaching 7 after launch pays.
+  - Late uploads: a missing day uploaded later joins the run back
+    together and the streak goes up; joining two runs where one already
+    paid its 7-day bonus pays nothing more (the example in "Paid
+    once"); joining two runs that BOTH paid keeps both payments and
+    pays nothing more.
+  - Late uploads and launch: one revealing a milestone reached before
+    the launch day pays nothing; one revealing a milestone on or after
+    it pays.
+  - Goals: Today's label and percentage for a 10,000 goal and for a
+    7,500 goal (more than one goal tested).
+  - The suspicious-steps view gives the same answers with any
+    personal goal.
+  - Two sessions at once (supabase/tests/concurrency): two phones
+    uploading different missing days that together complete 7 days in
+    a row, then claiming at the same moment: exactly one 7-day bonus.
+  - Coins for the daily goal unchanged (still 10,000 steps).
+  - Not sharing: no streak, no bonus.
+
+  APP (npm test)
+  - The goal picker's steps and range, and "steps to keep it going".
+
+  ON A PHONE (DEVICE-TESTS.md)
+  - Pick 7,500 in Profile: it shows the start date (tomorrow); Today
+    keeps the old goal until that date, then shows 7,500.
+  - Walk past your goal: the streak goes up and Today says so.
+  - On the 7th day in a row: the bonus message, 200 coins added once.
+  - A friend's player card shows your streak.
+
+======================================================================
+6. DECISIONS
+======================================================================
+
+  1. Goal range: 3,000 to 25,000 in steps of 500, starting at 10,000.
+  2. Coins stay at 10,000 steps for everyone.
+  3. Your goal shows as a small marker on your own step track.
+  4. Your streak shows on your player card to friends and group mates.
+  5. No rest days or streak freezes for now.
+  6. Streak bonuses: 200 coins at 7 days, 1,000 coins at 30 days.
+     None at 100. They follow the personal goal, not the 10,000-step
+     daily coins.
+  7. Several goal changes in one day: the last one wins; all are kept.
+     Never changed means 10,000, past and future.
+  8. Launch: streaks are shown from existing history, but no bonus for
+     a milestone reached before the launch day.
+  9. Late uploads (within the 8-day window) update the streak and can
+     pay a bonus; a late upload never causes a second payment.
+  10. Two rewarded runs later joined by a late upload: both bonuses are
+      kept (no claw-back), nothing more is paid.
+  11. A milestone counts by the day it was reached, not the day its
+      steps arrived, for the launch cutoff.
+  12. Claiming is done one at a time per person (a lock), with the
+      coin history's once-only rule as a second layer.
+  13. The suspicious-steps checks are unchanged by personal goals.
+  14. A new goal starts the day after the phone's date (checked to be
+      "today" somewhere on Earth); the server returns the date and
+      Profile shows it. Goal days are the same local dates as
+      daily_steps. A tampered phone can lower the goal for a day
+      already under way (today; yesterday too in UTC+13/+14 at some
+      hours) and so rescue a streak, but never earn more than an
+      honest player with a 3,000 goal. Accepted; tested.
