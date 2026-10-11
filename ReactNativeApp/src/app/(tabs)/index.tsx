@@ -45,7 +45,7 @@ const MAX_ON_TRACK = 30;
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { today, permission, loading, error, refresh } = useSteps();
+  const { today, permission, loading, error, refresh, refreshIfStale } = useSteps();
   const { session, profile } = useAuth();
   const { balance, nextCheckin, checkIn } = useWallet();
   const myId = session?.user.id ?? '';
@@ -100,14 +100,14 @@ export default function TodayScreen() {
       setStatusBarStyle(theme.statusBar);
       loadBoard();
       const timer = setInterval(() => {
-        refresh();
+        refreshIfStale();
         loadBoard();
       }, 60_000);
       return () => {
         clearInterval(timer);
         setStatusBarStyle('auto');
       };
-    }, [loadBoard, refresh, theme.statusBar])
+    }, [loadBoard, refreshIfStale, theme.statusBar])
   );
 
   async function pullToRefresh() {

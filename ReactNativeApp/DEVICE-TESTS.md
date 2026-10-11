@@ -172,6 +172,17 @@ follow-up on a real phone (section 4 of the blueprint).
 
 ---
 
+## 11. Step refresh (`step-tracker-step-refresh.txt`)
+
+- [ ] iPhone  - [ ] Android — **One refresh on launch:** opening the app reads Health and uploads once (one `daily_steps` upsert in the Supabase logs), not twice.
+- [ ] iPhone  - [ ] Android — **Quiet time:** leave the app and come back within a minute: no refresh. Come back after a minute: one refresh.
+- [ ] iPhone  - [ ] Android — **Today timer:** with Today open, steps refresh about once a minute, never more often.
+- [ ] iPhone  - [ ] Android — **Pull twice:** pull to refresh twice quickly: one refresh, and the spinner stops once.
+- [ ] iPhone  - [ ] Android — **Two accounts, one phone:** sign in as A, open History, sign out, sign in as B: History shows only B's days (or "--" until they load), never A's.
+- [ ] iPhone  - [ ] Android — **Sharing turned on mid-refresh:** turn on step sharing while a refresh runs: the steps still upload without pulling again.
+
+---
+
 ## Sign-off
 
 | | iPhone | Android |

@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { sessionStorage } from '@/lib/session-storage';
+import { stepsKey } from '@/storage/step-log';
+import { LEGACY_STEPS_KEY } from '@/storage/stepStore';
 
 /**
  * Everything kept on the phone for the person signing out, so the next
@@ -10,8 +12,10 @@ import { sessionStorage } from '@/lib/session-storage';
  * Supabase's sign-out.
  */
 export async function clearLocalUserData(userId: string | undefined) {
-  const keys = ['steps-by-day', 'pending-signup-email'];
-  if (userId) keys.push(`consent-prompted:${userId}`, `password-recovery:${userId}`);
+  const keys = [LEGACY_STEPS_KEY, 'pending-signup-email'];
+  if (userId) {
+    keys.push(stepsKey(userId), `consent-prompted:${userId}`, `password-recovery:${userId}`);
+  }
   await AsyncStorage.multiRemove(keys).catch(() => {});
   await sessionStorage.forgetKey().catch(() => {});
 }

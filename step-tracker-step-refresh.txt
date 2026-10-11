@@ -1,0 +1,201 @@
+STEP TRACKER - STEP REFRESH CLEANUP (BLUEPRINT)
+Three small fixes to how the app reads, saves and uploads steps:
+  A. Fix the lint error in the steps hook
+  B. Only one step refresh at a time
+  C. Keep the phone's step history per account
+Last checked: October 2026
+
+Status: built (October 2026). There is no code in this file. It
+describes what changes, why, and how to check it. Items 3a, 3b and 3c
+of step-tracker-recommendations.txt.
+
+Everything here lives in three files:
+  src/hooks/use-steps.tsx      the shared steps state (StepsProvider)
+  src/storage/stepStore.ts     the step history saved on the phone
+  src/auth/local-data.ts       what is wiped from the phone on sign-out
+
+Nothing changes in the database, and nothing changes on screen. Build
+in the order A, B, C: B reuses A's split, and C reuses B's checks.
+
+======================================================================
+1. HOW IT WORKS TODAY
+======================================================================
+
+  - StepsProvider wraps the tabs. Its refresh() asks for Health
+    permission, reads the last 7 days, saves them on the phone,
+    uploads them, claims daily coins, then sends quest steps.
+  - refresh() is called from FOUR places:
+      1. when StepsProvider first appears (on launch / sign-in), and
+         again when sharing is turned on or off
+      2. every time the app comes back to the foreground
+      3. every 60 seconds while the Today tab is open (a timer)
+      4. by hand: pull to refresh and the button on Today, and the
+         group screen after a quest change
+  - Nothing stops these from overlapping. Coming back to the app as
+    the Today timer fires, or pulling to refresh while one is running,
+    starts two full refreshes side by side: two reads of 7 days of
+    Health data, two uploads, two coin claims, two quest uploads.
+  - (An earlier draft said opening Today refreshes too. It doesn't:
+    opening Today only reloads the ranking; the timer refreshes.)
+  - The step history on the phone is saved under one key,
+    "steps-by-day", whoever is signed in.
+
+======================================================================
+2. PART A - THE LINT ERROR
+======================================================================
+
+  THE ERROR
+  - `npx expo lint` fails with react-hooks/set-state-in-effect at
+    use-steps.tsx line 99: the mount effect calls refresh(), and
+    refresh() calls setLoading(true) and setError(null) straight away,
+    before anything has been awaited. React's rule is that an effect
+    may start outside work and set state when that work answers, but
+    shouldn't set state the moment it runs.
+
+  THE FIX
+  - Split refresh() into two pieces:
+      load()     does the actual work. Its first step is awaiting the
+                 Health permission request. Every state change comes
+                 AFTER that, so nothing is set synchronously.
+      refresh()  what buttons and screens call. It sets loading on
+                 and the error to empty, then runs load().
+  - The mount effect and the foreground listener call load(), not
+    refresh().
+  - `loading` starts as true instead of false, because the first load
+    starts the moment the provider appears. It goes false when that
+    load finishes, as today.
+
+  WHY NOT JUST SWITCH THE RULE OFF
+  - The rule would be correct to complain once more state is added
+    later. Moving the state changes after the first await costs
+    nothing and keeps the rule useful.
+
+  WHAT YOU'D NOTICE
+  - Nothing. The spinner shows on launch exactly as before.
+
+======================================================================
+3. PART B - ONE REFRESH AT A TIME
+======================================================================
+
+  THE RULE
+  - If a refresh is already running, any new request JOINS it instead
+    of starting a second one. Everyone who asked gets the same answer
+    when it finishes.
+  - Kept in a ref inside StepsProvider: "the refresh running now",
+    or nothing. Cleared when the refresh finishes, whether it worked
+    or failed.
+
+  ONE CATCH: ASKED AGAIN AFTER SOMETHING CHANGED
+  - A refresh that started before the person agreed to share steps
+    skips the upload. If they agree while it runs, joining it would
+    mean their steps aren't uploaded until the next refresh.
+  - So each refresh remembers who it ran for and whether sharing was
+    on. If a request comes in with a different account or a different
+    sharing setting, it waits for the running one, then runs one more
+    time. More requests in the meantime join that one extra run, so
+    there are never more than two in a row.
+
+  A SHORT QUIET TIME (DECIDED: 60 SECONDS)
+  - Coming back to the app after a few seconds (e.g. checking a text)
+    doesn't need fresh Health data. Skip an automatic refresh if the
+    last one STARTED less than 60 seconds ago. (Counting from the
+    start, not the finish, so the Today timer still refreshes once a
+    minute instead of every other minute.)
+  - Automatic means: coming to the foreground and the Today timer
+    (it keeps its refresh, under this same quiet time).
+  - The first refresh after launch or sign-in always runs.
+  - Pull to refresh and the button always run (or join a running one).
+
+  DON'T WRITE FOR THE WRONG PERSON
+  - A refresh takes a few seconds. If the person signs out (or the
+    account changes) while it runs, it must not save steps on the
+    phone, show a "Goal reached!" alert, or set state afterwards.
+  - After each await, check the signed-in account is still the one the
+    refresh started for. If not, stop quietly.
+
+  WHAT YOU'D NOTICE
+  - Overlapping requests read Health and upload once, not twice.
+  - Never two "Goal reached!" alerts. (The database already pays each
+    day only once, so coins were always correct; this stops the
+    duplicate work and alerts.)
+
+======================================================================
+4. PART C - STEP HISTORY PER ACCOUNT
+======================================================================
+
+  THE PROBLEM
+  - History is saved under "steps-by-day" for whoever is signed in.
+    It is wiped on sign-out, but the wipe can be missed: the app is
+    closed during sign-out, the server ends the session while the app
+    is closed, or a refresh still running (Part B) saves again just
+    after the wipe. The next person to sign in would briefly see the
+    last person's History, until their own steps load.
+
+  THE FIX
+  - Save each account's history under its own key:
+      steps-by-day:<account id>
+  - loadSteps() and saveManySteps() take the account id. With no one
+    signed in, there is nothing to load or save.
+  - Sign-out wipes that account's key (clearLocalUserData already
+    gets the account id).
+
+  THE OLD KEY
+  - The old shared "steps-by-day" can't be handed to anyone: there is
+    no way to know whose steps it holds. Delete it the first time the
+    new version runs, and also on every sign-out, so it never
+    lingers.
+  - Nothing is lost: the first refresh reads the last 7 days from
+    Health again within seconds, and the server keeps every uploaded
+    day.
+
+  KEEP THE CACHE SMALL (DECIDED: 7 DAYS)
+  - Today the saved history only grows. Keep only the days History
+    shows (HISTORY_DAYS, 7) and drop older ones when saving. If
+    HISTORY_DAYS ever changes, the cache follows it. (If the longer
+    history in recommendation 2c is built, it reads from the server,
+    not from this cache.)
+
+  WHAT YOU'D NOTICE
+  - Two people sharing a phone never see each other's History, even
+    for a moment.
+
+======================================================================
+5. TESTS
+======================================================================
+
+  UNIT TESTS (npm test, no phone needed)
+  - The "join the running refresh" rule as a small helper on its own,
+    so it can be tested without React:
+      - two requests at once run the work once and both get the answer
+      - a request with a different setting runs once more afterwards
+      - a failed run is cleared, so the next request starts fresh
+  - The key name: each account gets its own key; there's no key
+    without an account.
+  - Pruning: saving keeps the last 7 days and drops older ones.
+
+  CHECKS
+  - `npx expo lint` has no errors.
+  - `npx tsc --noEmit` passes.
+
+  ON A PHONE (add to DEVICE-TESTS.md)
+  - Launch: one Health read, one upload (watch the Supabase logs or
+    add a temporary log line).
+  - Leave the app and come back within a minute: no refresh. Come back
+    after a minute: one refresh. The Today timer never refreshes
+    more than once a minute.
+  - Pull to refresh twice quickly: one refresh, the spinner stops
+    once.
+  - Sign in as A, open History, sign out, sign in as B: History shows
+    only B's days (or "--" until they load), never A's.
+  - Turn on step sharing while a refresh is running: the steps still
+    upload without a second pull.
+
+======================================================================
+6. DECISIONS
+======================================================================
+
+  - Quiet time: 60 seconds, counted from when the last refresh
+    started, for coming back to the app and for the Today timer.
+    Never for the first refresh, pull to refresh or the button.
+  - Phone cache: only the 7 days History shows.
+  - The Today timer: keeps its refresh, under the same quiet time.

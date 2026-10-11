@@ -1,25 +1,28 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const KEY = 'steps-by-day';
-export type StepLog = Record<string, number>; // { "2026-10-06": 8421 }
+import { dayKey, pruneLog, type StepLog, stepsKey } from './step-log';
 
-// Local date, not UTC, so "today" matches the user's calendar day.
-export const dayKey = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-` +
-  `${String(d.getDate()).padStart(2, '0')}`;
+export { dayKey, type StepLog } from './step-log';
 
-export async function loadSteps(): Promise<StepLog> {
-  const raw = await AsyncStorage.getItem(KEY);
+// Before history was kept per account, everyone shared this key. Whose
+// steps it holds can't be known, so it's deleted rather than handed on.
+export const LEGACY_STEPS_KEY = 'steps-by-day';
+let legacyRemoved = false;
+
+export async function loadSteps(userId: string): Promise<StepLog> {
+  if (!legacyRemoved) {
+    legacyRemoved = true;
+    await AsyncStorage.removeItem(LEGACY_STEPS_KEY).catch(() => {});
+  }
+  const raw = await AsyncStorage.getItem(stepsKey(userId));
   return raw ? JSON.parse(raw) : {};
 }
 
-export async function saveSteps(date: Date, steps: number): Promise<void> {
-  await saveManySteps([[date, steps]]);
-}
-
-export async function saveManySteps(entries: [Date, number][]): Promise<StepLog> {
-  const log = await loadSteps();
+/** Saves the days just read, keeping only the days History shows. */
+export async function saveManySteps(userId: string, entries: [Date, number][]): Promise<StepLog> {
+  const log = await loadSteps(userId);
   for (const [date, steps] of entries) log[dayKey(date)] = steps;
-  await AsyncStorage.setItem(KEY, JSON.stringify(log));
-  return log;
+  const kept = pruneLog(log);
+  await AsyncStorage.setItem(stepsKey(userId), JSON.stringify(kept));
+  return kept;
 }
