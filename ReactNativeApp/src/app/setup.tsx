@@ -15,10 +15,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { saveAvatar } from '@/api/avatar';
 import { completeSignup, RegisterError, usernameAvailable } from '@/api/register';
 import { useAuth } from '@/auth/AuthProvider';
+import { checkName } from '@/auth/name-rules';
 import {
   cleanUsernameInput,
-  isValidDisplayName,
   isValidUsername,
+  nameProblem,
   suggestUsername,
   usernameCandidates,
 } from '@/auth/register';
@@ -132,22 +133,25 @@ export default function SetupScreen() {
     return () => sub.remove();
   }, []);
 
+  const nameCheck = checkName(displayName, 'display');
+  // Said once something is typed, so the empty field isn't an error
+  const displayNameProblem = displayName ? nameProblem(nameCheck, 'display') : null;
   const ready =
     isValidUsername(username) &&
     check !== 'taken' &&
-    isValidDisplayName(displayName) &&
+    nameCheck.ok &&
     birthDay !== null &&
     look !== null &&
     (termsToAccept.length === 0 || agreed);
 
   async function save() {
-    if (!ready || !birthDay || !look) return;
+    if (!ready || !birthDay || !look || !nameCheck.ok) return;
     setSaving(true);
     setError(null);
     try {
       const result = await completeSignup({
         username,
-        displayName: displayName.trim(),
+        displayName: nameCheck.name,
         birthDate: birthDay,
         terms: termsToAccept.length ? termsToAccept : undefined,
       });
@@ -236,14 +240,21 @@ export default function SetupScreen() {
               <TextField
                 value={displayName}
                 onChangeText={setDisplayName}
-                maxLength={30}
+                // Longer than 30: emoji count as one name character but more here
+                maxLength={60}
                 autoComplete="name"
                 textContentType="name"
                 accessibilityLabel="Display name"
               />
-              <ThemedText type="small" themeColor="textSecondary">
-                What friends see on leaderboards and the step road.
-              </ThemedText>
+              {displayNameProblem ? (
+                <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">
+                  {displayNameProblem}
+                </ThemedText>
+              ) : (
+                <ThemedText type="small" themeColor="textSecondary">
+                  What friends see on leaderboards and the step road.
+                </ThemedText>
+              )}
             </View>
 
             <StarterLookPicker value={look} onChange={setLook} />

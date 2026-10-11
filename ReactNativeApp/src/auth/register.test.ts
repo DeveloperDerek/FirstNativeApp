@@ -3,15 +3,18 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
+import { checkName } from './name-rules.ts';
 import {
   ageOn,
   cleanEmail,
+  cleanName,
   cleanUsernameInput,
   currentLegalDocs,
   isoDayToDate,
   isValidEmail,
   isValidDisplayName,
   isValidUsername,
+  nameProblem,
   registerErrorMessage,
   suggestUsername,
   toIsoDay,
@@ -66,6 +69,23 @@ describe('display names', () => {
     assert.ok(isValidDisplayName('x'.repeat(30)));
     assert.ok(!isValidDisplayName('x'.repeat(31)));
     assert.ok(!isValidDisplayName('   '));
+    assert.ok(!isValidDisplayName('Ana\nLee'));
+    assert.ok(isValidDisplayName(' ' + 'x'.repeat(30) + ' '));
+  });
+
+  test('cleanName is what the server saves', () => {
+    assert.equal(cleanName('  Ana\u00a0Lee ', 'display'), 'Ana Lee');
+    assert.equal(cleanName('y'.repeat(16), 'group'), null);
+  });
+
+  test('problems in words', () => {
+    assert.equal(nameProblem(checkName('Ana', 'display'), 'display'), null);
+    assert.equal(
+      nameProblem(checkName('x'.repeat(31), 'display'), 'display'),
+      'Use 1 to 30 characters for your name.'
+    );
+    assert.equal(nameProblem(checkName(' ', 'group'), 'group'), 'Use 1 to 15 characters.');
+    assert.match(nameProblem(checkName('Ana\u200b', 'display'), 'display')!, /hidden characters/);
   });
 });
 
@@ -80,6 +100,11 @@ describe('server error codes', () => {
     assert.equal(registerErrorMessage('USERNAME_TAKEN'), 'That username is taken.');
     assert.equal(registerErrorMessage('BAD_USERNAME'), '3 to 20 letters, numbers or _');
     assert.equal(registerErrorMessage('something else'), null);
+    assert.equal(registerErrorMessage('NAME_NOT_ALLOWED'), "That name isn't allowed. Try another.");
+    assert.equal(
+      registerErrorMessage('BAD_GROUP_NAME'),
+      'Use 1 to 15 characters for the group name.'
+    );
   });
 });
 

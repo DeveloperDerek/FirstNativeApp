@@ -1,3 +1,4 @@
+import { rethrow } from '@/api/register';
 import type { LeaderboardRow } from '@/api/steps';
 import { supabase } from '@/lib/supabase';
 
@@ -10,7 +11,8 @@ export async function createGroup(ownerId: string, name: string): Promise<Group>
     .insert({ name, owner_id: ownerId })
     .select('id, name, owner_id, invite_code')
     .single();
-  if (error) throw error;
+  // The server checks the name (BAD_GROUP_NAME, NAME_NOT_ALLOWED)
+  if (error) rethrow(error);
   return data; // includes invite_code to share
 }
 
@@ -37,7 +39,7 @@ export async function getGroup(groupId: string): Promise<Group> {
 // UPDATE (owner only)
 export async function renameGroup(groupId: string, name: string) {
   const { error } = await supabase.from('groups').update({ name }).eq('id', groupId);
-  if (error) throw error;
+  if (error) rethrow(error);
 }
 
 // DELETE (owner only)

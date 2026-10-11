@@ -181,6 +181,15 @@ follow-up on a real phone (section 4 of the blueprint).
 - [ ] iPhone  - [ ] Android — **Two accounts, one phone:** sign in as A, open History, sign out, sign in as B: History shows only B's days (or "--" until they load), never A's.
 - [ ] iPhone  - [ ] Android — **Sharing turned on mid-refresh:** turn on step sharing while a refresh runs: the steps still upload without pulling again.
 
+## 12. Name limits (`step-tracker-safety.txt`, Part C)
+
+- [ ] iPhone  - [ ] Android — **Profile, bad word:** change your display name to "Sh1t" and save: "That name isn't allowed. Try another." The old name stays.
+- [ ] iPhone  - [ ] Android — **Profile, hidden character:** paste a name with a line break or a zero-width space: "Remove line breaks and hidden characters…", nothing saved.
+- [ ] iPhone  - [ ] Android — **Emoji count as one:** a display name of 25 letters plus the family emoji 👨‍👩‍👧 saves (it counts 30). The field lets you type it.
+- [ ] iPhone  - [ ] Android — **Sign-up:** a display name of only spaces keeps "Create" disabled and says why once something is typed.
+- [ ] iPhone  - [ ] Android — **Groups:** create a group named 16 characters: "Use 1 to 15 characters." Rename one to "N4zi": refused. "Walkers 🚶" works.
+- [ ] iPhone  - [ ] Android — **Real names:** "Yamashita", "José María" and "Scunthorpe Striders" all save.
+
 ---
 
 ## Sign-off

@@ -168,3 +168,11 @@ needs them set by hand.
    update is not enough, and the old app can't rename usernames against
    the new database. The new app must not reach users before step 2.
 5. Publish the Terms versions (gate 3) once the pages exist.
+6. Name limits (`step-tracker-safety.txt`, Part C): push
+   `20261103000000_name_limits.sql`, then run
+   `supabase/admin/name_audit.sql` in the SQL Editor and decide each name
+   it lists (nothing is renamed automatically; names nobody fixes keep
+   working). Run the audit again after any change to the word list. An
+   app build from before this shows a refused name's code
+   (`NAME_NOT_ALLOWED`) instead of words, so ship the new build soon
+   after.

@@ -1,3 +1,4 @@
+import { rethrow } from '@/api/register';
 import { normalizeAvatar } from '@/avatar/catalog';
 import type { AvatarConfig } from '@/avatar/types';
 import { supabase } from '@/lib/supabase';
@@ -27,5 +28,6 @@ export async function updateDisplayName(userId: string, displayName: string) {
     .from('profiles')
     .update({ display_name: displayName })
     .eq('id', userId);
-  if (error) throw error;
+  // The server checks the name (BAD_DISPLAY_NAME, NAME_NOT_ALLOWED)
+  if (error) rethrow(error);
 }

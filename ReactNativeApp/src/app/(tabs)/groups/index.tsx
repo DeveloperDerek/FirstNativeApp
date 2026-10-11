@@ -4,6 +4,8 @@ import { Pressable } from 'react-native';
 
 import { createGroup, type Group, joinGroup, listMyGroups } from '@/api/groups';
 import { useAuth } from '@/auth/AuthProvider';
+import { checkName } from '@/auth/name-rules';
+import { nameProblem } from '@/auth/register';
 import { QuestBanners } from '@/components/quest-banners';
 import { SharingRequired } from '@/components/sharing-required';
 import { ThemedText } from '@/components/themed-text';
@@ -55,10 +57,15 @@ export default function GroupsScreen() {
 
   async function create() {
     if (!newName.trim()) return;
+    const check = checkName(newName, 'group');
+    if (!check.ok) {
+      setError(nameProblem(check, 'group'));
+      return;
+    }
     setBusy('create');
     setError(null);
     try {
-      const group = await createGroup(myId, newName.trim());
+      const group = await createGroup(myId, check.name);
       setNewName('');
       router.push(`/groups/${group.id}`);
     } catch (e) {
@@ -137,7 +144,8 @@ export default function GroupsScreen() {
           value={newName}
           onChangeText={setNewName}
           onSubmitEditing={create}
-          maxLength={50}
+          // Longer than 15: emoji count as one name character but more here
+          maxLength={40}
         />
         <Button
           title="Create"

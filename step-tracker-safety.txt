@@ -615,9 +615,16 @@ table.
               offensive   every kind of name
       match   contains    anywhere, even inside another word
               whole_word  only as a word of its own
-  - Today's "exact" becomes kind reserved + match whole_word; today's
-    "contains" keeps match contains (the reserved staff words stay
-    "contains" for usernames, as now).
+  - Today's "exact" STAYS as a third match, "exact" (the whole name,
+    after flattening): changed while building, because making the
+    reserved words "whole_word" would refuse ordinary usernames like
+    call_me_al or team_rocket. Today's "contains" keeps match contains
+    (the reserved staff words stay "contains" for usernames, as now).
+  - Built (20261103000000_name_limits.sql): offensive words fuck,
+    bitch, hitler are "contains"; shit, cunt, whore, slut, nazi,
+    rapist, porn are "whole_word" (found inside Yamashita, Scunthorpe,
+    Nazira, therapist, Pornthip). Compounds such as "bigshit" now pass
+    as usernames; add them as their own rows if needed.
   - Both settings live only in this table. No word's behaviour is
     written into the code.
 

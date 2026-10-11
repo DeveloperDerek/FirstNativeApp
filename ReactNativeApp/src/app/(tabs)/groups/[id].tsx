@@ -14,6 +14,8 @@ import {
 import { getGroupQuest, type GroupQuest, markQuestSeen, voteQuest } from '@/api/quests';
 import { type LeaderboardRow, type Period, periodRange } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
+import { checkName } from '@/auth/name-rules';
+import { nameProblem } from '@/auth/register';
 import { Leaderboard, PeriodPicker } from '@/components/leaderboard';
 import { QuestCard } from '@/components/quest-card';
 import { ThemedText } from '@/components/themed-text';
@@ -135,8 +137,14 @@ export default function GroupDetailScreen() {
 
   async function rename() {
     if (!group || !newName.trim() || newName.trim() === group.name) return;
+    const check = checkName(newName, 'group');
+    if (!check.ok) {
+      setError(nameProblem(check, 'group'));
+      return;
+    }
+    setError(null);
     try {
-      await renameGroup(group.id, newName.trim());
+      await renameGroup(group.id, check.name);
       await load();
     } catch (e) {
       setError(errorMessage(e));
@@ -251,7 +259,8 @@ export default function GroupDetailScreen() {
 
       {group && isOwner && (
         <Section title="Manage">
-          <TextField value={newName} onChangeText={setNewName} maxLength={50} />
+          {/* Longer than 15: emoji count as one name character but more here */}
+          <TextField value={newName} onChangeText={setNewName} maxLength={40} />
           <Button
             title="Rename"
             variant="secondary"

@@ -2,6 +2,7 @@
 // profile") that don't need the phone, so they can be tested with
 // `npm test`. The server checks all of these again.
 
+import { checkName, type NameCheck, type NameKind, NAME_MAX } from './name-rules.ts';
 import type { LegalDoc } from './route.ts';
 
 /** Trimmed and lower-cased before sending. */
@@ -38,10 +39,22 @@ export function cleanUsernameInput(raw: string): string {
 
 export const isValidUsername = (username: string) => /^[a-z0-9_]{3,20}$/.test(username);
 
-/** Display names: 1 to 30 characters after trimming (emoji and accents are fine). */
-export function isValidDisplayName(name: string): boolean {
-  const length = Array.from(name.trim()).length;
-  return length >= 1 && length <= 30;
+/** Display names: the shared name rules (src/auth/name-rules.ts). Emoji and accents are fine. */
+export const isValidDisplayName = (name: string) => checkName(name, 'display').ok;
+
+/** What the server will save for this name, or null if it will refuse it. */
+export function cleanName(name: string, kind: NameKind): string | null {
+  const result = checkName(name, kind);
+  return result.ok ? result.name : null;
+}
+
+/** Why a name can't be used, in words; null when it can (the word list is checked by the server). */
+export function nameProblem(check: NameCheck, kind: NameKind): string | null {
+  if (check.ok) return null;
+  if (check.reason === 'character') {
+    return "Remove line breaks and hidden characters. They can't be used in names.";
+  }
+  return `Use 1 to ${NAME_MAX[kind]} characters${kind === 'display' ? ' for your name' : ''}.`;
 }
 
 /** Apple's "Hide my email" relay addresses are never used as a suggestion. */
@@ -109,6 +122,10 @@ export function registerErrorMessage(code: string): string | null {
       return "That username isn't allowed. Try another.";
     case 'BAD_DISPLAY_NAME':
       return 'Use 1 to 30 characters for your name.';
+    case 'BAD_GROUP_NAME':
+      return 'Use 1 to 15 characters for the group name.';
+    case 'NAME_NOT_ALLOWED':
+      return "That name isn't allowed. Try another.";
     case 'BAD_BIRTH_DATE':
       return 'Check your birthday.';
     case 'TERMS_NOT_ACCEPTED':

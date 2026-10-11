@@ -7,12 +7,13 @@ import { withdrawConsent } from '@/api/consent';
 import { type Profile, updateDisplayName } from '@/api/profile';
 import { type Birthday, changeUsername, getMyBirthday } from '@/api/register';
 import { useAuth } from '@/auth/AuthProvider';
+import { checkName } from '@/auth/name-rules';
 import {
   ageOn,
   cleanUsernameInput,
   isoDayToDate,
-  isValidDisplayName,
   isValidUsername,
+  nameProblem,
 } from '@/auth/register';
 import { signOut } from '@/auth/signIn';
 import { Avatar } from '@/avatar/Avatar';
@@ -277,7 +278,9 @@ function DetailsForm({ profile, onSaved }: { profile: Profile; onSaved: () => Pr
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
-  const nameChanged = displayName.trim() !== (profile.display_name ?? '');
+  // Compared as the server will save it, so extra spaces aren't a change
+  const nameCheck = checkName(displayName, 'display');
+  const nameChanged = (nameCheck.ok ? nameCheck.name : displayName) !== (profile.display_name ?? '');
   const usernameChanged = username !== profile.username;
 
   async function save() {
@@ -288,11 +291,9 @@ function DetailsForm({ profile, onSaved }: { profile: Profile; onSaved: () => Pr
       });
       return;
     }
-    if (nameChanged && !isValidDisplayName(displayName)) {
-      setMessage({
-        text: 'Use 1 to 30 characters for your name.',
-        error: true,
-      });
+    const problem = nameChanged ? nameProblem(nameCheck, 'display') : null;
+    if (problem) {
+      setMessage({ text: problem, error: true });
       return;
     }
     setSaving(true);
@@ -301,7 +302,7 @@ function DetailsForm({ profile, onSaved }: { profile: Profile; onSaved: () => Pr
       // The username only changes through the server, which holds the old
       // one for 30 days (step-tracker-register.txt, 9C)
       if (usernameChanged) await changeUsername(username);
-      if (nameChanged) await updateDisplayName(profile.id, displayName.trim());
+      if (nameChanged && nameCheck.ok) await updateDisplayName(profile.id, nameCheck.name);
       await onSaved();
       setMessage({ text: 'Saved.', error: false });
     } catch (e) {
@@ -316,7 +317,8 @@ function DetailsForm({ profile, onSaved }: { profile: Profile; onSaved: () => Pr
       <ThemedText type="small" themeColor="textSecondary">
         Display name (shown on leaderboards)
       </ThemedText>
-      <TextField value={displayName} onChangeText={setDisplayName} maxLength={30} />
+      {/* Longer than 30: emoji count as one here but more for maxLength */}
+      <TextField value={displayName} onChangeText={setDisplayName} maxLength={60} />
       <ThemedText type="small" themeColor="textSecondary">
         Username (friends search for this)
       </ThemedText>

@@ -16,7 +16,8 @@ export class RegisterError extends Error {
   }
 }
 
-function rethrow(error: { message: string }): never {
+/** Throws a known server code as a RegisterError in words, anything else as it came. */
+export function rethrow(error: { message: string }): never {
   const words = registerErrorMessage(error.message);
   if (words) throw new RegisterError(error.message, words);
   throw error;
