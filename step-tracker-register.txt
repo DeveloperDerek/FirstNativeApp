@@ -1,0 +1,1244 @@
+STEP TRACKER - A BETTER REGISTER PAGE (BLUEPRINT)
+A sign-up flow that sets up the whole account in one go: email,
+password, username, name and birthday, instead of an email and
+password with everything else made up for you.
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. It
+describes the screens, each field and its rules, where the data is
+stored, and the tricky cases to decide before building.
+
+AI coding agents: read section 13 (implementation rules) before
+changing anything.
+
+Today, "Create an account" asks for an email and a password only.
+The database then invents a username (user_1a2b3c4d) and uses the
+start of the email as the display name, and people fix both later
+on the Profile tab, if they ever do.
+
+======================================================================
+1. THE IDEA IN ONE MINUTE
+======================================================================
+
+  - Signing up takes two short steps instead of one long form:
+      Step 1  ACCOUNT   email, password
+      Step 2  ABOUT YOU username, display name, birthday
+  - The username is checked as you type, so you never find out it
+    is taken after pressing the button.
+  - The birthday stays private. Nobody else can see it, not even
+    friends (section 5).
+  - People who use Sign in with Apple or Google skip step 1 and see
+    only step 2, the first time they sign in.
+  - After step 2 the app continues as it does now: the step sharing
+    consent screen, then the tabs.
+
+======================================================================
+2. STEP 1: ACCOUNT
+======================================================================
+
+  Title: "Create your account"
+
+  EMAIL
+    - Keyboard: email. No auto-capital, no autocorrect.
+    - Trimmed and lower-cased before sending.
+    - Checked for a basic shape (something@something.something)
+      when the field loses focus, not on every key press.
+    - Error: "Enter a valid email address."
+
+  PASSWORD
+    - 8 to 72 characters. No other rules (no forced symbols or
+      capitals; length matters more). 72 is the longest Supabase
+      accepts; check its current limit before building.
+    - An eye button shows or hides what you typed. Because you can
+      see it, there is no "confirm password" field.
+    - A small strength bar under the field: Weak / OK / Strong. It
+      is only a hint, EXCEPT that the three refusals below stop
+      Continue.
+    - Refusals, each with its own message:
+        Too short (under 8):
+          "Use at least 8 characters."
+        Too long (over 72):
+          "Use 72 characters or fewer."
+        Too common (on a short built-in list of the most-used
+        passwords, e.g. "password1", "12345678", or the email or
+        username itself), checked in the app as you type:
+          "This password is too common. Choose something harder to
+          guess."
+        Found in a data breach (Supabase's "leaked password
+        protection", Auth > Settings, turned on), checked by the
+        server when the account is created:
+          "This password has appeared in a data breach. Choose a
+          different one."
+      The app tells these apart by the error Supabase returns (a
+      "weak password" error with its reasons); check the exact
+      error shape against Supabase's current docs. Any other
+      server refusal: "Choose a different password." Never a
+      vague "Something went wrong".
+    - The same rules and messages apply on "Set a new password"
+      (section 8d) and the web reset page (8f).
+
+  AGREEMENT
+    - One checkbox: "I agree to the Terms and Privacy Policy" with
+      both as links (EXPO_PUBLIC_PRIVACY_URL already exists; add a
+      terms URL next to it). The links open the exact versions
+      being agreed to.
+    - The Continue button stays disabled until it is ticked.
+    - What is recorded, and where: section 6h. In short, the server
+      stores which version of each document was accepted and when,
+      using the server's clock.
+
+  BUTTON: "Continue"
+    - Creates the account (Supabase sign-up), with the step 2
+      answers not known yet.
+    - Email confirmation is ON (decided): show "Check your inbox.
+      Tap the link in the email, then come back." with a "Resend
+      email" button (wait 60 seconds between resends). Step 2
+      appears the first time they sign in after confirming.
+    - Check that "Confirm email" is turned on in Supabase (Auth >
+      Providers > Email). How the link gets back into the app, and
+      what happens if it expired or was opened elsewhere: section 8.
+
+  "Already have an account? Sign in" link at the bottom.
+
+======================================================================
+3. STEP 2: ABOUT YOU
+======================================================================
+
+  Title: "Set up your profile"
+  A preview of the default character at the top, which picks up the
+  display name as it is typed, so it feels like making a player.
+
+  USERNAME  (required)
+    - Same rule the database already enforces: 3 to 20 characters,
+      lower-case letters, numbers and underscores only.
+    - Typed capitals become lower-case; spaces become underscores.
+    - "@" shown in front of the field, so it reads @derek_walks.
+    - Checked against the database while typing, half a second after
+      the last key: a tick for "Available", a cross for "Taken".
+    - Suggest a starting value from the email or the Apple/Google
+      name, with numbers added if that is taken.
+    - A short block list (admin, support, steptracker, offensive
+      words) so nobody takes a confusing or rude name.
+    - Errors: "3 to 20 letters, numbers or _", "That username is
+      taken."
+
+  DISPLAY NAME  (required)
+    - What friends see on leaderboards and the step road.
+    - 1 to 30 characters, any letters (accents, emoji allowed).
+    - Pre-filled from the Apple/Google name when there is one.
+
+  BIRTHDAY  (required)
+    - A date picker (month, day, year), not free typing.
+    - Under 13: cannot sign up. Show "StepTracker is for people 13
+      and older." and only a "Sign out" button. The server blocks
+      the account for good, then deletes it (section 6f). The
+      birth date of a refused account is never stored.
+    - Why it is needed: health data and coins, and app store rules
+      on children's data. Say so in one line under the field:
+      "Used to check your age. Never shown to anyone."
+    - Only the birth date is stored, never shown; the app can show
+      the age on the Profile tab to the owner only.
+
+  TERMS (only when not already accepted)
+    - Apple and Google users never saw step 1, and anyone whose
+      step 1 acceptance didn't record (6h) also lands here: step 2
+      then shows the same Terms and Privacy checkbox, and Start
+      walking stays disabled until it is ticked.
+
+  BUTTON: "Start walking"
+    - Saves everything in one server call (section 6), then moves
+      on to the sharing consent screen, as today.
+
+======================================================================
+4. NICE TO HAVE (LATER)
+======================================================================
+
+  - Daily step goal: 10,000 is fixed in the app today. A picker
+    (5,000 / 7,500 / 10,000 / 12,500) here would need the coin
+    reward rules to change too, so leave it for its own blueprint.
+  - Pick a character look (skin, hair) as a step 3, using the
+    character editor's free items only.
+  - Invite code field: join a friend's group straight away.
+  - Referral bonus coins for the inviter and the new player.
+
+======================================================================
+5. WHERE THE DATA GOES
+======================================================================
+
+  The profiles table can be read by EVERY signed-in user (it powers
+  search, leaderboards and player cards). The birthday must NOT go
+  there.
+
+  profiles (public, as today)
+    username, display_name, plus a new onboarded_at timestamp:
+    null until step 2 is finished. The app sends anyone with a null
+    onboarded_at to step 2, which is how Apple/Google users and
+    people who quit halfway get back to it.
+
+  profile_private (new, one row per user)
+    user_id, birth_date (empty for a refused account),
+    age_blocked_at (section 6f)
+    Row level security: you can READ only your own row. There are no
+    insert, update or delete policies at all: the birthday is only
+    ever written by the server functions in section 6, so it always
+    passes the age check. Friends and group members never see it.
+
+  Accounts made before this change: onboarded_at is set for them in
+  the migration so they never see step 2. Their birthday stays
+  unknown; ask once later, in a banner on
+  Profile, if the birthday turns out to be needed for everyone.
+
+======================================================================
+6. SERVER RULES AND SECURITY GUARANTEES
+======================================================================
+
+  The app's checks (live username tick, age message) are only there
+  to be quick and friendly. The database is what actually enforces
+  every rule below, so a modified app or a direct API call can't get
+  around them.
+
+  6a. USERNAMES ARE UNIQUE IN THE DATABASE ITSELF
+    - profiles.username already has a unique constraint and a check
+      that allows only a-z, 0-9 and _, 3 to 20 characters. Because
+      only lower-case is allowed, "Derek" and "derek" can never both
+      exist: the stored name IS the normalized name. Keep both.
+    - The live "Available" tick can't stop two people claiming the
+      same name at the same moment. The unique constraint can: the
+      second save fails, and the server function turns that failure
+      (unique_violation) into USERNAME_TAKEN for the app to show.
+    - Held names (the 30-day hold, section 9C) live in their own
+      table with the username as its primary key. Claiming a name
+      and releasing one take the same lock on that name, so a
+      rename and a new claim can't slip past each other.
+
+  6b. ROW LEVEL SECURITY
+    - profile_private: read own row only; no write policies (above).
+    - username_holds: no policies at all. Only the server functions
+      read or write it.
+    - profiles: other users can still read it (search and
+      leaderboards need that). But the existing "profiles update own"
+      rule lets you change EVERY column of your own row, which would
+      let anyone set onboarded_at (skipping the age check) or pick a
+      username that skips the block list and the hold. Fix, in this
+      order, in the migration:
+        1. REVOKE the table-wide UPDATE right on profiles from the
+           app's database roles (authenticated and anon). This step
+           is required: a column-level grant does NOT limit anything
+           while a table-wide UPDATE grant is still in place.
+        2. GRANT UPDATE on only the columns the app edits directly
+           (display name, character, background, and so on; list
+           them by reading the app's current profile updates).
+           username and onboarded_at are not on that list, so they
+           change only through the functions below.
+        3. KEEP the "profiles update own" row-level policy. The two
+           protect different things: the column grants say WHICH
+           columns can change, the row policy says WHOSE row.
+      Check afterwards that the grants are what you expect (the
+      table's privileges in the database), not only that the app
+      still works.
+    - The Profile tab's username change moves to a new
+      change_username(name) function for the same reason.
+
+  6c. THE USER COMES FROM THE SESSION, NEVER FROM THE APP
+    - No function the app can call takes a user id. (The one
+      exception, correct_birth_date() in 6g, is admin-only, can't
+      be called from the app, and needs a verified request.) Each one reads the caller with
+      auth.uid() and refuses with "Not signed in" if there isn't
+      one. So there is no way to finish sign-up, set a birthday or
+      take a username for someone else.
+
+  6d. ALL OR NOTHING
+    complete_signup(username, display_name, birth_date)
+    - Refuses with ALREADY_ONBOARDED if the caller is already
+      onboarded (the app treats this as success; section 7, state 6).
+    - Checks the username rule and the block list, and that the name
+      is not held for someone else.
+    - Refuses a birth date in the future or more than 120 years ago
+      (BAD_BIRTH_DATE).
+    - Under 13 years ago: records the block (section 6f) and returns
+      UNDER_AGE. This is a normal answer, not an error, so the block
+      is saved instead of being undone with the rest.
+    - Saves the username and display name, writes the birthday row
+      and sets onboarded_at in ONE transaction. If any part fails,
+      none of it is saved: there is never a profile with a new
+      username but no birthday, or onboarded without an age check.
+    - Under 13: see 6f.
+
+    change_username(name)
+    - Same name checks; releases the old name into a 30-day hold
+      for this user, and claims the new one, in one transaction.
+
+    username_available(name) returns true or false, for the live
+    check while typing. Signed-in callers only, and rate-limited,
+    so it can't be used to list every username.
+
+  6e. WHO CAN RUN WHAT
+    - These functions run with extra rights (security definer) so
+      they can write tables the app can't. Each one fixes its
+      search_path, like the existing functions, so nobody can slip
+      in a look-alike table or function.
+    - Execute rights are taken away from everyone, then given to
+      signed-in users only (complete_signup, change_username,
+      username_available). Signed-out visitors can't call them.
+    - The account cleanup step for under-13s is not callable from
+      the app at all, like grant_all_items() today.
+
+  6f. UNDER 13: BLOCKED FIRST, DELETED SECOND
+    Deleting a login account needs admin rights and can fail (a
+    network blip, a bug in the cleanup job). So deleting is NOT what
+    keeps a child out; the block is, and it holds even if the
+    deletion never happens.
+    - complete_signup() writes profile_private.age_blocked_at =
+      now() and does NOT store the birth date. onboarded_at stays
+      null. (Not on profiles: everyone can read that table, and it
+      would mark the account as a child's.)
+    - A blocked account can never finish sign-up: complete_signup()
+      refuses it (AGE_BLOCKED), whatever birthday is sent next.
+      Changing the answer to an older date doesn't work.
+    - Being an ACTIVE account becomes a server rule, not only a
+      routing rule. Active = onboarded_at set, not blocked
+      (age_blocked_at empty), and current required Terms accepted
+      (6h). One helper function, is_active_account(), answers it
+      for the caller.
+    - What an account that is NOT active can still do, and nothing
+      more:
+        - read its own profiles row and its own profile_private
+          row (to know which screen to show);
+        - read legal_documents and its own legal_acceptances;
+        - unfinished, not blocked: call username_available(),
+          complete_signup() and accept_legal_documents();
+        - blocked: nothing beyond reading the rows above;
+        - sign out (and, when it exists, delete its account).
+    - Everything else is refused for non-active accounts, READS
+      INCLUDED:
+        - Reads: other people's profiles (search, player cards),
+          friendships, groups and members, leaderboards, quests,
+          steps, wallet and coin history, owned items, the shop.
+          Each select policy on these tables adds
+          is_active_account().
+        - Functions (RPCs): every function that reads or writes
+          this data (leaderboards, daily_shop, purchase_item,
+          claims, quests, join_group, mark_seen, and any added
+          later) checks is_active_account() at the top. This
+          matters because these run with extra rights (security
+          definer) and skip the row rules, so the policies alone
+          don't cover them.
+        - Writes: as before, every insert, update and delete policy
+          on these tables requires is_active_account().
+        - Anything else that serves user data (storage buckets,
+          realtime subscriptions, Edge Functions) follows the same
+          rule. Check which exist when building.
+    - The other direction: a blocked account must also disappear
+      for everyone else. An account blocked after a birthday
+      correction may already have friends and groups, so search,
+      leaderboards, group member lists, quests and player cards
+      leave out non-active accounts (until the cleanup job deletes
+      them).
+    - The router shows the blocked screen for any session whose own
+      private row has age_blocked_at (section 7), with "Sign out"
+      only.
+    - A scheduled cleanup (an Edge Function with admin rights, run
+      every hour) deletes blocked login accounts more than an hour
+      old. If it fails, it simply tries again next hour; the account
+      stays blocked meanwhile. Failures are logged so you notice.
+    - Signing up again with the same email after deletion is
+      possible; the age question is asked again. (Nothing stops
+      someone lying about their age; the goal is a real check, not
+      a guarantee.)
+
+  6g. CORRECTING THE BIRTHDAY LATER (SUPPORT ONLY)
+    (Decided, 9E.)
+    - People can NOT change their birthday in the app after
+      onboarding. The Profile tab shows it (to them only) as
+      read-only, with "Wrong date?" (step 1a below).
+    - The app has no function for changing it directly. The row-level rules
+      already refuse direct writes to profile_private (section 5).
+    - Support process:
+        1. The request must be VERIFIED as coming from the account
+           owner. An email that only looks like it's from the
+           account's address is not proof (the sender of an email
+           can be faked). Two accepted ways:
+             a. In the app, signed in: Profile > "Wrong date?" opens
+                a short form (the correct date and a note). This
+                calls request_birthday_correction(new_date, note),
+                which records a request tied to the signed-in user
+                (from the session, 6c) as verified "in_app".
+             b. Without the app (e.g. can't sign in): support starts
+                a request and the server sends a one-time
+                confirmation link to the account's VERIFIED email
+                address (the one Supabase has, not the address the
+                request came from). The request is verified only
+                when that link is used, within 24 hours. Support
+                never asks for the password.
+           Requests are stored in birthday_correction_requests
+           (id, user_id, requested date, note, verified_via,
+           verified_at, status, handled_by, handled_at). The user
+           can read their own; nobody writes them directly. The
+           requested date is deleted once the request is handled.
+        2. Support runs correct_birth_date(request_id, reason). It
+           works only on a request that is verified and still open,
+           and uses the date from that request, so there is no way
+           to change a birthday without a verified request. This is the one function that takes a user id,
+           because support acts for someone else. It can only be
+           run with admin rights (the service role, from the
+           Supabase dashboard or an admin script), never from the
+           app: execute is revoked from public, anon and
+           authenticated, like grant_all_items().
+        3. The function re-checks the date on the server, with the
+           same rules as sign-up (BAD_BIRTH_DATE, minimum age from
+           the server setting).
+        4. Old enough: the birthday is replaced.
+           Under the minimum age: the 6f process is applied
+           (blocked, birth date cleared, deleted by the cleanup
+           job), even for an account that was onboarded long ago.
+           Support tells the person beforehand that this is what
+           will happen.
+        5. Every correction writes an audit row: who ran it, when,
+           for which account, which request, how it was verified,
+           the reason, and the outcome (corrected or blocked). The old and new dates are not
+           copied into the audit row.
+    - Support needs written steps for this (a short page for
+      whoever answers support email), kept outside the app.
+
+  6h. TERMS AND PRIVACY POLICY ACCEPTANCE
+    Tables (new):
+    - legal_documents: one row per published version. Columns:
+      document ("terms" or "privacy"), version (e.g. "2026-11-01"),
+      url (a permanent address for that exact version, e.g.
+      https://<domain>/terms/2026-11-01), published_at,
+      requires_reacceptance (true for material changes). Readable
+      by any signed-in user; written only by admins. Old versions
+      are never deleted or edited; a change is always a new row.
+    - legal_acceptances: one row per acceptance. Columns: user_id,
+      document, version, accepted_at (always the server's now(),
+      never a time sent by the app), source ("signup", "onboarding"
+      or "reacceptance"). Users can read their own rows; nobody
+      writes them directly, only the server functions below.
+    - The text of every version stays published at its permanent
+      address (and in the repository), so you can always show what
+      someone agreed to.
+
+    How it is recorded:
+    - Step 1 (email sign-up): there is no session yet (email
+      confirmation is on), so the app sends the versions shown on
+      screen along with the sign-up request. The existing sign-up
+      trigger writes the acceptance rows with the server's time,
+      but ONLY if those versions are the current ones; anything
+      else (missing, old, made up) records nothing.
+    - Step 2: complete_signup() takes accepted versions too. If the
+      user has no acceptance of the current versions (Apple/Google
+      users, or step 1 recorded nothing), it records them; if none
+      are sent, it refuses with TERMS_NOT_ACCEPTED. So nobody is
+      onboarded without a recorded acceptance of the current
+      versions.
+    - accept_legal_documents(versions): for re-acceptance (below).
+      Signed-in callers only, user from the session, refuses
+      versions that aren't current.
+
+    When the documents change (policy):
+    - Minor change (typos, contact details, wording that changes
+      nothing): new version with requires_reacceptance = false. No
+      prompt; the app may show "We updated our Terms" once. Old
+      acceptances still count.
+    - Material change (what data is collected or shared, who can
+      see it, ages, payments, anything a person would reasonably
+      want to know before agreeing): new version with
+      requires_reacceptance = true. On next open, signed-in users
+      who haven't accepted it see an "Updated Terms" screen (state
+      in section 7) with a summary of what changed and the
+      checkbox. Until they accept, they can't use the app (same
+      server rule as unfinished accounts, 6f); they can sign out or
+      delete their account instead.
+    - Whether a change is material is decided by the owner (with
+      legal advice where needed), never by the coding agent.
+
+    Existing accounts (made before this change) have no acceptance
+    rows. See decision 9F.
+
+  The database trigger that makes a profile at sign-up stays as it
+  is: the placeholder username keeps the profile valid until step 2
+  replaces it.
+
+======================================================================
+7. REGISTRATION STATES AND ROUTING
+======================================================================
+
+  The app works out which screen to show from three things the
+  server tells it, never from what the app remembers doing:
+    - Is there a session?             (Supabase Auth)
+    - Has the profile loaded?         (yes / still loading / failed)
+    - Is profiles.onboarded_at set?
+
+  Only one place in the app (the root layout) decides the route,
+  and it re-decides whenever any of the three changes. Screens
+  never navigate to the tabs themselves, so no screen can let
+  someone in early.
+
+  STATE                         HOW THE APP KNOWS     SHOWS
+  ----------------------------  --------------------  ----------------
+  1. Signed out                 no session            Sign in / Create
+                                                      account (step 1)
+  2. Account created, email     no session (Supabase  Step 1's "Check
+     not confirmed yet          gives none until the  your inbox"
+                                email is confirmed)   screen
+  3. Email confirmed, profile   session, profile      Step 2
+     incomplete                 loaded, onboarded_at
+                                null
+  4. Apple or Google sign-in,   same as 3             Step 2
+     profile incomplete
+  5. Fully onboarded            session, profile      Tabs (plus the
+                                loaded, onboarded_at  sharing consent
+                                set                   prompt, as today)
+  6. Network error during       session, step 2       Step 2, answers
+     profile completion         still open, save      kept, with an
+                                failed                error and "Try
+                                                      again"
+  -  Resetting password         session from a        "Set a new
+                                recovery link         password"
+                                (section 8d)          (before anything
+                                                      else, even step 2)
+  -  Updated Terms to accept    onboarded, but no     "Updated Terms"
+                                acceptance of a       screen (6h);
+                                version that          Sign out also
+                                requires it           available
+  -  Under 13 (blocked)         own private row has   "StepTracker is
+                                age_blocked_at        for people 13
+                                                      and older." and
+                                                      Sign out only
+  -  Profile still loading      session, no answer    Splash screen
+                                yet                   (not the tabs,
+                                                      not step 2)
+  -  Profile failed to load     session, the request  "Can't reach
+                                failed                StepTracker"
+                                                      with "Try again"
+                                                      and "Sign out"
+
+  NOTES ON EACH STATE
+
+  1. Signed out
+    - Sign in and Create account are one screen with a switch, as
+      today. Any leftover sign-up answers are cleared.
+
+  2. Email not confirmed
+    - The app has no session yet, so it cannot know the account
+      exists. It remembers only the email typed (on the phone) to
+      show "Check your inbox at d***@gmail.com", "Resend email" and
+      "Use a different email".
+    - Signing in before confirming: Supabase answers "Email not
+      confirmed". Show "Confirm your email first" with "Resend
+      email", not a generic error.
+    - Tapping the link in the email opens the app and signs in.
+      The router then sees state 3 and shows step 2 by itself.
+    - The link opened on another device (a laptop), or after it
+      expired: section 8c.
+
+  3 and 4. Profile incomplete
+    - Same screen whether the person came from email, Apple or
+      Google. Only the pre-filled values differ.
+    - Leaving the app and coming back days later lands here again,
+      because onboarded_at is still null. Nobody can reach the tabs
+      by closing and reopening the app.
+    - The way out besides finishing is "Sign out" (with "Leave
+      sign-up?" first), which goes to state 1. Nobody is trapped.
+
+  5. Fully onboarded
+    - Tabs. If sharing consent is missing, the consent screen opens
+      on top once, exactly as today.
+    - If onboarded_at is somehow cleared later (by an admin), the
+      router sends the person back to step 2 on the next profile
+      load. That's the intended behavior, not a bug.
+
+  6. Network error during profile completion
+    - The "Start walking" button shows a spinner and can't be
+      tapped twice while the save is running.
+    - If the save fails or times out, step 2 stays open with all
+      answers kept, plus "Couldn't save. Check your connection and
+      try again."
+    - The dangerous case: the save WORKED on the server but the
+      answer never reached the phone. Pressing Try again then calls
+      complete_signup() a second time. To make this safe:
+        - complete_signup() returns ALREADY_ONBOARDED instead of a
+          vague error when onboarded_at is already set.
+        - The app treats ALREADY_ONBOARDED as success: it reloads
+          the profile and the router moves on to the tabs.
+        - Before showing any save error, the app reloads the profile
+          once. If onboarded_at is now set, the save actually worked,
+          so it shows no error and continues.
+    - No duplicate profiles are possible: there is exactly one
+      profile per login account (its id IS the account id, made by
+      the sign-up trigger), and complete_signup() only updates that
+      row. A retry can't create a second one.
+    - USERNAME_TAKEN on retry: if the name is taken by this same
+      user (their earlier save went through), it's the
+      ALREADY_ONBOARDED case above, not a real clash.
+
+  WHAT THE ROUTER MUST NEVER DO
+    - Show the tabs while the profile is still loading or failed to
+      load. Today the tabs open with no profile while it loads;
+      with step 2 in place, that would flash the tabs at people who
+      haven't finished.
+    - Decide from anything stored on the phone (e.g. "I already did
+      step 2"). The phone can be wrong, reinstalled, or a different
+      phone.
+
+======================================================================
+8. SESSIONS, EMAIL LINKS, PASSWORD RESET, APPLE AND GOOGLE
+======================================================================
+
+  What the app does today, for reference: the session is saved in
+  AsyncStorage (plain, unencrypted storage) and refreshed while the
+  app is open; there is no deep-link handling at all; the Supabase
+  "site URL" is still http://127.0.0.1:3000, so email links would
+  open a dead page; there is no password reset; Apple and Google
+  cancellations are already ignored quietly.
+
+  8a. SESSIONS THAT SURVIVE RESTARTS, STORED SECURELY
+    - Stay signed in across app restarts and phone restarts, as
+      today. Only signing out, deleting the account, or the server
+      revoking the session signs someone out.
+    - Store the session encrypted. The phone's secure storage (iOS
+      Keychain, Android Keystore, via expo-secure-store) is small,
+      and a Supabase session can be too big for it. So: keep a
+      random encryption key in secure storage, and the session,
+      encrypted with that key, in AsyncStorage. Someone copying the
+      app's files gets nothing usable. (Check the expo-secure-store
+      page for SDK 58 before building; its limits have changed.)
+    - Refresh: keep the existing behavior (refresh while the app is
+      in the foreground, pause in the background). Refresh tokens
+      are single-use and rotated by Supabase; leave "refresh token
+      reuse detection" on, so a stolen, reused token ends that
+      session.
+    - Offline at launch: keep the saved session and open the app
+      as normal (steps still read from the phone). Never sign out
+      because of a network error; only on a clear "this session is
+      no longer valid" from the server.
+    - Session ended by the server (revoked, password changed on
+      another phone, account deleted): go to the sign-in screen
+      with "You've been signed out. Sign in again."
+    - Signing out clears the saved session, the encryption key,
+      Google's own sign-in (as today), and anything cached on the
+      phone for that user, so the next person on the phone starts
+      clean.
+
+  8b. LINKS FROM EMAILS OPEN THE APP (iOS AND ANDROID)
+    - Use real web links (https://<your domain>/auth/...) that the
+      phone hands straight to the app: Universal Links on iOS,
+      verified App Links on Android. These need:
+        - a small website on your domain (any static host) serving
+          the two files Apple and Google check (the
+          apple-app-site-association and assetlinks.json files),
+        - associatedDomains (iOS) and intentFilters with autoVerify
+          (Android) in app.json; no hand edits to ios/ or android/.
+    - Why not only the custom scheme (reactnativeapp://)? Any app
+      can claim the same scheme, email apps sometimes won't open
+      it, and it does nothing on a laptop. Keep it only as a
+      fallback, and give it a less generic name (e.g. steptracker://)
+      before release.
+    - The email template links carry a one-time token
+      (token_hash and type), not a ready-made session. The app
+      reads the link, sends the token to Supabase to be checked
+      (verifyOtp), and only then gets a session. This works on any
+      device, unlike the PKCE "code" links, which only work on the
+      phone that asked for them.
+    - Set the Supabase site URL and allowed redirect URLs to the
+      domain above (and the fallback scheme), replacing 127.0.0.1.
+    - A link opened while the app is closed, in the background, or
+      already signed in as someone else: the app handles it the
+      same way. Signed in as someone else: ask "Sign out of @name
+      and continue?" first.
+    - Use the app's own screen for each link type (/auth/confirm,
+      /auth/reset) so Expo Router handles them, and strip the token
+      from the address once used.
+
+  8c. EXPIRED, USED, OR OPENED ON ANOTHER DEVICE
+    - Link lifetime: 1 hour (Supabase's default; keep it short).
+    - Expired: "This link has expired." with "Send a new link". The
+      email is pre-filled if this phone started the sign-up, and
+      asked for otherwise.
+    - Already used, and the email is confirmed: "Your email is
+      already confirmed." with "Sign in". Not shown as an error.
+    - Opened on a laptop or a phone without the app: the same
+      address shows a simple web page on your domain, which checks
+      the token and says "Email confirmed. Go back to StepTracker
+      on your phone and sign in." The phone, still on "Check your
+      inbox", gets an "I've confirmed, sign in" button.
+    - An older link after a newer one was sent: only the newest
+      works; the older one shows the expired message.
+    - Email rate limits: Supabase's built-in email sender allows
+      only a few emails an hour for the whole project. Set up your
+      own email sender (custom SMTP, e.g. Resend or Postmark) before
+      real people sign up, or confirmations will stop arriving.
+
+  8d. PASSWORD RESET AND RECOVERY
+    - "Forgot password?" on the sign-in screen asks for an email,
+      then always says "If an account exists for that email, we've
+      sent a reset link." (the same words either way, so it can't be
+      used to find out who has an account). Same 60-second resend
+      wait as confirmation.
+    - The reset link (type "recovery") opens the app the same way
+      as 8b, and signs in for one purpose: a "Set a new password"
+      screen. The router shows this screen before anything else
+      (section 7) until a new password is saved or the person
+      cancels, which signs them out.
+    - Same password rules as step 1.
+    - Saving a new password does NOT by itself promise that other
+      phones are signed out, so the reset does it explicitly:
+        1. Save the new password (supabase.auth.updateUser).
+        2. Then sign out every OTHER session on the server
+           (supabase.auth.signOut with scope "others"). This revokes
+           their refresh tokens, so they can't get new access.
+        3. If step 2 fails or never finishes, it must not be
+           forgotten. Before step 1, the app saves a "revocation
+           pending" mark on the phone (per user). It is cleared
+           only after step 2 succeeds. While it is set:
+             - the app retries step 2 every time it opens, comes back
+               to the foreground, or gets its connection back (not
+               a background task: phones can pause or close apps at
+               any time);
+             - the Profile tab shows "Your other devices may still
+               be signed in." with a "Sign out other devices" button
+               that does step 2 on demand.
+           Limit: if the app is deleted before a retry succeeds, the
+           mark is lost. The "Sign out other devices" button on the
+           Profile tab (always available, not only while pending)
+           covers that.
+      Limit: a device that was signed out keeps its current access
+      token until it expires (JWT expiry, 1 hour in config.toml).
+      It can't refresh, so it's out within the hour. Lower the JWT
+      expiry if that's too long.
+    - Verify before release, with two phones (section 11): after
+      the reset, the second phone is signed out within the JWT
+      expiry and can't sign back in with the old password.
+    - Expired or used reset links: same messages as 8c, with "Send
+      a new link".
+    - Changing the password while signed in (Profile tab): asks for
+      the current password first (turn on Supabase's "secure
+      password change").
+    - Apple and Google accounts have no password. "Forgot password?"
+      for such an email sends the same message; the reset link
+      would add a password to that account, which is fine. The
+      Profile tab shows "Signed in with Apple" instead of "Change
+      password".
+    - Lost access to the email itself: no self-service recovery.
+      Support contact on the sign-in screen.
+
+  8e. APPLE AND GOOGLE: CANCELLING AND FAILURES
+    - Cancelled (closed the sheet, pressed back): no message at all,
+      stay on the sign-in screen, buttons work again. (Already the
+      case today.)
+    - While any sign-in is running, all sign-in buttons are disabled,
+      so two can't run at once.
+    - Not available: hide the Apple button if Apple sign-in isn't
+      available on that phone, and the Google button when Google
+      Play Services are missing on Android, instead of showing a
+      button that fails.
+    - No network: "No connection. Check your internet and try
+      again."
+    - Supabase refuses the Apple or Google token (setup problem,
+      expired token, nonce mismatch): "Couldn't sign in with
+      Apple/Google. Try again, or use email." and log the real error
+      for you; never show the raw error.
+    - Same email as an existing account: NOT ASSUMED. Supabase's
+      docs describe automatic linking of identities with the same
+      verified email, but the actual behavior depends on the
+      project's settings and on whether each email is confirmed.
+      Before building anything that depends on it:
+        - Read Supabase's current "Identity Linking" docs and write
+          down the project's settings (automatic linking, manual
+          linking, which is off in config.toml today).
+        - Run the linking tests in section 11 (email first then
+          Apple/Google, Apple/Google first then email, an
+          unconfirmed email account, Hide my email) and record
+          what really happens.
+        - Only then write the help text and any merge handling.
+      Two outcomes to rule out: someone's coins and friends split
+      off into a new empty account; and an unconfirmed email
+      account being taken over by whoever signs in with Google
+      using that address. If linking doesn't behave safely,
+      turn automatic linking off and offer "Link Apple/Google" on
+      the Profile tab instead (manual linking, signed in first).
+    - Apple's "Hide my email" gives a relay address, so it is
+      EXPECTED to become a separate account from one with the real
+      address. Confirm with the tests before writing the help text.
+    - Apple sends the person's name only the very first time. Today
+      the app writes it straight into the profile; with step 2, it
+      is used to pre-fill the display name instead, and saved by
+      complete_signup().
+    - Signed in with Apple/Google, then the Apple ID or Google
+      account is removed from the phone: the StepTracker session
+      still works until it's revoked or the person signs out.
+
+  8f. PREREQUISITE: DOMAIN AND LINK SETUP (NEEDS OWNER APPROVAL)
+    There is no domain yet. Everything in 8b and 8c that mentions
+    "your domain" depends on this. Rules:
+      - Do not invent a domain, and do not put a placeholder domain
+        into production settings (app.json, Supabase settings, email
+        templates). Until the domain exists, development uses the
+        app's custom scheme and the LOCAL Supabase config only.
+      - Each task below is done by, or with explicit approval from,
+        the owner. Nothing is bought, no paid plan is started, and
+        no account is created without that approval.
+      - Credentials (registrar, DNS, email sender API key, Apple
+        and Google developer accounts) are entered by the owner
+        into the right dashboard. They never go into the app, this
+        file, or the repository.
+    Note: the privacy policy link in the app still falls back to
+    https://yourdomain.com/privacy when no URL is set. That is the
+    same kind of placeholder and must be replaced by a real page
+    (task 9) before release.
+
+    SETUP TASKS (each needs the owner's OK; [$] = may cost money)
+
+    1. [$] Choose and buy the domain (any registrar; typically a
+       small yearly fee). Owner decides the name and pays.
+    2. DNS: point the domain (or a subdomain, e.g. links.<domain>)
+       at the web host from task 3. HTTPS must work with no
+       redirects on the two .well-known files.
+    3. [$] Web hosting with HTTPS for a few static pages and two
+       files (free tiers of static hosts are usually enough; owner
+       picks the provider).
+    4. iOS Universal Links:
+       - the apple-app-site-association file at
+         https://<domain>/.well-known/apple-app-site-association,
+         served as JSON, listing the app (Apple Team ID + bundle id
+         com.derekho.steptracker) and the paths /auth/*;
+       - ios.associatedDomains ("applinks:<domain>") in app.json;
+       - needs a new app build (not an over-the-air update).
+    5. Android App Links:
+       - assetlinks.json at https://<domain>/.well-known/
+         assetlinks.json, with the package com.derekho.steptracker
+         and the SHA-256 fingerprints of the signing keys (the EAS
+         upload key AND the Play App Signing key; both, or links
+         break in the store build);
+       - android.intentFilters with autoVerify for https://<domain>
+         /auth/* in app.json; new build needed.
+    6. Supabase redirect settings (hosted project dashboard, and
+       config.toml for local): Site URL = https://<domain>; allowed
+       redirect URLs = https://<domain>/auth/* and the app's
+       custom scheme. Remove http://127.0.0.1:3000 from production.
+    7. Email templates (Supabase dashboard): "Confirm signup" and
+       "Reset password" link to
+       https://<domain>/auth/confirm?token_hash=...&type=signup and
+       https://<domain>/auth/reset?token_hash=...&type=recovery
+       (exact template variables checked against Supabase's
+       current docs). Plain wording, the app's name, the 1-hour
+       expiry, and "If you didn't ask for this, ignore this email."
+    8. [$] Email sender (custom SMTP, e.g. Resend or Postmark;
+       owner picks and approves any plan): send from an address on
+       the domain, add its SPF, DKIM and DMARC records in DNS, and
+       enter the SMTP settings in Supabase. Without this, emails
+       stop after a few per hour and often land in spam.
+    9. Fallback web pages on the domain:
+       - /auth/confirm: checks the token, then "Email confirmed. Go
+         back to StepTracker on your phone and sign in." (or the
+         expired / already-confirmed messages from 8c);
+       - /auth/reset: lets the person set a new password in the
+         browser (same rules as the app), or tells them to open the
+         link on their phone;
+       - /privacy and /terms: the real privacy policy and terms
+         (needed for the sign-up checkbox and the store listings);
+       - a plain home page saying what StepTracker is.
+       These pages use only the public Supabase key, never the
+       service role key.
+   10. Check it all: Apple's and Google's link checkers pass, a
+       link opens the app on a real iPhone and Android phone from
+       the Mail and Gmail apps, and the section 11 EMAIL LINKS tests
+       pass.
+
+======================================================================
+9. DECISIONS
+======================================================================
+
+  Decided, with checks still required before release:
+
+  D. Launch region and minimum age.
+     - Available to the public in the United States only, at
+       first. Testing and marketing start in Southern California.
+       Set App Store and Play Store availability to the US.
+     - Minimum age: 13, as a server setting (never written into
+       the app or a function's code), SUBJECT TO the legal and
+       store checks below before release.
+     - An age gate alone may NOT be enough. Before implementation
+       of the age check, confirm or flag (to the owner, not
+       decided by the coding agent):
+         - COPPA (US children's privacy): it covers apps aimed at
+           children under 13, or that know a user is under 13. If
+           StepTracker's audience, marketing (e.g. schools, youth
+           sports, families) or look and feel could make it count
+           as aimed at children, a birthday question is not enough
+           and a different approach (parental consent, or not
+           collecting data at all from children) is needed. Keep
+           marketing to adults and teens 13+.
+         - California laws that matter for a Southern California
+           launch: the CCPA/CPRA (opt-in needed before selling or
+           sharing data of users under 16; StepTracker should not
+           sell or share data at all), and the California
+           Age-Appropriate Design Code Act (check its current legal
+           status; it has been challenged in court).
+         - Health data laws in other US states the app reaches, for
+           example Washington's My Health My Data Act, because step
+           counts can count as consumer health data.
+         - State app-store age laws and the stores' age signals
+           (Apple's and Google's age range APIs): check whether any
+           apply to StepTracker and whether the app must use them.
+         - App Store and Play Store rules for health and fitness
+           apps, the content rating questionnaire, and Google
+           Play's Families policy (do NOT opt in to the Families
+           program unless that is the intended audience).
+         - Teen users (13 to 17): whether they need stricter
+           defaults, e.g. not appearing in search to strangers.
+     - This is a checklist for a qualified person to confirm, not
+       legal advice in this file. Record the answers here before
+       release.
+     - RELEASE GATE (kept as a requirement): before public release,
+       a qualified person reviews the intended audience, how
+       step-count data is handled, the teen privacy defaults, and
+       the legal obligations that apply. The 13+ age gate does not
+       by itself settle any of these. No public release until that
+       review is recorded here.
+
+  Decided:
+
+  A. Birthday: the full birth date is required (section 3). A tick
+     box is lighter, but a date can't be faked as casually and is
+     needed if age ever changes anything else. Refused (under 13)
+     accounts are blocked, then deleted (section 6f).
+
+  B. Email confirmation: ON. Stops fake and mistyped emails.
+
+  C. Username changes: UNLIMITED, as today on Profile. Nothing
+     breaks when a username changes, because friendships, groups,
+     steps and coins all point at the account id, not the name.
+     One safeguard is still worth adding:
+       - A released username is held for 30 days. Only its old
+         owner can take it back in that time. Without this, when
+         @derek renames to @derek_walks, someone else can grab
+         @derek at once, and friends searching for "derek" add the
+         wrong person.
+     The username_available() check and complete_signup() both
+     treat a held name as taken (USERNAME_TAKEN). The Profile tab's
+     rename goes through the same check.
+
+  E. Birthday policy:
+     - The full date of birth is required at onboarding (also A).
+     - Private: only the account owner and authorized server-side
+       operations can read it (section 5).
+     - Not editable in the Profile tab after onboarding.
+     - Corrections go through support (6g); the server re-checks
+       the age, and a date under the minimum age applies the
+       blocking process (6f).
+     - The birth date of an account refused for being under age is
+       never stored.
+
+  Still open:
+
+  F. Existing accounts and the Terms. Accounts made before this
+     change never ticked a box, so they have no acceptance rows.
+     Recommended: show them the "Updated Terms" screen once, on
+     their next open (it records source "reacceptance"). This does
+     change existing users' behavior, so it needs the owner's OK;
+     the alternative is to treat them as accepted and record
+     nothing, which leaves no record for them.
+
+======================================================================
+10. TRICKY CASES
+======================================================================
+
+  - Email already registered: with confirmation on, Supabase acts
+    as if sign-up worked (so strangers can't find out who has an
+    account). Show the same "Check your inbox" either way.
+  - Quitting after step 1: the account exists but onboarded_at is
+    null, so the next sign-in opens step 2, not the tabs.
+  - Apple's "Hide my email": the email is a relay address. Fine;
+    never show it as the suggested username.
+  - Apple gives the name only on the very first sign-in. Save it
+    then, or step 2 can't pre-fill it.
+  - Offline while checking a username: show "Can't check right now"
+    instead of a tick, and let the server decide on submit.
+  - Back button on step 2: signs out (after "Leave sign-up?"),
+    since there is no half-finished account to show.
+  - Screen readers: every field has a label (not just a
+    placeholder), errors are read out, and the strength bar has a
+    text version.
+
+======================================================================
+11. ACCEPTANCE TESTS (WRITTEN BEFORE CODING)
+======================================================================
+
+  The work is done when every test below passes. Three kinds:
+    DB      Database tests run with "supabase test db" (pgTAP files
+            in supabase/tests/), against a local database. These
+            prove the server rules, whatever the app does.
+    APP     Logic tests with the existing "npm test" (node --test),
+            e.g. the router's state-to-screen decision as a plain
+            function, password strength, username clean-up.
+    DEVICE  Run by hand on a real iPhone AND a real Android phone,
+            ticked off in this file before release. (Can become
+            Maestro or Detox scripts later.)
+
+  USERNAMES
+    DB  Two sessions call complete_signup() with the same username
+        at the same moment: exactly one succeeds, the other gets
+        USERNAME_TAKEN, and only one profile has the name.
+    DB  "Derek", "DEREK " and "de rek" are cleaned or refused; the
+        stored name always matches the a-z0-9_ rule.
+    DB  A name released by change_username() is refused for anyone
+        else for 30 days and allowed for its old owner.
+    DB  A blocked name (admin, support, ...) is refused.
+    DB  A signed-in user can't change username or onboarded_at with
+        a direct update on profiles; display_name still works.
+
+  NON-ACTIVE ACCOUNTS (UNFINISHED, BLOCKED, TERMS NOT ACCEPTED)
+    DB  For each kind, every table read (profiles of others,
+        friendships, groups, members, quests, steps, wallet, coin
+        history, owned items) returns nothing, and every data
+        function (leaderboards, daily_shop, purchase_item, claims,
+        quests, join_group, mark_seen) refuses.
+    DB  Unfinished: username_available() and complete_signup()
+        work. Blocked: they refuse.
+    DB  An active user can't see a blocked account in search,
+        leaderboards, group members or quests, even if they were
+        friends before.
+    DB  A test lists every function in the public schema and fails
+        if one that touches user data doesn't check
+        is_active_account(), so new functions can't forget it.
+
+  TERMS ACCEPTANCE
+    DB  Email sign-up with the current versions records acceptance
+        rows with the server's time; with an old or made-up
+        version, nothing is recorded.
+    DB  complete_signup() without a current acceptance and without
+        versions refuses TERMS_NOT_ACCEPTED; with them, it records.
+    DB  Publishing a version with requires_reacceptance makes
+        onboarded users non-active until accept_legal_documents();
+        a minor version doesn't.
+    DB  Users can't insert, edit or delete acceptance rows, or edit
+        legal_documents.
+    DEV Apple/Google new user: step 2 shows the checkbox; Start
+        walking is disabled until it's ticked.
+
+  PASSWORDS
+    APP "short1" gives the too-short message; "password1" the
+        too-common one; a 73-character password the too-long one.
+    DEV A password known from breaches (from the leaked-password
+        service's test examples) gives the data-breach message.
+
+  PRIVATE BIRTHDAY
+    DB  User A can read A's profile_private row; user B gets
+        nothing for A's row; a signed-out caller gets nothing. The
+        same holds for age_blocked_at.
+    DB  No user can insert, update or delete profile_private rows
+        directly, even their own.
+    DB  The leaderboard, search and player-card queries never
+        return birth_date.
+
+  SIGN-UP AND AGE
+    DB  complete_signup() with valid answers sets username, display
+        name, birthday and onboarded_at together.
+    DB  A failure halfway (e.g. taken username) leaves nothing
+        changed: no birthday row, onboarded_at still null.
+    DB  Calling it again after success returns ALREADY_ONBOARDED
+        and changes nothing.
+    DB  Under 13: returns UNDER_AGE, sets age_blocked_at, stores no
+        birth date; a second call with an adult date returns
+        AGE_BLOCKED.
+    DB  A blocked or unfinished account can't send friend requests,
+        join groups, upload steps, claim coins or buy items.
+    DB  Signed-out callers can't execute complete_signup(),
+        change_username() or username_available().
+    DB  There is no way for a signed-in user to change their own
+        birthday (no function, direct writes refused).
+    DB  correct_birth_date() refuses without a verified, open
+        request; an email-path request isn't verified until its
+        link is used, and the link expires after 24 hours.
+    DB  correct_birth_date() can't be run by anon or authenticated
+        callers; run with admin rights, an adult date replaces the
+        birthday and writes an audit row; a date under the minimum
+        age blocks the account, clears the birth date and writes an
+        audit row.
+    DB  The minimum age comes from the server setting: changing it
+        changes the result without changing the function.
+    DEV The cleanup job deletes a blocked account; when the job is
+        made to fail, the account stays blocked and the next run
+        deletes it.
+
+  ROUTING AND INTERRUPTED REGISTRATION
+    APP Each state in section 7 maps to the right screen, including
+        "profile loading" (splash, never tabs) and "profile failed"
+        (error screen).
+    DEV Quit the app on step 2, reopen: step 2 again, not the tabs.
+    DEV Airplane mode, then "Start walking": answers kept, error
+        shown, Try again works once back online.
+    DEV Save succeeds on the server but the reply is lost
+        (simulate by killing the network right after the call):
+        Try again lands in the tabs, no error, one profile.
+    DEV Profile load fails at launch (server unreachable): the
+        "Can't reach StepTracker" screen; Try again recovers.
+
+  EMAIL LINKS
+    DEV Confirmation link on the same phone, app closed: opens the
+        app, signs in, shows step 2. Repeat with the app in the
+        background. On iOS and on Android.
+    DEV Confirmation link on a laptop: the web page says confirmed;
+        the phone signs in normally.
+    DEV Expired link (wait past the expiry, or shorten it in the
+        local config): "This link has expired" and a working
+        "Send a new link".
+    DEV Link used twice: second time says already confirmed.
+    DEV Older link after a newer one was sent: refused as expired.
+    DEV Resend is blocked for 60 seconds.
+
+  SESSIONS
+    DEV Sign in, force-quit, reopen: still signed in. Restart the
+        phone: still signed in.
+    DEV Open the app offline with a saved session: not signed out.
+    DEV Leave the app for longer than the JWT expiry, reopen: the
+        session refreshes on its own.
+    DEV Revoke the session on the server: the app goes to sign-in
+        with "You've been signed out".
+    DEV The saved session on the phone is encrypted (inspect the
+        stored value on a simulator/emulator: not readable).
+    DEV Sign out, sign in as a different person: nothing of the
+        first person shows (profile, cached steps, consent prompt).
+
+  PASSWORD RESET
+    DEV "Forgot password?" with a real and a made-up email: the same
+        message both times.
+    DEV Reset link opens "Set a new password" before anything else;
+        cancelling signs out.
+    DEV Two phones signed in; reset on phone 1: phone 2 is signed
+        out within the JWT expiry and the old password no longer
+        works anywhere.
+    DEV Expired and reused reset links show the right messages.
+    DEV Force-quit the app immediately after "Save new password"
+        (before revocation finishes): on reopening, the pending mark
+        is still there, revocation runs, the warning disappears, and
+        phone 2 ends up signed out.
+    DEV Airplane mode right after saving the new password: the
+        warning shows; turning the network back on completes it.
+    DEV "Sign out other devices" on the Profile tab signs out
+        phone 2.
+
+  APPLE AND GOOGLE (iOS AND ANDROID; APPLE ON iOS ONLY)
+    DEV Cancel the Apple sheet / Google picker: no message, buttons
+        work again.
+    DEV No network: the connection message, not a raw error.
+    DEV New Apple/Google user: step 2 with the name pre-filled.
+    DEV Returning Apple/Google user who is onboarded: straight to
+        the tabs.
+    DEV Linking, all recorded in this file with what happened:
+          - email account (confirmed) first, then Google/Apple with
+            the same email: same account, coins and friends kept?
+          - Google/Apple first, then email sign-up with the same
+            email: what does Supabase do, and is it safe?
+          - email account NOT confirmed, then Google with the same
+            email: the unconfirmed account must not be taken over.
+          - Apple with Hide my email: separate account, as expected?
+
+======================================================================
+12. BUILD ORDER
+======================================================================
+
+  Finish and review each stage before starting the next; see rule
+  4 in section 13. Stage 1 (migration and security functions) gets
+  a review on its own before any app code is written.
+
+  0. Run the EXISTING tests ("npm test", and any database tests)
+     and record the results as the baseline for steps, coins,
+     friendships and groups. Then write the DB and APP tests from
+     section 11 (they fail at first). Run the account-linking
+     checks in 8e and record the results before designing anything
+     that depends on them.
+  1. Migration: onboarded_at, profile_private (with
+     age_blocked_at), username_holds, the minimum-age setting,
+     onboarded checks on the social and coin tables,
+     complete_signup(), change_username(), username_available(),
+     correct_birth_date() (admin only), birthday_correction_requests,
+     request_birthday_correction() and the audit table;
+     legal_documents, legal_acceptances, accept_legal_documents()
+     and the sign-up trigger change (6h); is_active_account() on
+     every select policy and data function (6f); revoke
+     the table-wide UPDATE on profiles and grant the safe columns;
+     set execute rights; mark existing accounts as onboarded.
+  2. Root routing for the states in section 7 (splash while the
+     profile loads, error screen if it fails), then the step 2
+     screen, shown when onboarded_at is null (also covers
+     Apple/Google users right away).
+  3. Domain and link setup (8f). Two halves:
+     3a. DEVELOPMENT (not blocked): the link screens in the app
+         (/auth/confirm, /auth/reset), tested with the custom scheme
+         and the LOCAL Supabase config only. Stages 4 to 9 continue
+         on this basis.
+     3b. PRODUCTION (BLOCKED until the owner approves and completes
+         the 8f tasks): the real domain, DNS, hosting, .well-known
+         files, the app.json link settings, the hosted Supabase
+         site URL and redirects, email templates, email sender and
+         fallback pages. Also blocked until then: every real-device
+         link test in section 11 (EMAIL LINKS, the reset-link tests
+         in PASSWORD RESET). Nothing in 3b is guessed or filled with
+         a placeholder while waiting.
+  4. Encrypted session storage (section 8a).
+  5. New step 1 (password rules, show/hide, terms checkbox, resend),
+     the confirm-link screen and its web page fallback.
+  6. Forgot password and "Set a new password" (section 8d).
+  7. Apple and Google error handling (section 8e).
+  7b. Under-13 cleanup job (section 6f).
+  8. Live username check and suggestions.
+  9. Profile tab: username changes call change_username(); show
+     the birthday (own eyes only, read-only) with "Wrong date?
+     Contact support." (section 6g); "Sign out other devices"
+     button and the pending-revocation warning (8d).
+  9b. Support's written steps for birthday corrections (6g).
+  10. Run every DEVICE test on iPhone and Android and tick them off.
+  11. Release gate: the qualified review in 9D is recorded; 3b is
+      done; decision 9F is made.
+
+======================================================================
+13. IMPLEMENTATION RULES FOR AI CODING AGENTS
+======================================================================
+
+  1. Inspect the existing repository, database schema, Supabase
+     configuration, authentication code, navigation, and relevant
+     documentation before modifying anything.
+
+  2. Treat this blueprint as the intended behavior, but do not
+     assume its technical descriptions are correct without
+     verifying them against the actual project and current SDK
+     documentation.
+
+  3. Preserve existing features and data. Do not rewrite unrelated
+     systems, alter coin or step-reward logic, or change existing
+     user behavior unless explicitly required.
+
+  4. Implement changes in small, ordered stages. After each stage,
+     run the relevant tests and review the changes before
+     continuing. Finish one stage of the build order (section 12)
+     completely, then stop for review before the next; in
+     particular, the database migration and security functions are
+     reviewed on their own before any app code. Do not change the
+     database, navigation, authentication and session storage in
+     one pass.
+
+  4b. Before changing anything, run the existing test suite and
+     record the results as a baseline, so any regression in steps,
+     coins, friendships or groups shows up as a difference.
+
+  5. Never expose service-role keys, privileged credentials,
+     passwords, session tokens, or private profile data in client
+     code, logs, or error messages.
+
+  6. Create database migrations that are safe for existing users.
+     Document rollback considerations and verify that existing
+     profiles, friendships, groups, steps, and coins remain intact.
+
+  7. Test all authentication and onboarding states, including
+     failures, retries, offline behavior, and interrupted sessions
+     on both iOS and Android.
+
+  8. Do not silently skip requirements or invent missing product
+     decisions. Report blockers and unresolved assumptions before
+     implementing the affected functionality.
+
+  9. At completion, report the files changed, migrations added,
+     configuration required, tests executed and their results, known
+     limitations, and any manual steps needed before release.

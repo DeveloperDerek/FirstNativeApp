@@ -1,0 +1,469 @@
+STEP TRACKER - PART 5: THE STEP TRACK
+A scale from 0 to 10,000 steps with your character standing at today's
+count. The scale grows when anyone passes 10,000. Friends and group
+members appear on the same track. Builds on Parts 1-4:
+  step-tracker-getting-started.txt
+  step-tracker-social-features.txt
+  step-tracker-character-system.txt
+  step-tracker-coins-and-shop.txt
+Last checked: October 2026
+
+======================================================================
+1. HOW IT WORKS
+======================================================================
+
+  0 ----------------------------------------------- 10,000
+  |        [you]                 [Sam]          FLAG |
+  |--------|-----------|-----------|-----------|-----|
+  0      2,500       5,000       7,500       10,000
+
+  - Each character's horizontal position = steps / scale maximum.
+  - The scale maximum is 10,000 while everyone shown is at or below
+    10,000.
+  - As soon as anyone shown passes 10,000, the maximum jumps to the
+    next 5,000 above the leader (10,001 -> 15,000; 15,000 -> 20,000),
+    so there is always room ahead of the leader.
+  - The goal flag stays at 10,000. When the scale grows, the flag and
+    everyone else slide left to their new proportional positions.
+  - Characters that would overlap are stacked into rows ("lanes").
+
+Three modes, one component:
+  Solo ....... just you, read straight from the phone
+  Friends .... you + accepted friends
+  Group ...... you + members of one group you pick
+
+No database changes are needed. Friends and Group modes reuse
+friends_leaderboard() and group_leaderboard() from Parts 2 and 3,
+asked for a single day.
+
+======================================================================
+2. FILE LAYOUT (ADDITIONS)
+======================================================================
+
+  src/
+    track/
+      scale.ts          <- the math (no UI, easy to unit test)
+      StepTrack.tsx     <- draws the track and characters
+    screens/
+      TrackScreen.tsx   <- mode switch, loads the data
+
+======================================================================
+3. src/track/scale.ts
+======================================================================
+
+  export const GOAL = 10_000;
+  const GROW_BY = 5_000;
+
+  // Highest value shown on the scale
+  export function scaleMax(highestSteps: number): number {
+    if (highestSteps <= GOAL) return GOAL;
+    return (Math.floor(highestSteps / GROW_BY) + 1) * GROW_BY;
+  }
+
+  // Left edge of a character, in pixels
+  export function positionFor(
+    steps: number, max: number, trackWidth: number, spriteWidth: number
+  ): number {
+    const usable = Math.max(0, trackWidth - spriteWidth);
+    const ratio = Math.min(1, Math.max(0, steps / max));
+    return ratio * usable;
+  }
+
+  // Tick marks: 0, then even spacing up to max
+  export function ticksFor(max: number): number[] {
+    const every = max <= 10_000 ? 2_500 : max <= 40_000 ? 5_000 : 10_000;
+    const ticks: number[] = [];
+    for (let v = 0; v <= max; v += every) ticks.push(v);
+    return ticks;
+  }
+
+  // Put overlapping characters on different rows.
+  // Returns a lane number (0 = front row) for each x, same order as input.
+  export function assignLanes(xs: number[], spriteWidth: number): number[] {
+    const minGap = spriteWidth * 0.7;          // allow a little overlap
+    const order = xs.map((x, i) => ({ x, i })).sort((a, b) => a.x - b.x);
+    const laneEnds: number[] = [];             // right edge used per lane
+    const lanes = new Array<number>(xs.length).fill(0);
+    for (const { x, i } of order) {
+      let lane = laneEnds.findIndex((end) => x >= end);
+      if (lane === -1) lane = laneEnds.length;
+      laneEnds[lane] = x + minGap;
+      lanes[i] = lane;
+    }
+    return lanes;
+  }
+
+  export const formatSteps = (n: number) =>
+    n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : `${n}`;
+
+Worked examples (use these as unit tests):
+  scaleMax(0)       = 10000
+  scaleMax(10000)   = 10000     character stands exactly on the flag
+  scaleMax(10001)   = 15000
+  scaleMax(14999)   = 15000
+  scaleMax(15000)   = 20000
+  scaleMax(23400)   = 25000
+
+======================================================================
+4. src/track/StepTrack.tsx
+======================================================================
+
+  import { useEffect, useRef, useState } from 'react';
+  import { Animated, Text, View } from 'react-native';
+  import { Avatar } from '../avatar/Avatar';
+  import { DEFAULT_AVATAR, type AvatarConfig } from '../avatar/types';
+  import {
+    GOAL, assignLanes, formatSteps, positionFor, scaleMax, ticksFor,
+  } from './scale';
+
+  export type Walker = {
+    id: string;
+    name: string;
+    steps: number;
+    avatar: Partial<AvatarConfig> | null;
+    isMe: boolean;
+  };
+
+  const SCALE = 2;                  // avatar pixel scale (whole number)
+  const SPRITE_W = 32 * SCALE;
+  const SPRITE_H = 48 * SCALE;
+  const LANE_OFFSET = 44;           // how far each extra lane is raised
+  const LABEL_H = 18;
+
+  function WalkerSprite({
+    walker, x, lane,
+  }: { walker: Walker; x: number; lane: number }) {
+    // Slide to the new position whenever steps or the scale change
+    const anim = useRef(new Animated.Value(x)).current;
+    useEffect(() => {
+      Animated.timing(anim, {
+        toValue: x, duration: 600, useNativeDriver: true,
+      }).start();
+    }, [x]);
+
+    return (
+      <Animated.View
+        accessible
+        accessibilityLabel={
+          `${walker.isMe ? 'You' : walker.name}: ` +
+          `${walker.steps.toLocaleString()} steps`
+        }
+        style={{
+          position: 'absolute',
+          left: 0,
+          bottom: lane * LANE_OFFSET,
+          width: SPRITE_W,
+          alignItems: 'center',
+          zIndex: 100 - lane,              // front row drawn on top
+          transform: [{ translateX: anim }],
+        }}
+      >
+        <Text
+          numberOfLines={1}
+          style={{
+            height: LABEL_H, fontSize: 11,
+            fontWeight: walker.isMe ? 'bold' : 'normal',
+          }}
+        >
+          {walker.isMe ? 'You' : walker.name}
+        </Text>
+        <Avatar config={{ ...DEFAULT_AVATAR, ...(walker.avatar ?? {}) }}
+                scale={SCALE} />
+      </Animated.View>
+    );
+  }
+
+  export function StepTrack({ walkers }: { walkers: Walker[] }) {
+    const [width, setWidth] = useState(0);
+
+    const highest = walkers.reduce((m, w) => Math.max(m, w.steps), 0);
+    const max = scaleMax(highest);
+
+    const xs = walkers.map((w) => positionFor(w.steps, max, width, SPRITE_W));
+    const lanes = assignLanes(xs, SPRITE_W);
+    const laneCount = Math.max(1, ...lanes.map((l) => l + 1));
+    const stageHeight = SPRITE_H + LABEL_H + (laneCount - 1) * LANE_OFFSET;
+
+    // Flag and ticks are placed at a character's CENTER line
+    const centerX = (value: number) =>
+      positionFor(value, max, width, SPRITE_W) + SPRITE_W / 2;
+
+    return (
+      <View
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+        style={{ paddingHorizontal: 0 }}
+      >
+        {/* Characters */}
+        <View style={{ height: stageHeight }}>
+          {width > 0 && walkers.map((w, i) => (
+            <WalkerSprite key={w.id} walker={w} x={xs[i]} lane={lanes[i]} />
+          ))}
+        </View>
+
+        {/* The ground line */}
+        <View style={{ height: 6, backgroundColor: '#3a2a2a', borderRadius: 3 }} />
+
+        {/* Ticks, labels, and the goal flag */}
+        <View style={{ height: 40 }}>
+          {width > 0 && ticksFor(max).map((v) => (
+            <View
+              key={v}
+              style={{
+                position: 'absolute', left: centerX(v) - 20, width: 40,
+                alignItems: 'center',
+              }}
+            >
+              <View style={{
+                width: 2, height: v === GOAL ? 12 : 6,
+                backgroundColor: v === GOAL ? '#e2483d' : '#3a2a2a',
+              }} />
+              <Text style={{
+                fontSize: 11,
+                color: v === GOAL ? '#e2483d' : '#3a2a2a',
+                fontWeight: v === GOAL ? 'bold' : 'normal',
+              }}>
+                {v === GOAL ? 'GOAL' : formatSteps(v)}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        {max > GOAL && (
+          <Text style={{ fontSize: 11, textAlign: 'right' }}>
+            Scale extended to {max.toLocaleString()} steps
+          </Text>
+        )}
+      </View>
+    );
+  }
+
+Notes:
+  - The goal tick always lands on a tick position because every scale
+    maximum is a multiple of 5,000 and ticks are 2,500 / 5,000 /
+    10,000 apart. If you change GROW_BY, re-check that.
+  - Replace the red GOAL tick with a pixel-art flag sprite, and the
+    ground line with a tiled grass or path sprite, when you have art.
+
+======================================================================
+5. src/screens/TrackScreen.tsx
+======================================================================
+
+  import { useCallback, useEffect, useState } from 'react';
+  import {
+    Alert, AppState, Button, RefreshControl, SafeAreaView, ScrollView,
+    Text, View,
+  } from 'react-native';
+  import { StepTrack, type Walker } from '../track/StepTrack';
+  import { getSteps, todayRange } from '../health';
+  import { dayKey, syncSteps } from '../api/steps';
+  import { friendsLeaderboard } from '../api/friends';
+  import { groupLeaderboard, listMyGroups } from '../api/groups';
+  import { hasConsented } from '../api/consent';
+  import { loadAvatar } from '../api/avatar';
+
+  type Mode = { kind: 'solo' } | { kind: 'friends' }
+            | { kind: 'group'; id: string; name: string };
+
+  export function TrackScreen({ userId }: { userId: string }) {
+    const [mode, setMode] = useState<Mode>({ kind: 'solo' });
+    const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
+    const [walkers, setWalkers] = useState<Walker[]>([]);
+    const [sharing, setSharing] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    useEffect(() => {
+      listMyGroups().then(setGroups).catch(console.warn);
+      hasConsented(userId).then(setSharing).catch(console.warn);
+    }, [userId]);
+
+    const load = useCallback(async () => {
+      try {
+        const { start, end } = todayRange();
+        const mySteps = await getSteps(start, end);     // from the phone
+
+        if (mode.kind === 'solo') {
+          const avatar = await loadAvatar(userId);
+          setWalkers([
+            { id: userId, name: 'You', steps: mySteps, avatar, isMe: true },
+          ]);
+          return;
+        }
+
+        // Push my latest count first so others (and this query) see it
+        if (sharing) await syncSteps(userId, 1);
+
+        const today = dayKey(new Date());
+        const rows =
+          mode.kind === 'friends'
+            ? await friendsLeaderboard(today, today)
+            : await groupLeaderboard(mode.id, today, today);
+
+        setWalkers(
+          rows.map((r: any) => ({
+            id: r.user_id,
+            name: r.display_name ?? 'Player',
+            // Show my own live phone count even if the upload lagged
+            steps: r.user_id === userId ? mySteps : Number(r.total_steps),
+            avatar: r.avatar,
+            isMe: r.user_id === userId,
+          }))
+        );
+      } catch (e) {
+        Alert.alert('Could not load the track', String(e));
+      }
+    }, [mode, userId, sharing]);
+
+    // Load on open and whenever the mode changes
+    useEffect(() => { load(); }, [load]);
+
+    // Reload when the app comes back to the foreground
+    useEffect(() => {
+      const sub = AppState.addEventListener('change', (state) => {
+        if (state === 'active') load();
+      });
+      return () => sub.remove();
+    }, [load]);
+
+    // Light polling while the screen is open (every 60 seconds)
+    useEffect(() => {
+      const timer = setInterval(load, 60_000);
+      return () => clearInterval(timer);
+    }, [load]);
+
+    const title =
+      mode.kind === 'solo' ? 'Just me'
+      : mode.kind === 'friends' ? 'Friends'
+      : mode.name;
+
+    return (
+      <SafeAreaView style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={{ padding: 16, gap: 16 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                await load();
+                setRefreshing(false);
+              }}
+            />
+          }
+        >
+          <Text style={{ fontSize: 20 }}>Today: {title}</Text>
+
+          <StepTrack walkers={walkers} />
+
+          {mode.kind !== 'solo' && !sharing && (
+            <Text>
+              You are not sharing steps, so others see you at 0. Turn on
+              sharing in Profile to appear on their tracks.
+            </Text>
+          )}
+
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <Button title="Just me" onPress={() => setMode({ kind: 'solo' })} />
+            <Button title="Friends" onPress={() => setMode({ kind: 'friends' })} />
+            {groups.map((g) => (
+              <Button
+                key={g.id}
+                title={g.name}
+                onPress={() => setMode({ kind: 'group', id: g.id, name: g.name })}
+              />
+            ))}
+          </View>
+
+          {/* Ranked list under the track, for exact numbers */}
+          {[...walkers]
+            .sort((a, b) => b.steps - a.steps)
+            .map((w, i) => (
+              <Text key={w.id}>
+                {i + 1}. {w.isMe ? 'You' : w.name} - {w.steps.toLocaleString()}
+              </Text>
+            ))}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+Add TrackScreen to your navigation, or make it the home screen and
+move the Part 1 step counter into it.
+
+======================================================================
+6. DESIGN CHOICES YOU CAN CHANGE
+======================================================================
+
+  - Growth step: the scale grows in 5,000s (GROW_BY in scale.ts).
+    Use 2,500 for a tighter fit or 10,000 for fewer jumps.
+  - The scale is shared in group mode: one person at 24,000 stretches
+    it to 25,000 for everyone, which pushes people near 5,000 toward
+    the left. That is the honest picture, but if it feels
+    discouraging, cap the scale at 20,000 and pin anyone beyond it to
+    the right edge with a "+" badge.
+  - Solo mode works without step sharing, because it reads the phone
+    directly. Friends and Group modes need sharing turned on to show
+    you to others.
+  - Time span: the track shows today only. A weekly track is the same
+    component with a 70,000 goal and a 7-day date range.
+
+======================================================================
+7. GOTCHAS
+======================================================================
+
+  - Crowding: lanes keep 6 to 10 characters readable on a phone. For
+    bigger groups, show the top 8 plus you on the track and everyone
+    in the ranked list below, or turn the track vertical and let it
+    scroll.
+  - Time zones: "today" is YOUR calendar date. A friend several time
+    zones away may already be on tomorrow (shown at their new day's
+    low count) or still on yesterday (shown at 0 until their date
+    matches yours). Fine for friends in one region; for a global
+    audience you would compare "each person's current local day",
+    which needs a small change to the leaderboard functions.
+  - Stale friends: other people's positions only move when THEIR app
+    syncs. Someone who has not opened the app today shows at 0 even
+    if they have walked. Background sync (Part 1, section 10) is the
+    real fix; a "last updated" time per person is the cheap one.
+  - Members without step sharing appear at 0. Consider hiding them
+    from the track instead, so 0 always means "no steps yet".
+  - Anti-cheat still applies: positions use the same verified counts
+    as coins (Part 4, section 13).
+  - Many Skia canvases: each character is its own small canvas. That
+    is fine for about a dozen. Past that, draw all characters in ONE
+    canvas, or cache each as an image.
+  - First render: positions need the track width, which is only known
+    after layout. The code waits for width > 0, so characters appear
+    a frame late rather than all bunched at 0.
+  - Screen readers cannot "see" positions. Each character has a
+    spoken label with name and steps, and the ranked list repeats the
+    information as text. Keep both.
+
+======================================================================
+8. LATER IDEAS
+======================================================================
+
+  - Live movement: subscribe to daily_steps changes with Supabase
+    Realtime instead of polling, so friends slide forward as they
+    sync.
+  - Walk animation: add a 2- to 4-frame walk cycle per sprite and
+    play it while a character is sliding.
+  - Map instead of a line: lay the same 0-to-max value along a
+    winding path image. Only positionFor() changes: it returns an
+    (x, y) point along the path instead of an x.
+  - Milestone markers: coins or item icons at 10k, 15k, 20k that tie
+    into the Part 4 rewards.
+  - Tap a character to open that friend's profile.
+
+======================================================================
+9. BUILD ORDER
+======================================================================
+
+  [ ] scale.ts plus unit tests using the worked examples in section 3
+  [ ] StepTrack with hard-coded walkers: 0, 5,000, 10,000
+  [ ] Add a walker at 12,000; confirm the scale becomes 15,000 and
+      the GOAL tick moves left
+  [ ] Two walkers at the same count; confirm they use separate lanes
+  [ ] Solo mode with real steps from the phone
+  [ ] Friends mode, then Group mode, with a second test account
+  [ ] Foreground refresh, pull to refresh, 60-second polling
+  [ ] Swap in flag and ground art

@@ -1,0 +1,188 @@
+STEP TRACKER - BUILDS, CRASH REPORTS AND CHECKS ON EVERY PUSH (BLUEPRINT)
+Three pieces of plumbing before real users:
+  A. EAS builds: a repeatable way to make TestFlight / Play builds
+  B. Crash reporting: hear about crashes on people's phones
+  C. CI: every test runs on every push to GitHub
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. It
+describes what changes, what it needs from you (accounts, money), and
+the decisions made (section 6). Items 1f, 1e and 3g
+of step-tracker-recommendations.txt.
+
+Why now: the hosted Supabase is ahead of every app build. Blocking,
+reports, Leave group for owners and the new name messages only reach
+people in a new build, and there is no set way to make one.
+
+======================================================================
+1. HOW IT WORKS TODAY
+======================================================================
+
+  - Builds are made on this Mac with `npx expo run:ios` (a development
+    build on a plugged-in iPhone). The ios/ folder is generated and not
+    in git (good); there is no android/ folder yet.
+  - There is no eas.json and no EAS project (EXPO_PUBLIC_EAS_PROJECT_ID
+    is empty), so push notifications can't be turned on yet either.
+  - Settings reach the app from .env (EXPO_PUBLIC_SUPABASE_URL, the
+    publishable key, sign-in providers, privacy URL, support email).
+    .env is kept out of git, correctly, so a cloud build won't see it.
+  - Version 1.0.0; no build numbers yet.
+  - Nothing reports crashes or errors from phones.
+  - About 1,300 checks exist (npm test, supabase test db, three race
+    scripts, typecheck, lint), but they only run when someone runs them.
+  - The GitHub repo is PUBLIC: anything committed is readable by anyone.
+    Today nothing secret is committed (.env and supabase/.temp are
+    ignored). Every step below keeps it that way.
+
+======================================================================
+2. PART A - EAS BUILDS
+======================================================================
+
+  WHAT EAS IS
+  - Expo's cloud build service: builds the iOS and Android apps on
+    Expo's machines, signs them, and can send them to TestFlight and
+    Google Play ("eas submit"). The free plan has a monthly number of
+    builds in a queue; paid plans are faster [$, owner's call].
+
+  THREE BUILD PROFILES (eas.json)
+      development   for you, on your phone: like `expo run:ios` today,
+                    but made in the cloud (needs expo-dev-client)
+      preview       a real app for testers, installed outside the
+                    stores: Android APK link; iOS needs the paid Apple
+                    account (devices registered, or TestFlight)
+      production    store builds: TestFlight and Google Play, build
+                    numbers counted up automatically
+  - Version numbers: the app version (1.0.0) stays in app.json and is
+    changed by you for each release; the build number (iOS) and
+    version code (Android) are kept by EAS and go up by one on every
+    production build, so they never clash.
+
+  SETTINGS IN THE CLOUD
+  - .env stays on the Mac. The same EXPO_PUBLIC_* values go into EAS's
+    environment variables (`eas env`), one set per profile (e.g. the
+    local Supabase for development, the hosted one for preview and
+    production).
+  - Only EXPO_PUBLIC_* values and APPLE_TEAM_ID go to EAS. Never
+    SUPABASE_DB_PASSWORD, the service role key or any Apple / Sentry
+    secret that the app itself doesn't need.
+  - EXPO_PUBLIC_* values are inside the app anyway (anyone can read
+    them from a build); that's expected for the publishable Supabase
+    key and the URL. Nothing else may be EXPO_PUBLIC_.
+
+  WHAT IT NEEDS FROM YOU
+  - An Expo account (free) and `eas init` once, which creates the EAS
+    project; its id goes into EXPO_PUBLIC_EAS_PROJECT_ID (and push
+    notifications can then be turned on).
+  - iOS beyond your own phone (TestFlight, App Store, preview for
+    testers): the paid Apple Developer account [$, yearly]. Until then,
+    iOS stays on `expo run:ios` / the development profile on your phone.
+  - Android: a Google Play Console account [$, one-time]. Google wants
+    the very first upload of a new app done by hand in the Play
+    Console; after that `eas submit` can do it.
+  - Signing keys: EAS creates and keeps them (iOS certificates and
+    profiles once you sign in with the Apple account; the Android
+    upload key). The Android key's fingerprint is also what App Links
+    need (RELEASE-GATE.md gate 2, item 5).
+
+  OVER-THE-AIR UPDATES (DECIDED: NOT NOW)
+  - EAS Update can send JavaScript-only changes to installed apps
+    without a store release. Not now. It adds a second way
+    for code to reach people, and the store builds are what's missing.
+    Revisit after the first release.
+
+======================================================================
+3. PART B - CRASH REPORTING
+======================================================================
+
+  WHICH SERVICE (DECIDED: SENTRY)
+  - Sentry (@sentry/react-native with its Expo config
+    plugin). It has a free plan, works with Expo and EAS, and turns
+    crash stack traces back into readable code (source maps uploaded
+    during the EAS build).
+  - Alternatives: Bugsnag; Firebase Crashlytics (needs Firebase in the
+    app too).
+
+  WHAT IS SENT, AND WHAT ISN'T
+  - Sent: the crash or error, the app version and build, the phone
+    model and OS, the screen it happened on, and a random id for the
+    install.
+  - Never sent: step counts or any Health data, email, username,
+    display name, birthday, location, IP address (turned off), the
+    Supabase session or tokens, and what the person typed. The user id
+    isn't attached either (decided), so a crash report can't be tied
+    to a person.
+  - A filter in the app removes anything that looks like a token or an
+    email from error messages before they are sent, the same way the
+    sign-in code already keeps tokens out of its warnings.
+  - Off in development builds (only real builds report).
+
+  STORE PRIVACY ANSWERS
+  - Apple's privacy "nutrition label" and Google's Data safety form
+    must list crash data ("Diagnostics", not linked to the person, not
+    for tracking). Noted for RELEASE-GATE.md gate 1.
+
+  SECRETS
+  - The Sentry DSN (where reports go) is meant to be public and can be
+    an EXPO_PUBLIC_ value. The Sentry auth token (for uploading source
+    maps) is a secret: an EAS secret only, never in the repo.
+
+======================================================================
+4. PART C - CI (GITHUB ACTIONS)
+======================================================================
+
+  WHAT RUNS, ON EVERY PUSH AND PULL REQUEST
+  1. Install (npm ci), typecheck (tsc), lint (expo lint), npm test.
+     About a minute.
+  2. The database: start Supabase in the CI machine (Docker), apply all
+     migrations from scratch, run `supabase test db`, and the three race
+     scripts. A few minutes. This also proves every migration still
+     applies to an empty database.
+  - A red cross on GitHub when anything fails, and a pull request into
+    main needs it green before merging (decided; a branch protection
+    rule on GitHub, which you turn on in the repo's settings).
+
+  COST AND SAFETY
+  - The repo is public, so GitHub Actions minutes are free.
+  - CI needs NO secrets: it runs against its own throwaway local
+    Supabase, never the hosted one. It doesn't build the app or talk to
+    EAS, Apple, Google or Sentry.
+  - Pull requests from strangers (possible on a public repo) run with
+    no access to secrets anyway, since there are none.
+
+  WHAT CI DOESN'T DO (YET)
+  - Build the app (EAS does, when you ask), deploy migrations or Edge
+    Functions (you push those, as now), or run phone tests.
+
+======================================================================
+5. BUILDING ORDER
+======================================================================
+
+  1. CI (Part C): needs nothing from you except a push; protects
+     everything after it.
+  2. EAS (Part A): eas.json and the profiles, version numbers, the
+     settings list, and a README section on making a build. Then with
+     you: `eas login`, `eas init`, the EAS environment variables, and
+     the first Android preview build.
+  3. Sentry (Part B): once you've made the Sentry account; added in the
+     same build so the first real users are covered.
+  Then: the first production builds, for the stores, once the Apple and
+  Google accounts exist.
+
+  TESTS
+  - CI itself: push a commit that breaks a test (on a branch) and see
+    the red cross, then fix it.
+  - EAS: an Android preview build installs on a phone and signs in to
+    the hosted Supabase; the version code goes up on the next build.
+  - Sentry: a test crash from a preview build shows up in Sentry with
+    readable code, and with no email, username, steps or tokens in it.
+
+======================================================================
+6. DECISIONS
+======================================================================
+
+  1. Order: CI first, then EAS, then Sentry.
+  2. Crash reporting: Sentry, on its free plan.
+  3. Crash reports carry no user id.
+  4. Over-the-air updates: not now.
+  5. Pull requests into main must pass CI before merging.
+  6. A development profile with expo-dev-client.

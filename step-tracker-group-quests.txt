@@ -1,0 +1,493 @@
+STEP TRACKER - GROUP QUESTS (BLUEPRINT)
+A group takes on a quest together: reach one shared step goal within
+a set number of hours. Every member of the group has to agree before
+it starts. If the group makes it, everyone earns coins.
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. It
+describes how quests should work, what the screens show, how coins
+are paid, and the tricky cases to decide before building.
+
+Builds on what the app already has: groups, step sharing, the coin
+wallet, the daily 10,000-step reward (100 coins), the check-in bonus
+(10 coins every 6 hours), and the shop (items cost 300 to 3,000
+coins).
+
+======================================================================
+1. THE IDEA IN ONE MINUTE
+======================================================================
+
+  - Anyone in a group can propose a quest, for example:
+      "Forest Sprint: 8,000 steps together in 2 hours"
+  - EVERY member of the group must accept. If anyone declines, or
+    not everyone answers in time, the quest does not happen.
+  - Once everyone has accepted, the quest starts at the chosen time.
+  - While it runs, the group page shows one shared progress bar, a
+    countdown, and how much each member has added.
+  - The goal is the group's total. It does not matter who walks the
+    steps: one person can carry the whole party.
+  - When the bar fills before time runs out, the quest is complete.
+    The group can keep walking until the time is up to earn more.
+  - Coins depend on how many steps the group walked and how big the
+    group is (section 5), and are shared equally by every member.
+  - If time runs out first, the quest fails. Nobody loses anything;
+    the group can try again after a short cooldown.
+
+======================================================================
+2. THE LIFE OF A QUEST
+======================================================================
+
+  PROPOSED  ->  VOTING  ->  ACTIVE  ->  COMPLETED or FAILED  ->  PAID
+
+  1. PROPOSED
+     A member picks a quest type (section 3) and a start time: "as
+     soon as everyone accepts", or a set time later today or
+     tomorrow. The proposer counts as having accepted.
+
+  2. VOTING (until the start time, at most 24 hours)
+     Every other member of the group gets the proposal and answers
+     Accept or Decline.
+     - All accept: the quest is locked in and starts at its time
+       (or straight away, for "as soon as everyone accepts").
+     - Anyone declines: the quest is cancelled at once, and the
+       group sees who declined (so they can talk about it).
+     - Not everyone answers by the deadline: cancelled quietly.
+     Members can change Accept to Decline while voting is still open.
+
+  3. ACTIVE (the quest window, e.g. 2 hours)
+     Steps taken by ANY group member during the window count toward
+     the shared goal. The party is the whole group as it was when
+     voting finished; people who join the group later are not in it.
+
+  4. COMPLETED or FAILED
+     - Completed: the moment the group's total reaches the goal.
+       The celebration shows straight away, but the quest keeps
+       counting until the window ends: every extra step (up to 150%
+       of the goal) adds coins (section 5).
+     - Failed: the window ends below the goal.
+     After the window closes there is a 1-hour grace period, so
+     members who have not opened the app yet can still send their
+     steps (section 6).
+
+  5. PAID
+     After the window and its grace period, the server works out the
+     coins from the final step total and pays every member of the
+     party once. The quest then moves to the group's quest history.
+
+  Only ONE quest can be in voting or active in a group at a time.
+  After a quest ends (or is cancelled), the group waits 1 hour before
+  the next proposal.
+
+======================================================================
+3. QUEST TYPES
+======================================================================
+
+  Each type has a length and ONE goal for the whole group. The coins
+  are not fixed per type: they come from the steps walked and the
+  size of the group (section 5). The names can match the group's map
+  theme (Forest Sprint, Beach Stroll, City Dash...) to tie quests to
+  the art.
+
+  Type              Length     Group goal
+  ----------------  ---------  ----------------
+  Sprint            2 hours      8,000 steps
+  Patrol            4 hours     15,000 steps
+  Expedition        8 hours     30,000 steps
+  Day Trek         12 hours     50,000 steps
+  Weekend Journey  48 hours    120,000 steps
+
+  Coins each member gets when the group hits exactly the goal
+  (worked out with the formula in section 5):
+
+  Type              2 members   4 members   8 members
+  ----------------  ---------   ---------   ---------
+  Sprint                24          16          12
+  Patrol                45          30          23
+  Expedition            90          60          45
+  Day Trek             150         100          75
+  Weekend Journey      360         240         180
+
+  Walking past the goal pays more, up to 1.5 times these numbers
+  (e.g. a 2-member Sprint that reaches 12,000 steps pays 36 each).
+
+  Why these numbers:
+  - A brisk walk is roughly 4,000 to 6,000 steps an hour, and an
+    ordinary day is 5,000 to 8,000 steps.
+  - A Sprint can be carried by one keen walker in under 2 hours, or
+    shared by a few people on a lunch break. Longer quests are
+    realistic for a group of 3 to 6 and a real push for 2.
+  - Quest coins come on top of the daily reward (100 coins for
+    10,000 steps); the same steps count for both. A shop item (300
+    to 3,000 coins) should take a few quests, not one; the Weekend
+    Journey is the big prize.
+
+  Optional later: a rotating "Quest of the Week" with a special name,
+  a slightly higher reward, and a one-off badge or pet for finishing
+  it.
+
+======================================================================
+4. THE GOAL
+======================================================================
+
+  - The goal is a single number for the group, set by the quest type
+    (section 3). It does not change with the number of members.
+  - Every step from every party member counts in full. There is no
+    limit on how much one person can add: if one member walks the
+    whole 8,000 steps of a Sprint, the quest is complete.
+  - The goal is fixed once voting finishes. People leaving the group
+    later do not change it.
+
+  Because the goal does not grow with the group, a big group finds
+  quests easier than a small one. Two things balance that:
+  - Coins are shared: each member's share gets smaller as the group
+    grows (section 5), so an easy win in a big group pays less each.
+  - Getting everyone to agree is harder in a big group (section 2).
+
+  Difficulty choice (optional, later): the proposer can pick Easy
+  (x0.75 goal), Normal (x1), or Hard (x1.5 goal). Difficulty only
+  changes the goal; coins still follow the steps walked, so a Hard
+  quest pays more because it needs more steps. Everyone votes on the
+  quest including its difficulty.
+
+======================================================================
+5. COINS
+======================================================================
+
+  When a quest is completed, the coins are worked out in three steps
+  once the window and grace period are over:
+
+  1. STEP COINS: the group earns 1 coin for every 200 steps it
+     walked during the window. Steps past the goal count too, up to
+     150% of the goal.
+       Example: a Sprint group walks 10,000 steps -> 50 step coins.
+
+  2. GROUP SIZE BONUS: step coins are multiplied by
+       1 + 0.2 for every member after the first,
+     up to a maximum of x2.5 (reached at 8 members).
+       2 members -> x1.2    4 members -> x1.6
+       6 members -> x2.0    8+ members -> x2.5
+       Example: the same Sprint group has 4 members -> 50 x 1.6 = 80.
+
+  3. SHARE: the result is split equally between every party member,
+     rounded to whole coins, with a minimum of 10 coins each.
+       Example: 80 / 4 = 20 coins each.
+
+  Why it works this way:
+  - More steps, more coins: the group is rewarded for walking past
+    the goal, not just reaching it. The 150% limit stops very long
+    walks from paying without end.
+  - Bigger group, bigger total: a group of 8 earns more coins in
+    total than a group of 2 for the same steps, because getting 8
+    people to agree and take part is harder.
+  - But a smaller share each: the bonus grows slower than the group,
+    so each member's share shrinks as the group grows. A big group
+    that lets one person carry an easy quest does not flood everyone
+    with coins.
+  - Equal shares: every member gets the same coins, whether they
+    walked 20,000 steps or none. Everyone agreed to the quest, so
+    everyone shares the win. The rate (1 coin per 200 steps) is half
+    the daily reward's rate, because the same steps also count
+    toward each walker's daily reward.
+  - No prize for the top walker. The progress bar already shows who
+    carried the party; that recognition is the reward.
+
+  When a quest fails: no coins. Show how close the group got ("So
+  close! 87%") to encourage another try, but do not pay consolation
+  coins; they would make failing a free way to collect coins.
+
+  Same rules as the rest of the coin system:
+  - Quests need step sharing: a member must have sharing turned on
+    to accept a quest (section 8), exactly like the daily reward.
+  - The server decides everything: votes, progress, success and
+    payment. The phone only shows what the server says.
+  - Each member can be paid at most once per quest.
+  - Daily cap: quest coins per person are capped at 600 a day, just
+    above the most one quest can pay (a 2-member Weekend Journey at
+    150%: 540). Because members earn whether or not they walked, the
+    cap stops someone collecting rewards from many groups without
+    moving.
+
+======================================================================
+6. COUNTING STEPS DURING THE QUEST WINDOW
+======================================================================
+
+  Quest steps are read hour by hour from each member's phone, so
+every step taken inside the quest window counts, no matter when the
+member opens the app.
+
+  Why not use the daily totals the app already uploads?
+  - Those are one number per day, sent only when the app is open.
+    A quest window is a few hours, so the server would have to guess
+    which of the day's steps fell inside it. Anyone who walked before
+    opening the app would lose those steps, which hurts most when one
+    person is carrying the party.
+
+  How it works:
+  1. The phone already keeps a timed record of steps: Apple Health
+     on iPhone, Health Connect on Android. It keeps counting while
+     the app is closed.
+  2. Whenever a party member's app syncs during the quest (or within
+     the grace period after it), the app asks the phone for that
+     member's steps inside the quest window, split into hours:
+       6:15 - 7:00   1,240 steps
+       7:00 - 8:00   3,020 steps
+       8:00 - 8:15     410 steps
+     The first and last pieces are cut to the exact quest start and
+     end, so nothing outside the window counts.
+  3. The app uploads these hourly numbers for the quest. Each upload
+     replaces that member's previous one, so syncing many times never
+     double counts; the numbers simply grow as the member walks.
+  4. A member's quest steps = their hourly numbers added up. The
+     group total = every party member's quest steps added up.
+  5. Crossing midnight needs no special handling: the window is two
+     exact moments, and the phone counts the steps between them.
+
+  What this means for players:
+  - Steps count from the first second of the quest, even if the app
+    was closed the whole time. Opening the app only SENDS the steps;
+    it no longer decides which ones count.
+  - The live progress bar only moves when members' apps sync, since
+    the app cannot upload in the background. Members who want the
+    group to see their progress can open the app now and then. A
+    member who only opens the app after walking still gets every
+    step counted, as long as it is within the grace period.
+
+  Grace period:
+  - Steps only count if they were TAKEN inside the window, but they
+    can be UPLOADED up to 1 hour after it ends. When the window
+    closes, tell every member: "Time's up! Open the app within an
+    hour so your steps are added."
+  - A quest is only marked failed after the grace period; it can be
+    marked completed at any moment the goal is reached.
+
+  Protections:
+  - Manually typed-in steps never count: the same filters the app
+    already uses for daily steps (Apple Health's "entered by the
+    user" mark, and Health Connect's "manual entry" recording
+    method) apply to quest steps.
+  - A sanity limit per person per hour: any hour over 15,000 steps
+    is rejected as impossible. Hourly numbers make this check exact,
+    and it matters because one person can carry a quest.
+  - The server decides the window, using its own clock: uploads for
+    hours outside the window, or arriving after the grace period,
+    are refused.
+  - A member's quest steps can never be more than their step total
+    for those days. If the two disagree, the server keeps the
+    smaller number.
+
+======================================================================
+7. WHAT PEOPLE SEE
+======================================================================
+
+  A) Group page: quest card at the top
+
+     +------------------------------------------+
+     |  FOREST SPRINT              1h 12m left  |
+     |  [###############.........]  5,980 /     |
+     |                               8,000      |
+     |                                          |
+     |  Priya  ##########....   3,860           |
+     |  Sam    ####..........   1,410           |
+     |  You    ##............     710           |
+     |  Hana   ..............       0           |
+     |                                          |
+     |  So far: about 12 coins each             |
+     |  (keep walking: up to 18 each at 150%)   |
+     +------------------------------------------+
+
+     - The members' bars show each person's share of the group
+       total, so it is easy to see who is carrying the party.
+     - The party's characters (and pets) could walk along the
+       progress bar like the step road, moving forward as the total
+       grows. That reuses the walking scene already built.
+     - "You" is highlighted.
+
+  B) Proposing a quest (a sheet from the group page)
+
+     - Pick a type: Sprint / Patrol / Expedition / Day Trek /
+       Weekend Journey, each showing length, group goal, and the
+       coins each member would get for this group's size.
+     - Pick when: "As soon as everyone accepts", or a set time.
+     - A reminder: "Everyone in the group (5 people) must accept."
+     - Button: "Propose quest". Everyone in the group is asked.
+
+  C) Voting
+
+     +------------------------------------------+
+     |  Priya proposed a FOREST SPRINT          |
+     |  8,000 steps together in 2 hours         |
+     |  Starts: as soon as everyone accepts     |
+     |  About 16 coins each (5 of us), more if  |
+     |  we walk past the goal                   |
+     |                                          |
+     |  Accepted: Priya, Sam, You               |
+     |  Waiting:  Hana, Theo                    |
+     |                                          |
+     |     [ Accept ]        [ Decline ]        |
+     +------------------------------------------+
+
+     - Shows who has accepted and who the group is still waiting
+       for, so members can nudge each other.
+     - If someone declines: "Theo declined. The quest is cancelled."
+
+  D) The end
+
+     - Completed: a celebration screen with the party's characters
+       jumping, total steps, time taken, who walked the most, and
+       how the coins were worked out: "10,000 steps -> 50 coins,
+       x1.6 for 4 members -> 80, shared: +20 coins each".
+     - The celebration shows as soon as the goal is reached; the
+       coins arrive after the window and grace period end.
+     - Failed: "The party reached 87%. Try again in 1 hour."
+     - Both appear the next time each member opens the app, if they
+       missed it live.
+
+  E) Quest history (inside the group page)
+
+     - Past quests with result, date, party and coins earned.
+     - Cancelled proposals are not listed, to avoid blaming whoever
+       declined.
+     - Group stats: quests completed, best Sprint time, longest
+       success streak.
+
+  Notifications (needs push notifications, which the app does not
+  have yet; until then, show these as banners when the app opens):
+  - "Priya proposed a Forest Sprint. Everyone must accept."
+  - "Waiting for Hana and Theo to accept the Forest Sprint"
+  - "Everyone accepted! The Forest Sprint starts now."
+  - "Your quest has started! Every step from now counts."
+  - "Halfway there: 4,000 / 8,000 with 1h left"
+  - "30 minutes left, 800 steps to go!"
+  - "Time's up! Open the app within an hour so your steps are added."
+  - "Goal reached! Keep walking until 8:15 PM to earn more coins."
+  - "Quest finished: 10,000 steps. +20 coins"
+
+======================================================================
+8. TRICKY CASES TO DECIDE BEFORE BUILDING
+======================================================================
+
+  - A member does not share their steps:
+    They cannot accept until they turn sharing on, so the group
+    cannot start quests until they do (or leave the group). The
+    proposal screen should explain this: "Hana needs to turn on step
+    sharing to take part." This is the price of requiring everyone
+    to agree.
+
+  - A member never opens the app to vote:
+    Voting closes after at most 24 hours and the quest is cancelled.
+    In a group with an inactive member, quests become impossible.
+    Options: let the group owner remove inactive members, or show
+    "Last seen 9 days ago" next to people the group is waiting for
+    (the app already records Last seen).
+
+  - Someone joins the group during voting:
+    They must also accept before the quest can start, since the rule
+    is "everyone in the group".
+
+  - Someone joins the group during an active quest:
+    They are not part of it: no steps counted, no coins. They can
+    take part in the next one.
+
+  - Someone leaves the group during a quest:
+    Their steps so far still count toward the total, but they are
+    not in the final share: the coins are split between the members
+    who stayed. The group size bonus uses the party size when voting
+    finished, so leaving does not shrink the total.
+
+  - Someone turns off step sharing during a quest:
+    Their steps so far count; new steps stop counting; like leaving,
+    they are not in the final share.
+
+  - Members who did not walk at all:
+    They are paid anyway if the quest succeeds; this is the point of
+    "one person can carry the party". The daily cap (section 5) and
+    the 1-hour cooldown keep it from being abused.
+
+  - The group is very small (1 person):
+    Quests need at least 2 members. Solo players already have the
+    daily reward.
+
+  - Large groups:
+    The bigger the group, the harder it is to get everyone to agree.
+    That is intended. If it turns out too hard, see section 11.
+
+  - Time zones:
+    The window is an exact start and end moment, shown in each
+    member's own time. Step counting uses those exact moments, so
+    time zones and midnight make no difference (section 6).
+
+  - Apple Health or Health Connect permission missing:
+    The member can still accept (they may want to help others earn),
+    but their steps will not count until they allow access. Show the
+    same "Open settings" help as the Today tab.
+
+  - Two groups at once:
+    A person can be in quests in two groups at the same time, and
+    their steps count for both. That is fine: they really walked
+    them. The daily cap keeps it in check.
+
+  - The goal is reached during the grace period:
+    Counts as completed. Only steps TAKEN inside the window count,
+    so these are steps that were uploaded late, not walked late.
+
+======================================================================
+9. WHAT THE DATABASE NEEDS TO REMEMBER (plain words)
+======================================================================
+
+  For each quest:
+  - which group, which type, who proposed it
+  - the voting deadline, and the start and end moments
+  - the group goal and the party size (both fixed when voting
+    finishes)
+  - after it ends: the final step total, the step coins, the group
+    size bonus, and the coins paid to each member
+  - its state: voting, active, completed, failed, cancelled
+  - when it was completed, if it was
+
+  For each member's vote:
+  - who they are, and whether they accepted, declined, or have not
+    answered yet
+
+  For each party member during the quest:
+  - their steps for each hour of the window (replaced on every
+    upload), and when they last uploaded
+  - their quest steps so far (those hours added up)
+  - whether they have been paid, and how much
+
+  Who can see what:
+  - Only members of the group can see its quests, votes and
+    progress, just like they can already see each other's steps.
+  - Members can only cast their own vote and send their own hourly
+    steps, and only through the server's quest functions, which
+    check the window, the grace period and the per-hour limit.
+    Nobody can write the group total, the result or payments
+    directly.
+
+======================================================================
+10. BUILDING IT IN STAGES
+======================================================================
+
+  Stage A - The core loop
+    Sprint and Patrol only. Propose, everyone votes, active,
+    completed or failed, everyone paid. Hour-by-hour step counting
+    (section 6) with the 1-hour grace period. Quest card on the group page with a progress bar, countdown and
+    per-member bars. Banners instead of push notifications.
+
+  Stage B - Make it feel good
+    Characters walking along the progress bar, the celebration
+    screen, quest history, group stats, "Last seen" next to people
+    the group is waiting for.
+
+  Stage C - More quests
+    Expedition, Day Trek, Weekend Journey, themed quest names,
+    Quest of the Week.
+
+  Stage D - Reach
+    Push notifications (so the start, halfway and time's-up messages
+    reach people with the app closed), difficulty levels.
+
+  For testing, extend the fake friends dev script so the eight fake
+  players can be put in a group, with their votes already cast and
+  an active quest with some hourly steps already uploaded.
+
+

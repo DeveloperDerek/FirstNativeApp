@@ -1,0 +1,501 @@
+STEP TRACKER - TAP A NAME IN THE RANKING TO SEE THEIR PROFILE
+Tap anyone in the ranking list under the map and a profile card
+opens, showing that person's character standing on the background
+THEY are using.
+Last checked: October 2026
+
+Builds on step-tracker-map-themes.txt and
+step-tracker-theme-everywhere.txt. Adds two small files and makes
+small edits to TrackScreen.tsx. StepTrack.tsx is NOT changed.
+
+REVISED: an earlier version of this file made the characters on the
+map tappable. That was removed, because characters standing close
+together overlap and it was unclear which one a tap would open. The
+ranking list is now the only way in. If you already applied the
+earlier version, see section 5 to undo it.
+
+No database changes. None of this code has been run; treat it as a
+scaffold.
+
+======================================================================
+1. HOW IT WORKS
+======================================================================
+
+  1. Each row in the ranking list under the map becomes a button,
+     with a small copy of the person's character and an arrow so it
+     looks tappable.
+  2. Tapping a row opens a card over the page:
+
+       +--------------------------------+
+       |  sky color of THEIR map        |
+       |                                |
+       |   their scenery   [character]  |
+       |  ========= road ============== |
+       |  ground color of THEIR map     |
+       |  Sam Rivera                    |
+       |  @sam_r                        |
+       |  Today: 7,412 steps            |
+       |  Background: Forest            |
+       |  [ Close ]                     |
+       +--------------------------------+
+
+  3. The card is drawn in the OTHER person's map colors, not yours,
+     so you can see at a glance what they have unlocked.
+  4. Tapping outside the card, the Close button, or the Android back
+     button closes it.
+  5. Tapping your own row opens your card, with an "Edit profile"
+     button.
+  6. Characters on the map do nothing when tapped. They are there to
+     look at; the list is where you pick a person.
+
+Where the information comes from:
+  - Character, name, and today's steps: already loaded for the map.
+  - Username and chosen background: one small read from the profiles
+    table when the card opens.
+
+Why no database change is needed: the "profiles read" rule from the
+social features file already lets any signed-in user read profile
+rows, and map_theme is a column on that table.
+
+======================================================================
+2. FILE LAYOUT
+======================================================================
+
+  src/
+    api/
+      players.ts           <- NEW: read someone's public profile
+    components/
+      PlayerCard.tsx       <- NEW: the profile card
+    screens/
+      TrackScreen.tsx      <- EDIT: tappable ranking, open the card
+
+======================================================================
+3. src/api/players.ts
+======================================================================
+
+  import { supabase } from '../lib/supabase';
+
+  export type PlayerProfile = {
+    username: string;
+    displayName: string | null;
+    avatar: Record<string, unknown> | null;
+    mapTheme: string | null;
+  };
+
+  export async function loadPlayerProfile(
+    userId: string
+  ): Promise<PlayerProfile> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('username, display_name, avatar, map_theme')
+      .eq('id', userId)
+      .single();
+    if (error) throw error;
+    return {
+      username: data.username,
+      displayName: data.display_name,
+      avatar: data.avatar,
+      mapTheme: data.map_theme,
+    };
+  }
+
+Only these four columns are requested on purpose. Do not switch this
+to select('*'): the profiles table also holds sharing_consent_at,
+which other users have no reason to see.
+
+======================================================================
+4. src/components/PlayerCard.tsx
+======================================================================
+
+  import { useEffect, useState } from 'react';
+  import {
+    ActivityIndicator, Image, Modal, Pressable, Text, View,
+    useWindowDimensions,
+  } from 'react-native';
+  import { Avatar } from '../avatar/Avatar';
+  import { DEFAULT_AVATAR, type AvatarConfig } from '../avatar/types';
+  import { getTheme } from '../track/themes';
+  import type { Walker } from '../track/StepTrack';
+  import { loadPlayerProfile, type PlayerProfile } from '../api/players';
+  import { ThemedButton } from './ThemedButton';
+
+  const TILE_W = 512;        // same sizes as StepTrack
+  const TILE_H = 160;
+  const SCENE_H = 180;       // height of the picture at the top
+  const AVATAR_SCALE = 3;    // whole number, keeps pixels crisp
+  const ROAD_BASE = 6;
+
+  export function PlayerCard({
+    walker, onClose, onEditMine,
+  }: {
+    walker: Walker | null;           // null = card is closed
+    onClose: () => void;
+    onEditMine?: () => void;         // shown only on your own card
+  }) {
+    const { width } = useWindowDimensions();
+    const [profile, setProfile] = useState<PlayerProfile | null>(null);
+    const [failed, setFailed] = useState(false);
+
+    // Load the username and chosen background each time a card opens
+    useEffect(() => {
+      if (!walker) return;
+      let cancelled = false;
+      setProfile(null);
+      setFailed(false);
+      loadPlayerProfile(walker.id)
+        .then((p) => { if (!cancelled) setProfile(p); })
+        .catch(() => { if (!cancelled) setFailed(true); });
+      // If another character is tapped before this one loads, ignore
+      // the late answer
+      return () => { cancelled = true; };
+    }, [walker?.id]);
+
+    if (!walker) return null;
+
+    // THEIR theme, not the viewer's. Falls back to the village.
+    const theme = getTheme(profile?.mapTheme);
+    const ready = profile !== null || failed;
+
+    const cardW = Math.min(width - 32, 360);
+    const name = walker.isMe
+      ? 'You'
+      : profile?.displayName ?? walker.name;
+    // Prefer the freshly loaded character; fall back to the map's copy
+    const avatar: AvatarConfig = {
+      ...DEFAULT_AVATAR,
+      ...((profile?.avatar ?? walker.avatar ?? {}) as Partial<AvatarConfig>),
+    };
+
+    return (
+      <Modal
+        visible
+        transparent
+        animationType="fade"
+        onRequestClose={onClose}           // Android back button
+      >
+        {/* Dimmed backdrop: tap it to close */}
+        <Pressable
+          onPress={onClose}
+          accessibilityLabel="Close profile"
+          style={{
+            flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+            alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          {/* Taps on the card itself must not close it */}
+          <Pressable
+            onPress={() => {}}
+            accessibilityViewIsModal
+            style={{
+              width: cardW,
+              borderRadius: 12, borderWidth: 3, borderColor: '#2a1a1a',
+              overflow: 'hidden',
+              backgroundColor: ready ? theme.ground : '#e9e2d0',
+            }}
+          >
+            {/* Picture: their sky, their scenery, their character */}
+            <View style={{
+              height: SCENE_H,
+              backgroundColor: ready ? theme.sky : '#e9e2d0',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              {!ready ? (
+                <ActivityIndicator color="#2a1a1a" />
+              ) : (
+                <>
+                  <View style={{
+                    position: 'absolute', bottom: 0, left: 0,
+                    flexDirection: 'row',
+                  }}>
+                    {Array.from(
+                      { length: Math.ceil(cardW / TILE_W) },
+                      (_, i) => (
+                        <Image
+                          key={i}
+                          source={theme.tiles[i % theme.tiles.length]}
+                          style={{ width: TILE_W, height: TILE_H }}
+                          accessibilityElementsHidden
+                          importantForAccessibility="no"
+                        />
+                      )
+                    )}
+                  </View>
+                  <View
+                    accessible
+                    accessibilityLabel={`${name}'s character`}
+                    style={{ position: 'absolute', bottom: ROAD_BASE }}
+                  >
+                    <Avatar config={avatar} scale={AVATAR_SCALE} />
+                  </View>
+                </>
+              )}
+            </View>
+
+            {/* Details, on their ground color */}
+            <View style={{ padding: 16, gap: 4 }}>
+              <Text
+                accessibilityRole="header"
+                style={{
+                  fontSize: 20, fontWeight: 'bold',
+                  color: ready ? theme.ink : '#2a1a1a',
+                }}
+              >
+                {name}
+              </Text>
+
+              {profile && (
+                <Text style={{ color: theme.ink }}>@{profile.username}</Text>
+              )}
+
+              <Text style={{ color: ready ? theme.ink : '#2a1a1a' }}>
+                Today: {walker.steps.toLocaleString()} steps
+              </Text>
+
+              {profile && (
+                <Text style={{ color: theme.ink }}>
+                  Background: {theme.label}
+                </Text>
+              )}
+
+              {failed && (
+                <Text style={{ color: theme.ink }}>
+                  Could not load the rest of this profile.
+                </Text>
+              )}
+
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                {walker.isMe && onEditMine && (
+                  <ThemedButton theme={theme} title="Edit profile"
+                    onPress={() => { onClose(); onEditMine(); }} />
+                )}
+                <ThemedButton theme={theme} title="Close" onPress={onClose} />
+              </View>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    );
+  }
+
+Notes:
+  - The scenery in the card is the same tile image used on the map,
+    cropped to the card width. No new art is needed.
+  - While the card is loading it shows a neutral color with a
+    spinner, so it never flashes the wrong background first.
+  - The character is drawn at 3x and the scenery at 2x, so the person
+    looks a little larger than life against the buildings. That is
+    intended for a portrait; set AVATAR_SCALE to 2 to match the map.
+
+======================================================================
+5. src/track/StepTrack.tsx: NO CHANGES
+======================================================================
+
+Use StepTrack.tsx exactly as it is in step-tracker-map-themes.txt.
+
+If you applied the earlier version of this file, undo it:
+  - Put back the WalkerSprite function from
+    step-tracker-map-themes.txt (the one without a Pressable inside).
+  - Remove onSelectWalker from the StepTrack props and from the
+    <WalkerSprite ... /> line.
+  - Remove Pressable from StepTrack's react-native import.
+  - In TrackScreen, remove the onSelectWalker={...} line from
+    <StepTrack ... />.
+
+======================================================================
+6. EDIT src/screens/TrackScreen.tsx
+======================================================================
+
+Four edits.
+
+--- 6a. Add imports ---
+
+  import { Pressable } from 'react-native';      // add to the existing list
+  import { Avatar } from '../avatar/Avatar';
+  import { DEFAULT_AVATAR } from '../avatar/types';
+  import { PlayerCard } from '../components/PlayerCard';
+
+--- 6b. Accept a way to open your own profile ---
+
+Change:
+
+  export function TrackScreen({ userId }: { userId: string }) {
+
+to:
+
+  export function TrackScreen({
+    userId, onOpenMyProfile,
+  }: { userId: string; onOpenMyProfile?: () => void }) {
+
+onOpenMyProfile is whatever your navigation uses to show the Profile
+page, for example () => navigation.navigate('Profile').
+
+--- 6c. Remember which person was tapped ---
+
+Add next to the other useState lines:
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Look the walker up by id each render, so the step count on an
+  // open card stays current when the map refreshes
+  const selected = walkers.find((w) => w.id === selectedId) ?? null;
+
+--- 6d. Make the ranking list tappable ---
+
+Replace the ranked list block:
+
+  <View>
+    {[...walkers]
+      .sort((a, b) => b.steps - a.steps)
+      .map((w, i) => (
+        <Text key={w.id} style={{ color: theme.ink, lineHeight: 22 }}>
+          {i + 1}. {w.isMe ? 'You' : w.name} - {w.steps.toLocaleString()}
+        </Text>
+      ))}
+  </View>
+
+with:
+
+  <View style={{ gap: 4 }}>
+    <Text style={{ color: theme.ink, fontWeight: 'bold' }}>Ranking</Text>
+    <Text style={{ color: theme.ink, fontSize: 12 }}>
+      Tap a name to see their profile
+    </Text>
+
+    {[...walkers]
+      .sort((a, b) => b.steps - a.steps)
+      .map((w, i) => (
+        <Pressable
+          key={w.id}
+          onPress={() => setSelectedId(w.id)}
+          accessibilityRole="button"
+          accessibilityLabel={
+            `${i + 1}. ${w.isMe ? 'You' : w.name}, ` +
+            `${w.steps.toLocaleString()} steps`
+          }
+          accessibilityHint="Opens their profile"
+          style={({ pressed }) => ({
+            flexDirection: 'row', alignItems: 'center', gap: 12,
+            minHeight: 56, paddingHorizontal: 8,
+            borderBottomWidth: 1, borderBottomColor: theme.ink + '33',
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <Text style={{ color: theme.ink, width: 24, fontWeight: 'bold' }}>
+            {i + 1}
+          </Text>
+          {/* Small copy of their character */}
+          <Avatar
+            config={{ ...DEFAULT_AVATAR, ...(w.avatar ?? {}) }}
+            scale={1}
+          />
+          <Text
+            numberOfLines={1}
+            style={{
+              flex: 1, color: theme.ink,
+              fontWeight: w.isMe ? 'bold' : 'normal',
+            }}
+          >
+            {w.isMe ? 'You' : w.name}
+          </Text>
+          <Text style={{ color: theme.ink }}>
+            {w.steps.toLocaleString()}
+          </Text>
+          {/* Arrow: the usual hint that a row opens something */}
+          <Text style={{ color: theme.ink, fontSize: 18 }}>{'>'}</Text>
+        </Pressable>
+      ))}
+  </View>
+
+--- 6e. Draw the card ---
+
+Add the card as the LAST thing inside the outermost <View>, just
+before its closing tag:
+
+      <PlayerCard
+        walker={selected}
+        onClose={() => setSelectedId(null)}
+        onEditMine={onOpenMyProfile}
+      />
+    </View>
+  );
+
+======================================================================
+7. DESIGN CHOICES YOU CAN CHANGE
+======================================================================
+
+  - Card or full page: this opens a card over the page so the user
+    never loses their place. To make it a full page instead, navigate
+    to a PlayerProfileScreen with the user id and reuse the same
+    layout inside a ThemedScreen.
+  - What the card shows. Easy additions, all from data you already
+    store:
+      * "Add friend" / "Friends" / "Request sent" (friendships table)
+      * goal days this week (daily_steps, last 7 days)
+      * groups you have in common (group_members)
+    Each is one more query in players.ts. Step history beyond today
+    is already limited by the database to friends and group mates.
+  - Keeping your own background behind the card: the card uses the
+    other person's colors on purpose. If that feels jarring, keep the
+    scene in their theme and draw the details section on a plain
+    light panel.
+
+======================================================================
+8. GOTCHAS
+======================================================================
+
+Ranking list
+  - Each row has its own small Skia canvas for the character. That is
+    fine for a few dozen people. For very large groups, switch the
+    list to a FlatList, or drop the small character from the rows.
+  - The small character is drawn at 1x (32 x 56 points). It is a
+    whole-number scale, so it stays crisp, but fine details are hard
+    to see at that size. The card shows it large.
+  - Rows are 56 points tall so they are easy to hit. Do not shrink
+    them below 44.
+  - The card is a Modal, so it draws above the tab bar. That is
+    intended.
+
+Privacy
+  - Any signed-in user can already read usernames, display names, and
+    characters. This change makes the chosen background visible in
+    the same way. Mention it in the privacy policy alongside the
+    character.
+  - The card only shows today's steps for people who were already in
+    your ranking list, so it reveals nothing new about steps.
+  - Someone with step sharing turned off appears in a group ranking
+    at 0 and their card says "Today: 0 steps". If you hide
+    non-sharing members (suggested earlier), they also disappear
+    from the list.
+
+Data
+  - If the profile read fails (no signal), the card still opens with
+    the name, character, and steps it already had, on the village
+    background, with a short "could not load" line.
+  - A background id the app does not recognise (for example a map
+    added in a newer app version) falls back to the village.
+  - A friend who changes their background sees it on their card the
+    next time you open it; nothing is cached.
+
+======================================================================
+9. BUILD ORDER
+======================================================================
+
+  [ ] If the earlier version was applied: undo it (section 5) and
+      confirm tapping a character on the map does nothing
+  [ ] players.ts and PlayerCard.tsx
+  [ ] TrackScreen edits (section 6); confirm each ranking row shows a
+      number, small character, name, steps, and arrow
+  [ ] Tap your own row: card shows your character on your
+      background, with Edit profile
+  [ ] With a second test account on a different background: tap them
+      in Friends mode and confirm the card uses THEIR background
+  [ ] Tap someone who is scrolled off screen on the map
+  [ ] Close three ways: Close button, tap outside, Android back
+  [ ] Turn on airplane mode and tap a row; confirm the card still
+      opens with the fallback line
+  [ ] Check the rows on a light ground (beach) and a dark ground
+      (forest) for readability
+  [ ] Screen reader: each row is announced as a button with rank,
+      name, and steps
+  [ ] Privacy policy: add that the chosen background is visible to
+      other signed-in users

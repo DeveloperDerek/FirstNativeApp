@@ -1,0 +1,193 @@
+STEP TRACKER - RECOMMENDATIONS
+What to build or fix next, from a read through the app, the database
+migrations, and the plan files. Grouped by priority. Each item says
+what it is, why it matters, and where it lives.
+Last checked: October 2026
+
+Current health: the typecheck passes and all 106 unit tests pass.
+Lint has 1 error (see 3a). RELEASE-GATE.md already covers legal,
+domain, email and dashboard settings, so those are not repeated here.
+
+======================================================================
+1. BEFORE RELEASE (APP STORE / PLAY STORE WILL ASK FOR THESE)
+======================================================================
+
+  1a. BLOCK AND REPORT OTHER USERS
+  - The app has usernames, display names, group names and characters
+    that other people see, but no way to block or report someone.
+    Apple's guideline 1.2 (user-generated content) requires both, plus
+    a way for you to act on reports.
+  - Suggested: a "blocked_users" table; blocked people can't find you
+    in search, send requests, or see your steps; the Friends screen
+    and profile card get "Block" and "Report" buttons; reports go to a
+    "reports" table you review (the admins table already exists).
+  - Teens 13-17 make this more important (see RELEASE-GATE.md gate 1).
+
+  1b. LIMIT WHAT NAMES CAN SAY
+  - Usernames are checked (a-z, 0-9, _), but group names have no
+    length limit or filter in the database (groups.name is plain text).
+    Add a length check (e.g. 1-40 characters) and run group names and
+    display names through the same reserved/bad-word list used for
+    usernames.
+
+  1c. REVOKE THE SIGN IN WITH APPLE TOKEN ON ACCOUNT DELETION
+  - Already a TODO in supabase/functions/delete-account/index.ts.
+    Apple rejects apps that skip this once Apple sign-in is turned on.
+
+  1d. WHAT HAPPENS TO A GROUP WHEN ITS OWNER LEAVES OR DELETES
+  - Deleting an account deletes every group the person owns, which
+    wipes the group (and its quests) for everyone else in it.
+  - The owner can also "leave" their own group, leaving it with an
+    owner who isn't a member.
+  - Suggested: when the owner leaves or deletes their account, hand
+    ownership to the longest-standing member; only delete the group
+    when nobody is left. Warn the owner in the delete-account dialog.
+
+  1e. CRASH AND ERROR REPORTING
+  - Nothing reports crashes or errors from real phones today. Add
+    Sentry (or similar) before the first real users, with step counts
+    and personal details kept out of reports.
+
+  1f. EAS BUILD SETUP
+  - There is no eas.json yet. Create build profiles (development,
+    preview, production) so builds, TestFlight and Play internal
+    testing are repeatable.
+
+======================================================================
+2. CORE FEATURES WORTH ADDING
+======================================================================
+
+  2a. A PERSONAL DAILY GOAL
+  - The goal is fixed at 10,000 (DailyStepGoal in
+    src/constants/theme.ts and "goal" in claim_daily_rewards()).
+    Many people start lower. Let each person pick a goal (e.g. 5,000 to
+    20,000) for their progress bar and history. Coins can stay tied to
+    10,000 so the economy stays fair, or scale with the goal.
+
+  2b. STREAKS
+  - "5 days in a row at your goal" is the strongest everyday reason to
+    open a step app. Count it on the server from daily_steps, show it
+    on Today and on the profile card, and pay a small coin bonus at 7,
+    30 and 100 days.
+
+  2c. LONGER HISTORY
+  - History shows only the last 7 days (HISTORY_DAYS), and the phone
+    cache keeps only what it has read. The server already stores every
+    day. Add a week / month / year view with totals, best day and
+    averages, read from daily_steps.
+
+  2d. REMINDERS
+  - Push is already set up for friend requests. Add opt-in local
+    reminders like "2,000 steps to your goal" in the evening, and
+    push for quest events (quest started, quest about to end, quest
+    won) which the notifications blueprint lists as later phases.
+
+  2e. HOME SCREEN WIDGET
+  - Today's steps and progress on the home screen (iOS widget,
+    Android widget). Very common ask for step apps; needs a native
+    target, so plan it as its own stage.
+
+  2f. ACHIEVEMENTS / BADGES
+  - One-time awards (first 10k day, 1 million lifetime steps, first
+    quest won) shown on the profile card. Good use for the character
+    and shop system: some items unlock only from achievements.
+
+  2g. ROTATE A GROUP'S INVITE CODE
+  - Invite codes never change, so a leaked code works forever. Let the
+    owner make a new code, and consider a member limit per group.
+
+======================================================================
+3. CODE QUALITY AND BUGS
+======================================================================
+
+  3a. FIX THE LINT ERROR IN src/hooks/use-steps.tsx
+  - "react-hooks/set-state-in-effect" at the useEffect that calls
+    refresh(). The project rule is lint + typecheck before calling a
+    task done.
+
+  3b. STOP OVERLAPPING STEP REFRESHES
+  - refresh() runs on launch and every time the app comes to the
+    foreground, with no check for one already running. Quick
+    app switching can start two uploads and two coin claims at once.
+    The database protects the coins (one payout per day), but the
+    duplicate work and a possible double "Goal reached!" alert can be
+    avoided with an "already running" guard.
+
+  3c. KEEP THE PHONE'S STEP CACHE PER ACCOUNT
+  - "steps-by-day" in AsyncStorage is one shared key. It is cleared on
+    sign-out (src/auth/local-data.ts), but if sign-out fails partway
+    or the session expires, the next account can briefly see the old
+    history. Store it under "steps-by-day:<userId>".
+
+  3d. TIME ZONES AND TRAVEL
+  - Days are worked out in the phone's local time (dayKey), while the
+    server's claim_daily_rewards() uses current_date (server time) and
+    allows up to "current_date + 1". Someone flying east-west can end
+    up with odd day boundaries. Decide one rule (e.g. save the user's
+    time zone on the profile and let the server use it) and add a test.
+
+  3e. ANTI-CHEAT STAYS CLIENT-SIDE
+  - Steps are uploaded by the app and the server trusts them up to
+    100,000 a day. Trusted-source filtering on the phone helps, but a
+    modified app can still upload any number. Before coins or quests
+    have real value, add server checks: flag sudden jumps, days far
+    above a person's usual, and edits to old days; and consider a
+    lower cap for coins than for display.
+
+  3f. TESTS FOR THE SCREENS AND HOOKS
+  - Unit tests cover the pure logic well (auth, rules, scale,
+    storage). There are no tests for hooks like use-steps or for the
+    screens. A few React Native Testing Library tests on the Today and
+    Friends screens would catch most regressions.
+
+  3g. CONTINUOUS INTEGRATION
+  - There is no .github/workflows. A small GitHub Action that runs
+    typecheck, lint, the unit tests and the database tests
+    (supabase/tests) on every push keeps main green.
+
+  3h. COMMIT THE OPEN WORK
+  - The branch has many uncommitted changes, including deleted web
+    files and edits to auth, health and Supabase code. Commit in small
+    pieces so each change can be reviewed and rolled back.
+
+======================================================================
+4. POLISH
+======================================================================
+
+  4a. ACCESSIBILITY
+  - Some screens have screen-reader labels (57 so far). Check every
+    button and the step track on VoiceOver and TalkBack, support
+    larger text sizes, and read error messages aloud on all sign-up
+    screens (already listed in RELEASE-GATE.md).
+
+  4b. OFFLINE
+  - Decide what opening the app offline should do (open question in
+    RELEASE-GATE.md). Suggested: show cached steps and character, and
+    queue the upload for later, instead of a "Can't reach" screen.
+
+  4c. README
+  - README.md is still the Expo template. Replace it with how to set
+    up .env, run Supabase locally, run tests, and build the app, and
+    point to the step-tracker-*.txt plan files.
+
+  4d. CELEBRATIONS INSTEAD OF ALERTS
+  - "Goal reached!" uses a system Alert. A small in-app animation with
+    the character (and the coins flying into the balance) fits the
+    game style better.
+
+  4e. RENAME THE PROJECT LEFTOVERS
+  - The slug is "ReactNativeApp" and the link scheme "reactnativeapp".
+    RELEASE-GATE.md already plans the scheme rename; do the slug and
+    package name at the same time, since both need a new build.
+
+======================================================================
+5. SUGGESTED ORDER
+======================================================================
+
+  1. Fix lint (3a), refresh guard (3b), per-account cache (3c).
+  2. Block / report and name limits (1a, 1b).
+  3. Group ownership hand-over (1d) and Apple token revoke (1c).
+  4. eas.json, crash reporting and CI (1f, 1e, 3g).
+  5. Personal goal and streaks (2a, 2b).
+  6. Longer history and reminders (2c, 2d).
+  7. Widgets, achievements and the rest when the basics are solid.

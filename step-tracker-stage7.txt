@@ -1,0 +1,980 @@
+STEP TRACKER - MAP THEMES
+Four changes to the step track, in one file:
+  A. Selectable map themes: village (free), forest, city, beach,
+     mountain
+  B. Maps are sold in the coin shop
+  C. The map blends into the screen: no dark strip, no box
+  D. Buttons get their own strong color so they stand out
+Last checked: October 2026
+
+Builds on step-tracker-latest-changes.txt (the scrollable village
+track) and the coins and shop file. This file REPLACES StepTrack.tsx
+and TrackScreen.tsx from that file. scale.ts is unchanged.
+
+None of this code or SQL has been run. Treat it as a scaffold.
+
+======================================================================
+1. HOW IT WORKS
+======================================================================
+
+Themes
+  - A theme is one object: colors, background tiles, and landmark
+    buildings. The track draws whatever theme it is given.
+  - Village is free. The other four are shop items.
+  - Each user picks a map on the Track screen. The choice is saved on
+    their profile.
+  - You see YOUR map, even in Friends and Group modes. Your friends
+    see the same walkers on their own maps.
+
+Shop
+  - Maps are ordinary rows in shop_items, so they turn up in each
+    user's random daily shop, cost coins, and are bought with the
+    same purchase_item() function as clothing.
+  - The database refuses to save a map the user does not own.
+
+Seamless look (what removes the black background)
+
+  BEFORE                          AFTER
+  +------------------------+      sky color sky color sky color
+  | page background        |      sky color sky color sky color
+  | .--------------------. |      houses   trees   houses  trees
+  | | sky + village      | |      ====== road ======= road =====
+  | '--------------------' |      ground color   0    2.5k   5k
+  | ###### dark strip #### |      ground color  [ Find me ]
+  | page background        |      ground color  1. You - 6,204
+  +------------------------+      ground color ground color
+
+  - Every theme has a SKY color and a GROUND color.
+  - Everything above the road is painted the sky color, right up
+    behind the status bar. Everything below the road is painted the
+    ground color, down to the bottom of the screen.
+  - The art is drawn to match: transparent above the buildings (so
+    the sky color shows through) and ending in the exact ground color
+    at its bottom edge.
+  - The dark marker strip, the rounded corners, and the side padding
+    are gone. The map runs edge to edge.
+
+Buttons
+  - Each theme has a button color chosen to contrast with its ground,
+    plus a dark outline and a thick bottom edge so buttons read as
+    raised, pixel-style blocks.
+
+======================================================================
+2. FILE LAYOUT
+======================================================================
+
+  assets/
+    maps/
+      village/   tile_a.png tile_b.png start.png mid.png goal.png far.png
+      forest/    (same six names)
+      city/      (same six names)
+      beach/     (same six names)
+      mountain/  (same six names)
+      (each image also needs its @2x and @3x versions)
+  src/
+    track/
+      scale.ts           <- unchanged
+      themes.ts          <- NEW: the five themes
+      StepTrack.tsx      <- REPLACED
+    components/
+      ThemedButton.tsx   <- NEW
+    api/
+      mapTheme.ts        <- NEW: load / save the chosen map
+    screens/
+      TrackScreen.tsx    <- REPLACED
+      ShopScreen.tsx     <- small changes (section 9)
+
+If you already made assets/village/ from the earlier file, move those
+images to assets/maps/village/ and rename them:
+  village_tile_a -> tile_a      landmark_gate     -> start
+  village_tile_b -> tile_b      landmark_bakery   -> mid
+                                landmark_townhall -> goal
+                                landmark_windmill -> far
+
+======================================================================
+3. ART SPEC FOR THE FOUR NEW MAPS
+======================================================================
+
+All art must be original, in the same pixel style as the characters.
+Do not copy scenery from MapleStory or any other game.
+
+Same sizes and export rules as the village (draw the tile at 256 x 80
+and landmarks up to 64 x 72; export at 2x, 4x, and 6x with nearest
+neighbor as name.png, name@2x.png, name@3x.png).
+
+The three rules that make the map seamless:
+  1. ABOVE the scenery the tile is fully transparent. Do not paint a
+     sky. The app paints the sky color behind it.
+  2. The bottom 24 rows are the ground the characters walk on. Its
+     bottom rows must be the theme's exact GROUND color from the
+     table below, flat, with no outline along the bottom edge.
+  3. Left and right edges match so the tile repeats without a seam.
+
+  Theme     Sky      Ground   Ground is      Scenery
+  --------  -------  -------  -------------  ------------------------
+  village   #bfe6ff  #c9a26b  packed dirt    houses, stalls, fences
+  forest    #cfeedd  #3f5a2a  mossy trail    pines, ferns, mushrooms
+  city      #c9d6e8  #4a4f5a  asphalt        shop fronts, lamp posts
+  beach     #9fdcf5  #f0d9a0  sand           palms, umbrellas, sea
+  mountain  #dfe8f5  #5a5d6b  rocky path     boulders, snow, peaks
+
+  Landmarks (start / mid 5,000 / goal 10,000 / far 15,000)
+  village   gate / bakery / town hall / windmill
+  forest    trailhead sign / log bridge / great tree / waterfall
+  city      subway entrance / coffee cart / clock tower / stadium
+  beach     boardwalk arch / surf shack / lighthouse / pier
+  mountain  base camp / rope bridge / summit flag / observatory
+
+If the artist changes a ground or sky color, change it in themes.ts
+too. The two must match exactly or a line shows where they meet.
+
+======================================================================
+4. DATABASE
+======================================================================
+
+Run in the Supabase SQL Editor.
+
+  -- Which map each user has selected
+  alter table public.profiles
+    add column map_theme text not null default 'map_village'
+    check (char_length(map_theme) < 40);
+
+  -- Refuse a map the user has not bought. A map that is not in
+  -- shop_items (map_village) is free.
+  create function public.check_map_theme()
+  returns trigger language plpgsql security definer set search_path = ''
+  as $$
+  begin
+    if exists (select 1 from public.shop_items where id = new.map_theme)
+       and not exists (select 1 from public.user_items
+                       where user_id = new.id and item_id = new.map_theme)
+    then
+      raise exception 'ITEM_NOT_OWNED: %', new.map_theme;
+    end if;
+    return new;
+  end;
+  $$;
+
+  create trigger map_theme_owned
+    before update of map_theme on public.profiles
+    for each row execute function public.check_map_theme();
+
+  -- Put the maps in the shop pool
+  insert into public.shop_items (id, price) values
+    ('map_forest',   2000),
+    ('map_beach',    2000),
+    ('map_city',     2500),
+    ('map_mountain', 2500);
+
+Nothing else changes. daily_shop() and purchase_item() already work
+for any row in shop_items, and "never offer something already owned"
+applies to maps too.
+
+Prices: 2,000 coins is 20 goal days at 100 coins a day, so a map is a
+bigger prize than clothing. Change the numbers above to taste.
+
+======================================================================
+5. src/track/themes.ts
+======================================================================
+
+Metro needs every require() written out, so each image is listed.
+
+  export type MapTheme = {
+    id: string;            // also the shop item id
+    label: string;
+    sky: string;           // everything above the road
+    ground: string;        // everything below the road
+    ink: string;           // text drawn on the ground color
+    button: string;
+    buttonText: string;
+    tiles: number[];
+    landmarks: { steps: number; label: string; image: number }[];
+  };
+
+  export const DEFAULT_THEME_ID = 'map_village';
+
+  export const THEMES: Record<string, MapTheme> = {
+    map_village: {
+      id: 'map_village', label: 'Village',
+      sky: '#bfe6ff', ground: '#c9a26b', ink: '#2a1a1a',
+      button: '#8c1c15', buttonText: '#ffffff',
+      tiles: [
+        require('../../assets/maps/village/tile_a.png'),
+        require('../../assets/maps/village/tile_b.png'),
+      ],
+      landmarks: [
+        { steps: 0, label: 'Village gate',
+          image: require('../../assets/maps/village/start.png') },
+        { steps: 5_000, label: 'Bakery',
+          image: require('../../assets/maps/village/mid.png') },
+        { steps: 10_000, label: 'Town hall, the 10,000 step goal',
+          image: require('../../assets/maps/village/goal.png') },
+        { steps: 15_000, label: 'Windmill',
+          image: require('../../assets/maps/village/far.png') },
+      ],
+    },
+
+    map_forest: {
+      id: 'map_forest', label: 'Forest',
+      sky: '#cfeedd', ground: '#3f5a2a', ink: '#ffffff',
+      button: '#f7c948', buttonText: '#2a1a1a',
+      tiles: [
+        require('../../assets/maps/forest/tile_a.png'),
+        require('../../assets/maps/forest/tile_b.png'),
+      ],
+      landmarks: [
+        { steps: 0, label: 'Trailhead sign',
+          image: require('../../assets/maps/forest/start.png') },
+        { steps: 5_000, label: 'Log bridge',
+          image: require('../../assets/maps/forest/mid.png') },
+        { steps: 10_000, label: 'Great tree, the 10,000 step goal',
+          image: require('../../assets/maps/forest/goal.png') },
+        { steps: 15_000, label: 'Waterfall',
+          image: require('../../assets/maps/forest/far.png') },
+      ],
+    },
+
+    map_city: {
+      id: 'map_city', label: 'City',
+      sky: '#c9d6e8', ground: '#4a4f5a', ink: '#ffffff',
+      button: '#ff9a3d', buttonText: '#2a1a1a',
+      tiles: [
+        require('../../assets/maps/city/tile_a.png'),
+        require('../../assets/maps/city/tile_b.png'),
+      ],
+      landmarks: [
+        { steps: 0, label: 'Subway entrance',
+          image: require('../../assets/maps/city/start.png') },
+        { steps: 5_000, label: 'Coffee cart',
+          image: require('../../assets/maps/city/mid.png') },
+        { steps: 10_000, label: 'Clock tower, the 10,000 step goal',
+          image: require('../../assets/maps/city/goal.png') },
+        { steps: 15_000, label: 'Stadium',
+          image: require('../../assets/maps/city/far.png') },
+      ],
+    },
+
+    map_beach: {
+      id: 'map_beach', label: 'Beach',
+      sky: '#9fdcf5', ground: '#f0d9a0', ink: '#2a1a1a',
+      button: '#0f5f5d', buttonText: '#ffffff',
+      tiles: [
+        require('../../assets/maps/beach/tile_a.png'),
+        require('../../assets/maps/beach/tile_b.png'),
+      ],
+      landmarks: [
+        { steps: 0, label: 'Boardwalk arch',
+          image: require('../../assets/maps/beach/start.png') },
+        { steps: 5_000, label: 'Surf shack',
+          image: require('../../assets/maps/beach/mid.png') },
+        { steps: 10_000, label: 'Lighthouse, the 10,000 step goal',
+          image: require('../../assets/maps/beach/goal.png') },
+        { steps: 15_000, label: 'Pier',
+          image: require('../../assets/maps/beach/far.png') },
+      ],
+    },
+
+    map_mountain: {
+      id: 'map_mountain', label: 'Mountain',
+      sky: '#dfe8f5', ground: '#5a5d6b', ink: '#ffffff',
+      button: '#ffd166', buttonText: '#2a1a1a',
+      tiles: [
+        require('../../assets/maps/mountain/tile_a.png'),
+        require('../../assets/maps/mountain/tile_b.png'),
+      ],
+      landmarks: [
+        { steps: 0, label: 'Base camp',
+          image: require('../../assets/maps/mountain/start.png') },
+        { steps: 5_000, label: 'Rope bridge',
+          image: require('../../assets/maps/mountain/mid.png') },
+        { steps: 10_000, label: 'Summit flag, the 10,000 step goal',
+          image: require('../../assets/maps/mountain/goal.png') },
+        { steps: 15_000, label: 'Observatory',
+          image: require('../../assets/maps/mountain/far.png') },
+      ],
+    },
+  };
+
+  export const THEME_LIST = Object.values(THEMES);
+
+  // Unknown or missing ids fall back to the village
+  export const getTheme = (id: string | null | undefined): MapTheme =>
+    (id && THEMES[id]) || THEMES[DEFAULT_THEME_ID];
+
+The colors were checked for readability: text on the ground color and
+text on buttons are all above 6.5:1 contrast, and every button color
+is at least 3.9:1 against its ground. Re-check if you change them.
+
+Until a theme's art exists, the build fails on its require() lines.
+Either add placeholder PNGs with the right names, or comment that
+theme out of THEMES for now.
+
+======================================================================
+6. src/components/ThemedButton.tsx
+======================================================================
+
+React Native's built-in <Button> cannot be styled the same way on
+both platforms (its color prop is the text on iOS and the background
+on Android), so this is a small custom one.
+
+  import { Pressable, Text } from 'react-native';
+  import type { MapTheme } from '../track/themes';
+
+  const OUTLINE = '#2a1a1a';
+
+  export function ThemedButton({
+    title, onPress, theme, disabled = false, selected = false,
+  }: {
+    title: string;
+    onPress: () => void;
+    theme: MapTheme;
+    disabled?: boolean;
+    selected?: boolean;      // for "which mode / map is active"
+  }) {
+    // Selected buttons swap their two colors
+    const bg = selected ? theme.buttonText : theme.button;
+    const fg = selected ? theme.button : theme.buttonText;
+    return (
+      <Pressable
+        onPress={onPress}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityState={{ disabled, selected }}
+        style={({ pressed }) => ({
+          minHeight: 44,                    // comfortable tap target
+          paddingHorizontal: 14,
+          justifyContent: 'center',
+          backgroundColor: bg,
+          borderColor: OUTLINE,
+          borderWidth: 2,
+          borderBottomWidth: pressed ? 2 : 5,   // "pushes down" on tap
+          marginTop: pressed ? 3 : 0,
+          borderRadius: 6,
+          opacity: disabled ? 0.45 : 1,
+        })}
+      >
+        <Text style={{ color: fg, fontWeight: 'bold', fontSize: 14 }}>
+          {title}
+        </Text>
+      </Pressable>
+    );
+  }
+
+Use it for the buttons on other screens too (Shop, Profile, the
+character editor) so the whole app matches; pass the user's theme.
+
+======================================================================
+7. src/track/StepTrack.tsx  (REPLACES THE EARLIER VERSION)
+======================================================================
+
+Changes from the earlier version: takes a theme; no rounded box; the
+marker strip is the ground color instead of dark; buttons are
+ThemedButtons; side-to-side bounce is off so the sky color never
+shows under the road at the ends.
+
+  import { useEffect, useRef, useState } from 'react';
+  import { Animated, Image, ScrollView, Text, View } from 'react-native';
+  import { Avatar } from '../avatar/Avatar';
+  import { DEFAULT_AVATAR, type AvatarConfig } from '../avatar/types';
+  import { ThemedButton } from '../components/ThemedButton';
+  import {
+    GOAL, assignLanes, centerFor, formatSteps, roadWidth, scaleMax,
+    ticksFor,
+  } from './scale';
+  import type { MapTheme } from './themes';
+
+  export type Walker = {
+    id: string;
+    name: string;
+    steps: number;
+    avatar: Partial<AvatarConfig> | null;
+    isMe: boolean;
+  };
+
+  const SCALE = 2;
+  const SPRITE_W = 32 * SCALE;
+  const LABEL_H = 18;
+
+  const TILE_W = 512;
+  const TILE_H = 160;
+  const ROAD_BASE = 6;
+  const LANE_OFFSET = 14;
+  const MAX_LANES = 3;
+  const LANDMARK_W = 128;
+  const LANDMARK_H = 144;
+  // Landmarks stand on the road (48 points up) and reach above the
+  // 160-point street art, so the scene is tall enough for them. The
+  // extra space at the top is sky. Without this the tops of the
+  // landmarks are cut off.
+  const SCENE_H = Math.max(TILE_H, 48 + LANDMARK_H);
+
+  function WalkerSprite({
+    walker, x, lane,
+  }: { walker: Walker; x: number; lane: number }) {
+    const anim = useRef(new Animated.Value(x)).current;
+    useEffect(() => {
+      Animated.timing(anim, {
+        toValue: x, duration: 600, useNativeDriver: true,
+      }).start();
+    }, [x]);
+
+    return (
+      <Animated.View
+        accessible
+        accessibilityLabel={
+          `${walker.isMe ? 'You' : walker.name}: ` +
+          `${walker.steps.toLocaleString()} steps`
+        }
+        style={{
+          position: 'absolute',
+          left: 0,
+          bottom: ROAD_BASE + lane * LANE_OFFSET,
+          width: SPRITE_W,
+          alignItems: 'center',
+          zIndex: 100 - lane,
+          transform: [{ translateX: anim }],
+        }}
+      >
+        <Text
+          numberOfLines={1}
+          style={{
+            height: LABEL_H, fontSize: 11, paddingHorizontal: 4,
+            color: '#2a1a1a',
+            backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 4,
+            overflow: 'hidden',
+            fontWeight: walker.isMe ? 'bold' : 'normal',
+          }}
+        >
+          {walker.isMe ? 'You' : walker.name}
+        </Text>
+        <Avatar config={{ ...DEFAULT_AVATAR, ...(walker.avatar ?? {}) }}
+                scale={SCALE} />
+      </Animated.View>
+    );
+  }
+
+  export function StepTrack({
+    walkers, theme,
+  }: { walkers: Walker[]; theme: MapTheme }) {
+    const scrollRef = useRef<ScrollView>(null);
+    const [viewport, setViewport] = useState(0);
+
+    const highest = walkers.reduce((m, w) => Math.max(m, w.steps), 0);
+    const max = scaleMax(highest);
+    const width = roadWidth(max);
+
+    const xs = walkers.map((w) => centerFor(w.steps) - SPRITE_W / 2);
+    const lanes = assignLanes(xs, SPRITE_W, MAX_LANES);
+
+    const me = walkers.find((w) => w.isMe);
+    const leader = walkers.reduce<Walker | undefined>(
+      (best, w) => (!best || w.steps > best.steps ? w : best), undefined
+    );
+
+    const scrollToSteps = (steps: number, animated = true) =>
+      scrollRef.current?.scrollTo({
+        x: Math.max(0, centerFor(steps) - viewport / 2),
+        animated,
+      });
+
+    const centered = useRef(false);
+    useEffect(() => {
+      if (!centered.current && viewport > 0 && me) {
+        scrollToSteps(me.steps, false);
+        centered.current = true;
+      }
+    }, [viewport, me?.id]);
+
+    const tileCount = Math.ceil(width / TILE_W);
+
+    return (
+      <View>
+        {/* Sky color behind the scenery. No border, no rounding. */}
+        <View
+          onLayout={(e) => setViewport(e.nativeEvent.layout.width)}
+          style={{ backgroundColor: theme.sky }}
+        >
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            bounces={false}                 // iOS: no rubber-band gap
+            overScrollMode="never"          // Android: same
+            showsHorizontalScrollIndicator={false}
+            accessibilityLabel="Step road. Swipe left or right to scroll."
+          >
+            <View style={{ width }}>
+              <View style={{ width, height: SCENE_H }}>
+                {/* Street art pinned to the bottom, under the road */}
+                <View style={{
+                  position: 'absolute', bottom: 0, flexDirection: 'row',
+                }}>
+                  {Array.from({ length: tileCount }, (_, i) => (
+                    <Image
+                      key={i}
+                      source={theme.tiles[i % theme.tiles.length]}
+                      style={{ width: TILE_W, height: TILE_H }}
+                      accessibilityElementsHidden
+                      importantForAccessibility="no"
+                    />
+                  ))}
+                </View>
+
+                {theme.landmarks.filter((l) => l.steps <= max).map((l) => (
+                  <Image
+                    key={l.steps}
+                    source={l.image}
+                    accessibilityLabel={l.label}
+                    style={{
+                      position: 'absolute',
+                      left: centerFor(l.steps) - LANDMARK_W / 2,
+                      bottom: 48,
+                      width: LANDMARK_W,
+                      height: LANDMARK_H,
+                    }}
+                  />
+                ))}
+
+                {walkers.map((w, i) => (
+                  <WalkerSprite key={w.id} walker={w} x={xs[i]} lane={lanes[i]} />
+                ))}
+              </View>
+
+              {/* Distance markers, drawn straight onto the ground */}
+              <View style={{ width, height: 34, backgroundColor: theme.ground }}>
+                {ticksFor(max).map((v) => (
+                  <View
+                    key={v}
+                    style={{
+                      position: 'absolute', left: centerFor(v) - 24, width: 48,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <View style={{
+                      width: 2, height: 8, backgroundColor: theme.ink,
+                    }} />
+                    <Text style={{
+                      fontSize: 11,
+                      color: theme.ink,
+                      fontWeight: v === GOAL ? 'bold' : 'normal',
+                    }}>
+                      {v === GOAL ? 'GOAL' : formatSteps(v)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+
+        {/* Jump buttons sit on the ground color */}
+        <View style={{
+          flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 8,
+          backgroundColor: theme.ground,
+        }}>
+          {me && (
+            <ThemedButton theme={theme} title="Find me"
+                          onPress={() => scrollToSteps(me.steps)} />
+          )}
+          {leader && leader.id !== me?.id && (
+            <ThemedButton theme={theme} title="Leader"
+                          onPress={() => scrollToSteps(leader.steps)} />
+          )}
+          <ThemedButton theme={theme} title="Start"
+                        onPress={() => scrollToSteps(0)} />
+        </View>
+
+        {max > GOAL && (
+          <Text style={{
+            fontSize: 11, color: theme.ink, backgroundColor: theme.ground,
+            paddingHorizontal: 16, paddingTop: 6,
+          }}>
+            Road extended to {max.toLocaleString()} steps
+          </Text>
+        )}
+      </View>
+    );
+  }
+
+======================================================================
+8. src/api/mapTheme.ts
+======================================================================
+
+  import { supabase } from '../lib/supabase';
+  import { DEFAULT_THEME_ID } from '../track/themes';
+
+  export async function loadMapTheme(userId: string): Promise<string> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('map_theme')
+      .eq('id', userId)
+      .single();
+    if (error) throw error;
+    return data.map_theme ?? DEFAULT_THEME_ID;
+  }
+
+  export async function saveMapTheme(userId: string, themeId: string) {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ map_theme: themeId })
+      .eq('id', userId);
+    if (error) {
+      throw new Error(
+        error.message.includes('ITEM_NOT_OWNED')
+          ? 'Buy this map in the shop first.'
+          : 'Could not change the map. Try again.'
+      );
+    }
+  }
+
+======================================================================
+9. SHOP SCREEN CHANGES
+======================================================================
+
+The shop already receives map ids from daily_shop(). It only needs to
+know how to show them. In ShopScreen.tsx:
+
+Add imports:
+
+  import { Image } from 'react-native';
+  import { THEME_LIST } from '../track/themes';
+
+Replace the ALL_ITEMS block with one list covering both kinds:
+
+  type Slot = keyof typeof CATALOG;
+
+  type Entry =
+    | { kind: 'clothing'; id: string; label: string; slot: Slot }
+    | { kind: 'map'; id: string; label: string; thumb: number };
+
+  const ALL_ENTRIES: Entry[] = [
+    ...(Object.keys(CATALOG) as Slot[]).flatMap((slot) =>
+      CATALOG[slot].map((item) => ({
+        kind: 'clothing' as const, id: item.id, label: item.label, slot,
+      }))
+    ),
+    ...THEME_LIST.map((t) => ({
+      kind: 'map' as const, id: t.id, label: `${t.label} map`,
+      thumb: t.tiles[0],
+    })),
+  ];
+
+Change forSale to use it:
+
+  const forSale = shop.items
+    .map((s) => ALL_ENTRIES.find((e) => e.id === s.id))
+    .filter((e): e is Entry => e !== undefined);
+
+In renderItem, replace the <Avatar .../> preview with:
+
+  {item.kind === 'map' ? (
+    <Image
+      source={item.thumb}
+      accessibilityLabel={item.label}
+      style={{
+        width: 64, height: 96, borderRadius: 6,
+        borderWidth: 2, borderColor: '#2a1a1a',
+      }}
+      resizeMode="cover"
+    />
+  ) : (
+    <Avatar
+      config={{ ...DEFAULT_AVATAR, [item.slot]: item.id }}
+      scale={2}
+    />
+  )}
+
+And under the label, tell buyers where a map goes:
+
+  {item.kind === 'map' && <Text>Change maps on the Track screen</Text>}
+
+The map thumbnail is a crop of the tile, which is transparent where
+the sky goes. Give the Image a backgroundColor of that theme's sky if
+you want the preview to look like the real thing (store the sky color
+on the Entry the same way thumb is stored).
+
+======================================================================
+10. src/screens/TrackScreen.tsx  (REPLACES THE EARLIER VERSION)
+======================================================================
+
+Changes from the earlier version: loads the user's map and owned
+items; paints the screen in the theme's sky and ground colors; adds a
+map picker; all buttons are ThemedButtons; the map is fixed at the
+top and the list below it scrolls.
+
+  import { useCallback, useEffect, useState } from 'react';
+  import {
+    Alert, AppState, RefreshControl, SafeAreaView, ScrollView,
+    StatusBar, Text, View,
+  } from 'react-native';
+  import { StepTrack, type Walker } from '../track/StepTrack';
+  import { THEME_LIST, DEFAULT_THEME_ID, getTheme } from '../track/themes';
+  import { ThemedButton } from '../components/ThemedButton';
+  import { getSteps, todayRange } from '../health';
+  import { dayKey, syncSteps } from '../api/steps';
+  import { friendsLeaderboard } from '../api/friends';
+  import { groupLeaderboard, listMyGroups } from '../api/groups';
+  import { hasConsented } from '../api/consent';
+  import { loadAvatar } from '../api/avatar';
+  import { listOwnedItems } from '../api/coins';
+  import { loadMapTheme, saveMapTheme } from '../api/mapTheme';
+
+  type Mode = { kind: 'solo' } | { kind: 'friends' }
+            | { kind: 'group'; id: string; name: string };
+
+  export function TrackScreen({ userId }: { userId: string }) {
+    const [mode, setMode] = useState<Mode>({ kind: 'solo' });
+    const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
+    const [walkers, setWalkers] = useState<Walker[]>([]);
+    const [sharing, setSharing] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [themeId, setThemeId] = useState(DEFAULT_THEME_ID);
+    const [owned, setOwned] = useState<Set<string>>(new Set());
+
+    const theme = getTheme(themeId);
+
+    useEffect(() => {
+      listMyGroups().then(setGroups).catch(console.warn);
+      hasConsented(userId).then(setSharing).catch(console.warn);
+      loadMapTheme(userId).then(setThemeId).catch(console.warn);
+      listOwnedItems().then(setOwned).catch(console.warn);
+    }, [userId]);
+
+    // The village is free; every other map must be owned
+    const canUse = (id: string) => id === DEFAULT_THEME_ID || owned.has(id);
+
+    async function pickTheme(id: string) {
+      const previous = themeId;
+      setThemeId(id);                       // switch immediately
+      try {
+        await saveMapTheme(userId, id);
+      } catch (e) {
+        setThemeId(previous);               // put it back if refused
+        Alert.alert('Map not changed', (e as Error).message);
+      }
+    }
+
+    const load = useCallback(async () => {
+      try {
+        const { start, end } = todayRange();
+        const mySteps = await getSteps(start, end);
+
+        if (mode.kind === 'solo') {
+          const avatar = await loadAvatar(userId);
+          setWalkers([
+            { id: userId, name: 'You', steps: mySteps, avatar, isMe: true },
+          ]);
+          return;
+        }
+
+        if (sharing) await syncSteps(userId, 1);
+
+        const today = dayKey(new Date());
+        const rows =
+          mode.kind === 'friends'
+            ? await friendsLeaderboard(today, today)
+            : await groupLeaderboard(mode.id, today, today);
+
+        setWalkers(
+          rows.map((r: any) => ({
+            id: r.user_id,
+            name: r.display_name ?? 'Player',
+            steps: r.user_id === userId ? mySteps : Number(r.total_steps),
+            avatar: r.avatar,
+            isMe: r.user_id === userId,
+          }))
+        );
+      } catch (e) {
+        Alert.alert('Could not load the track', String(e));
+      }
+    }, [mode, userId, sharing]);
+
+    useEffect(() => { load(); }, [load]);
+
+    useEffect(() => {
+      const sub = AppState.addEventListener('change', (state) => {
+        if (state === 'active') {
+          load();
+          // pick up a map bought in the shop since last time
+          listOwnedItems().then(setOwned).catch(console.warn);
+        }
+      });
+      return () => sub.remove();
+    }, [load]);
+
+    useEffect(() => {
+      const timer = setInterval(load, 60_000);
+      return () => clearInterval(timer);
+    }, [load]);
+
+    const title =
+      mode.kind === 'solo' ? 'Just me'
+      : mode.kind === 'friends' ? 'Friends'
+      : mode.name;
+
+    return (
+      // Ground color fills the whole screen, down to the bottom edge
+      <View style={{ flex: 1, backgroundColor: theme.ground }}>
+        <StatusBar barStyle="dark-content" backgroundColor={theme.sky} />
+
+        {/* Sky color from the very top of the screen down to the road */}
+        <View style={{ backgroundColor: theme.sky }}>
+          <SafeAreaView>
+            <Text style={{
+              fontSize: 20, fontWeight: 'bold', color: '#2a1a1a',
+              paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8,
+            }}>
+              Today: {title}
+            </Text>
+          </SafeAreaView>
+        </View>
+
+        {/* Edge to edge: no padding around the map */}
+        <StepTrack walkers={walkers} theme={theme} />
+
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 16, gap: 16 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              tintColor={theme.ink}
+              onRefresh={async () => {
+                setRefreshing(true);
+                await load();
+                setRefreshing(false);
+              }}
+            />
+          }
+        >
+          {mode.kind !== 'solo' && !sharing && (
+            <Text style={{ color: theme.ink }}>
+              You are not sharing steps, so others see you at 0. Turn on
+              sharing in Profile to appear on their roads.
+            </Text>
+          )}
+
+          <Text style={{ color: theme.ink, fontWeight: 'bold' }}>Who</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <ThemedButton theme={theme} title="Just me"
+              selected={mode.kind === 'solo'}
+              onPress={() => setMode({ kind: 'solo' })} />
+            <ThemedButton theme={theme} title="Friends"
+              selected={mode.kind === 'friends'}
+              onPress={() => setMode({ kind: 'friends' })} />
+            {groups.map((g) => (
+              <ThemedButton
+                key={g.id}
+                theme={theme}
+                title={g.name}
+                selected={mode.kind === 'group' && mode.id === g.id}
+                onPress={() => setMode({ kind: 'group', id: g.id, name: g.name })}
+              />
+            ))}
+          </View>
+
+          <Text style={{ color: theme.ink, fontWeight: 'bold' }}>Map</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {THEME_LIST.map((t) => (
+              <ThemedButton
+                key={t.id}
+                theme={theme}
+                title={canUse(t.id) ? t.label : `${t.label} (shop)`}
+                selected={t.id === themeId}
+                disabled={!canUse(t.id)}
+                onPress={() => pickTheme(t.id)}
+              />
+            ))}
+          </View>
+
+          <View>
+            {[...walkers]
+              .sort((a, b) => b.steps - a.steps)
+              .map((w, i) => (
+                <Text key={w.id} style={{ color: theme.ink, lineHeight: 22 }}>
+                  {i + 1}. {w.isMe ? 'You' : w.name} - {w.steps.toLocaleString()}
+                </Text>
+              ))}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+======================================================================
+11. DESIGN CHOICES YOU CAN CHANGE
+======================================================================
+
+  - Each person sees their own map. The alternative for groups is one
+    shared map chosen by the group owner: add a map_theme column to
+    the groups table and use it in Group mode.
+  - Maps come up at random in each user's daily shop, like clothing.
+    With about 30 clothing items and 4 maps in the pool, a user is
+    offered a map every couple of days. To make maps always
+    available, give them a fixed "Maps" section in the shop that
+    skips the daily rotation; purchase_item() would need to allow map
+    ids on any day.
+  - The whole app could follow the chosen theme, not just the Track
+    screen. Load the theme once at the top of the app (a React
+    context) and pass it to ThemedButton everywhere.
+
+======================================================================
+12. GOTCHAS
+======================================================================
+
+Seamless look
+  - A thin line where the art meets the ground color means the two
+    colors do not match exactly. Open the tile in the pixel editor,
+    read the hex of its bottom row, and put that same hex in
+    themes.ts.
+  - A boxy edge around the scenery means the tile was exported with a
+    painted sky or background. It must be transparent above the
+    scenery.
+  - A light or dark band at the very top of the screen is the phone's
+    status bar area. The SafeAreaView sits inside the sky-colored
+    View so the sky extends behind it; keep that nesting.
+  - Side-to-side bounce is switched off on purpose. With it on, the
+    sky color shows under the road when you pull past either end.
+  - iPhones with a home indicator: the ground color already runs to
+    the bottom edge. Add bottom padding to the list if the last line
+    sits under the indicator.
+  - The status bar text is set to dark, which suits all five sky
+    colors. If you add a night theme with a dark sky, switch it to
+    light-content for that theme.
+
+Themes
+  - Text on the ground must use theme.ink. Plain black text
+    disappears on the forest, city, and mountain grounds.
+  - Name labels above characters keep their own light backing and
+    dark text on every map.
+  - A new theme is one entry in themes.ts, six images, and (if it is
+    paid) one row in shop_items with the same id.
+  - If you retire a map (active = false), people who own it keep it
+    and can still select it.
+
+Shop
+  - A map bought in the shop becomes selectable when the Track screen
+    next loads or the app returns to the foreground.
+  - The database check only runs when the map is CHANGED, which is
+    all that is needed: a user cannot own a map and then un-own it.
+
+======================================================================
+13. BUILD ORDER
+======================================================================
+
+  [ ] SQL from section 4
+  [ ] Move the village art to assets/maps/village/ with the new names
+  [ ] themes.ts with only the village; ThemedButton; new StepTrack
+      and TrackScreen
+  [ ] Confirm the village map has no box, no dark strip, and no line
+      where the art meets the ground, on a real phone
+  [ ] Placeholder art for one more theme (flat shapes are fine);
+      confirm switching changes sky, ground, text, and button colors
+  [ ] Give a test account map_forest in user_items; confirm it can be
+      selected and survives restarting the app
+  [ ] From a test account that does NOT own it, try to select a paid
+      map; confirm the button is disabled, and that forcing the
+      update is rejected by the database
+  [ ] Shop screen changes; confirm a map shows a thumbnail and can be
+      bought
+  [ ] Real art for forest, city, beach, mountain from section 3
+  [ ] Swap remaining <Button>s on other screens for ThemedButton

@@ -1,0 +1,1010 @@
+STEP TRACKER - PART 4: COINS AND CLOTHING SHOP
+Earn coins for hitting 10,000 steps in a day; spend them in a shop on
+character clothing. Builds on Parts 1-3:
+  step-tracker-getting-started.txt
+  step-tracker-social-features.txt
+  step-tracker-character-system.txt
+Last checked: October 2026
+
+======================================================================
+1. HOW IT WORKS
+======================================================================
+
+  1. App syncs steps to daily_steps (Part 2).
+  2. App calls claim_daily_rewards(). The DATABASE checks which recent
+     days reached 10,000 steps and have not been paid yet, and adds
+     coins for each.
+  3. Shop screen shows today's selection: a small random set of
+     items picked by the DATABASE, different for each user, replaced
+     once a day, with no repeats until the user has seen the rest of
+     the pool.
+  4. Buying calls purchase_item(). The DATABASE checks the item is in
+     today's shop, checks the balance, deducts coins, and records
+     ownership in one transaction.
+  5. The character editor only lets you equip items you own, and the
+     database rejects any attempt to equip an unowned shop item.
+
+The rule behind every choice here: the app never writes coins or
+ownership directly. It only asks; the database decides. Otherwise
+anyone could give themselves coins with a single API call.
+
+Starting numbers (change them in section 3):
+  Daily goal ............ 10,000 steps
+  Reward ................ 100 coins per qualifying day
+  Claim window .......... last 7 days (catches late watch syncs)
+  Item prices ........... 300 to 1,500 coins (3 to 15 goal days)
+  Shop size ............. 6 random items per user per day (section 4)
+  Shop refresh .......... midnight, America/Los_Angeles (section 4)
+
+This replaces the "Later: unlock items by walking" sketch in Part 3,
+section 12. Do not create that version of user_items as well.
+
+======================================================================
+2. DATABASE: TABLES
+======================================================================
+
+Run in the Supabase SQL Editor.
+
+Coins are NOT a column on profiles. Part 2's "profiles update own"
+rule lets users edit their own profile row, so a coins column there
+could be set to any number by the user.
+
+  -- Current balance, one row per user
+  create table public.wallets (
+    user_id uuid primary key references public.profiles(id) on delete cascade,
+    balance integer not null default 0 check (balance >= 0)
+  );
+
+  -- Every coin movement, for history and to block double payouts
+  create table public.coin_transactions (
+    id         uuid primary key default gen_random_uuid(),
+    user_id    uuid not null references public.profiles(id) on delete cascade,
+    amount     integer not null,          -- positive = earned, negative = spent
+    reason     text not null,             -- 'daily_goal' or 'purchase'
+    ref        text not null,             -- the day, or the item id
+    created_at timestamptz not null default now(),
+    unique (user_id, reason, ref)         -- one reward per day, one buy per item
+  );
+
+  -- What is for sale. id must match an item id in catalog.ts (Part 3).
+  -- Any catalog item NOT listed here is a free starter item.
+  create table public.shop_items (
+    id     text primary key,
+    price  integer not null check (price > 0),
+    active boolean not null default true
+  );
+
+  -- Who owns what
+  create table public.user_items (
+    user_id     uuid not null references public.profiles(id) on delete cascade,
+    item_id     text not null references public.shop_items(id),
+    acquired_at timestamptz not null default now(),
+    primary key (user_id, item_id)
+  );
+
+  alter table public.wallets           enable row level security;
+  alter table public.coin_transactions enable row level security;
+  alter table public.shop_items        enable row level security;
+  alter table public.user_items        enable row level security;
+
+  -- Read-only for the app. There are deliberately NO insert, update,
+  -- or delete policies: only the functions below can change these.
+  create policy "wallet read own" on public.wallets
+    for select to authenticated using (user_id = auth.uid());
+  create policy "transactions read own" on public.coin_transactions
+    for select to authenticated using (user_id = auth.uid());
+  create policy "shop read" on public.shop_items
+    for select to authenticated using (true);
+  create policy "items read own" on public.user_items
+    for select to authenticated using (user_id = auth.uid());
+
+  -- Keep step counts believable (blocks uploading 9,999,999)
+  alter table public.daily_steps
+    add constraint steps_sane check (steps <= 100000);
+
+======================================================================
+3. DATABASE: REWARD FUNCTION
+======================================================================
+
+  create function public.claim_daily_rewards()
+  returns integer                    -- coins granted by this call
+  language plpgsql security definer set search_path = ''
+  as $$
+  declare
+    uid         uuid := auth.uid();
+    goal        constant integer := 10000;   -- steps needed
+    reward      constant integer := 100;     -- coins per day
+    window_days constant integer := 7;       -- how far back to pay
+    granted     integer;
+  begin
+    if uid is null then
+      raise exception 'Not signed in';
+    end if;
+
+    with paid as (
+      insert into public.coin_transactions (user_id, amount, reason, ref)
+      select uid, reward, 'daily_goal', s.day::text
+      from public.daily_steps s
+      where s.user_id = uid
+        and s.steps >= goal
+        and s.day >= current_date - window_days
+        and s.day <= current_date + 1        -- no future days
+      on conflict (user_id, reason, ref) do nothing
+      returning amount
+    )
+    select coalesce(sum(amount), 0) into granted from paid;
+
+    if granted > 0 then
+      insert into public.wallets (user_id, balance)
+      values (uid, granted)
+      on conflict (user_id)
+      do update set balance = public.wallets.balance + excluded.balance;
+    end if;
+
+    return granted;
+  end;
+  $$;
+
+Calling it twice is safe: the unique rule on coin_transactions means
+each day pays out once, no matter how many times the app asks.
+
+======================================================================
+4. DATABASE: DAILY SHOP + PURCHASE FUNCTION
+======================================================================
+
+--- 4a. Today's shop (per user, no repeats) ---
+
+The shop_items table is the full pool of everything that can ever be
+sold. Each user gets their OWN random selection each day, and an item
+does not come back until that user has been shown every other item
+they could still buy.
+
+To avoid repeats the database has to remember what each user was
+shown, so there is a history table. A user's shop for the day is
+created the first time they open it; no scheduled job is needed.
+
+  -- The shop's calendar day. One fixed time zone for everyone, so
+  -- every shop flips at the same moment.
+  create function public.shop_day()
+  returns date language sql stable set search_path = ''
+  as $$
+    select (now() at time zone 'America/Los_Angeles')::date;
+  $$;
+
+  -- What each user was shown on each day
+  create table public.user_daily_shop (
+    user_id  uuid not null references public.profiles(id) on delete cascade,
+    shop_day date not null,
+    item_id  text not null references public.shop_items(id),
+    primary key (user_id, shop_day, item_id)
+  );
+
+  -- No policies at all: the app reads it only through daily_shop()
+  alter table public.user_daily_shop enable row level security;
+
+  create function public.daily_shop()
+  returns table (id text, price integer, refreshes_at timestamptz)
+  language plpgsql volatile security definer set search_path = ''
+  as $$
+  declare
+    uid       uuid := auth.uid();
+    today     date := public.shop_day();
+    shop_size constant integer := 6;          -- items per day
+  begin
+    if uid is null then
+      raise exception 'Not signed in';
+    end if;
+
+    -- If the app calls this twice at once, make the second call wait
+    -- so the user cannot end up with two different shops.
+    perform pg_advisory_xact_lock(hashtext(uid::text));
+
+    -- First visit today: pick this user's items and remember them
+    if not exists (select 1 from public.user_daily_shop d
+                   where d.user_id = uid and d.shop_day = today) then
+      insert into public.user_daily_shop (user_id, shop_day, item_id)
+      select uid, today, s.id
+      from public.shop_items s
+      left join lateral (
+        select max(h.shop_day) as last_shown
+        from public.user_daily_shop h
+        where h.user_id = uid and h.item_id = s.id
+      ) seen on true
+      where s.active
+        -- never offer something the user already owns
+        and not exists (select 1 from public.user_items u
+                        where u.user_id = uid and u.item_id = s.id)
+      -- Never-shown items first, then the ones shown longest ago.
+      -- random() breaks ties, which is what makes each user's shop
+      -- different.
+      order by seen.last_shown asc nulls first, random()
+      limit shop_size;
+    end if;
+
+    return query
+      select
+        s.id,
+        s.price,
+        ((today + 1)::timestamp at time zone 'America/Los_Angeles')
+      from public.user_daily_shop d
+      join public.shop_items s on s.id = d.item_id
+      where d.user_id = uid and d.shop_day = today and s.active;
+  end;
+  $$;
+
+To change the shop size, edit shop_size. To change the refresh time
+zone, edit both places that say America/Los_Angeles.
+
+How the no-repeat rule plays out:
+  - With 30 unowned items and 6 a day, a user sees all 30 over 5 days
+    before anything comes back. The second pass is in a new random
+    order.
+  - Repeats are only unavoidable when a user has fewer unowned items
+    left than two days' worth (12). Then yesterday's items have to
+    fill the gaps. A bigger pool fixes that.
+  - Items the user buys stay visible as "Owned" for the rest of that
+    day, then never appear again.
+  - A user who owns everything gets an empty shop.
+
+Optional extras:
+  - Featured item: add a "featured_on date" column to shop_items and
+    always include that row, for holiday or event items.
+  - Cleanup: the history table grows by 6 rows per active user per
+    day. Deleting rows older than about 6 months is safe; those items
+    simply count as never shown again.
+
+--- 4b. Purchase ---
+
+  create function public.purchase_item(p_item text)
+  returns integer                    -- new balance
+  language plpgsql security definer set search_path = ''
+  as $$
+  declare
+    uid  uuid := auth.uid();
+    cost integer;
+    bal  integer;
+  begin
+    if uid is null then
+      raise exception 'Not signed in';
+    end if;
+
+    select price into cost
+    from public.shop_items where id = p_item and active;
+    if cost is null then
+      raise exception 'ITEM_NOT_FOR_SALE';
+    end if;
+
+    -- Must be in today's rotation. Without this, someone could buy
+    -- any item on any day by calling this function directly.
+    if not exists (select 1 from public.daily_shop() d where d.id = p_item) then
+      raise exception 'NOT_IN_TODAYS_SHOP';
+    end if;
+
+    -- Make sure a wallet row exists, then lock it so two purchases
+    -- at the same moment cannot both spend the same coins.
+    insert into public.wallets (user_id) values (uid)
+    on conflict (user_id) do nothing;
+    select balance into bal
+    from public.wallets where user_id = uid for update;
+
+    if exists (select 1 from public.user_items
+               where user_id = uid and item_id = p_item) then
+      raise exception 'ALREADY_OWNED';
+    end if;
+
+    if bal < cost then
+      raise exception 'NOT_ENOUGH_COINS';
+    end if;
+
+    update public.wallets set balance = balance - cost where user_id = uid;
+    insert into public.user_items (user_id, item_id) values (uid, p_item);
+    insert into public.coin_transactions (user_id, amount, reason, ref)
+    values (uid, -cost, 'purchase', p_item);
+
+    return bal - cost;
+  end;
+  $$;
+
+If any step fails, Postgres rolls the whole thing back, so a user can
+never lose coins without getting the item.
+
+======================================================================
+5. DATABASE: BLOCK EQUIPPING UNOWNED ITEMS
+======================================================================
+
+The avatar column (Part 3) is editable by its owner, so without this
+someone could skip the shop and write a paid item id straight into
+their avatar.
+
+  create function public.check_avatar_items()
+  returns trigger language plpgsql security definer set search_path = ''
+  as $$
+  declare
+    slot text;
+    item text;
+  begin
+    foreach slot in array array['hair','face','top','bottom','shoes','hat']
+    loop
+      item := new.avatar ->> slot;
+      if item is not null
+         and exists (select 1 from public.shop_items where id = item)
+         and not exists (select 1 from public.user_items
+                         where user_id = new.id and item_id = item)
+      then
+        raise exception 'ITEM_NOT_OWNED: %', item;
+      end if;
+    end loop;
+    return new;
+  end;
+  $$;
+
+  create trigger avatar_items_owned
+    before update of avatar on public.profiles
+    for each row execute function public.check_avatar_items();
+
+If you add a new avatar slot later, add it to the array above.
+
+======================================================================
+6. DATABASE: STOCK THE SHOP
+======================================================================
+
+Ids must match catalog.ts exactly. Example:
+
+  insert into public.shop_items (id, price) values
+    ('top_jacket_green',     300),
+    ('top_tracksuit_gold',  1000),
+    ('bottom_jeans',         300),
+    ('shoes_runner_neon',    500),
+    ('hat_beanie_teal',      400),
+    ('hat_crown',           1500),
+    ('hair_long',            600);
+
+To retire an item: update shop_items set active = false. People who
+already own it keep it; it just stops being sold. Do not delete rows.
+
+Pool size matters for a rotating shop. With 6 slots a day you want at
+least 20 to 30 items in this table, or the same things keep coming
+back. With only the 7 example rows above, repeats are unavoidable.
+Until you have enough art, lower shop_size to 2 or 3.
+
+Testing without waiting a day. daily_shop() needs a signed-in user,
+so it will not run from the SQL Editor; open the Shop screen in the
+app instead. To force a fresh shop for a test user, delete today's
+rows and reopen the screen:
+
+  delete from public.user_daily_shop
+  where user_id = 'TEST-USER-UUID' and shop_day = public.shop_day();
+
+To see what a user has been shown:
+
+  select shop_day, item_id from public.user_daily_shop
+  where user_id = 'TEST-USER-UUID' order by shop_day desc;
+
+======================================================================
+7. FILE LAYOUT (ADDITIONS)
+======================================================================
+
+  src/
+    api/
+      coins.ts            <- balance, claim, shop, purchase
+    components/
+      CoinBalance.tsx     <- small balance badge
+    screens/
+      ShopScreen.tsx
+      AvatarEditorScreen.tsx   <- updated to lock unowned items
+
+======================================================================
+8. src/api/coins.ts
+======================================================================
+
+  import { supabase } from '../lib/supabase';
+
+  export async function getBalance(userId: string): Promise<number> {
+    const { data, error } = await supabase
+      .from('wallets')
+      .select('balance')
+      .eq('user_id', userId)
+      .maybeSingle();            // no row yet = 0 coins
+    if (error) throw error;
+    return data?.balance ?? 0;
+  }
+
+  // Returns how many coins were just granted (0 if nothing new)
+  export async function claimDailyRewards(): Promise<number> {
+    const { data, error } = await supabase.rpc('claim_daily_rewards');
+    if (error) throw error;
+    return data as number;
+  }
+
+  export async function listShopPrices(): Promise<Record<string, number>> {
+    const { data, error } = await supabase
+      .from('shop_items')
+      .select('id, price')
+      .eq('active', true);
+    if (error) throw error;
+    return Object.fromEntries(data.map((r) => [r.id, r.price]));
+  }
+
+  // Today's rotating selection (what the Shop screen shows).
+  // listShopPrices above is the FULL pool; the character editor uses
+  // it only to know which items are paid.
+  export type DailyShop = {
+    items: { id: string; price: number }[];
+    refreshesAt: Date | null;
+  };
+
+  export async function listDailyShop(): Promise<DailyShop> {
+    const { data, error } = await supabase.rpc('daily_shop');
+    if (error) throw error;
+    return {
+      items: data.map((r: any) => ({ id: r.id, price: r.price })),
+      refreshesAt: data.length ? new Date(data[0].refreshes_at) : null,
+    };
+  }
+
+  export async function listOwnedItems(): Promise<Set<string>> {
+    const { data, error } = await supabase
+      .from('user_items')
+      .select('item_id');        // RLS returns only your own rows
+    if (error) throw error;
+    return new Set(data.map((r) => r.item_id));
+  }
+
+  const MESSAGES: Record<string, string> = {
+    NOT_ENOUGH_COINS: 'You do not have enough coins yet.',
+    ALREADY_OWNED: 'You already own this item.',
+    ITEM_NOT_FOR_SALE: 'This item is no longer available.',
+    NOT_IN_TODAYS_SHOP: 'The shop just refreshed. This item is gone for now.',
+  };
+
+  // Returns the new balance
+  export async function purchaseItem(itemId: string): Promise<number> {
+    const { data, error } = await supabase.rpc('purchase_item', {
+      p_item: itemId,
+    });
+    if (error) {
+      const key = Object.keys(MESSAGES).find((k) => error.message.includes(k));
+      throw new Error(key ? MESSAGES[key] : 'Purchase failed. Try again.');
+    }
+    return data as number;
+  }
+
+======================================================================
+9. HOOK REWARDS INTO THE SYNC
+======================================================================
+
+Where you already sync steps (after sign-in and on app foreground):
+
+  if (await hasConsented(session.user.id)) {
+    await syncSteps(session.user.id);
+    const earned = await claimDailyRewards();
+    if (earned > 0) {
+      Alert.alert('Goal reached!', `You earned ${earned} coins.`);
+      setBalance(await getBalance(session.user.id));
+    }
+  }
+
+Order matters: sync first, then claim. The claim reads the rows the
+sync just wrote.
+
+======================================================================
+10. src/components/CoinBalance.tsx
+======================================================================
+
+  import { Text, View } from 'react-native';
+
+  export function CoinBalance({ balance }: { balance: number }) {
+    return (
+      <View
+        accessibilityLabel={`${balance} coins`}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+      >
+        <View style={{
+          width: 16, height: 16, borderRadius: 8,
+          backgroundColor: '#f7c948', borderWidth: 2, borderColor: '#3a2a2a',
+        }} />
+        <Text>{balance.toLocaleString()}</Text>
+      </View>
+    );
+  }
+
+Swap the yellow circle for a pixel-art coin sprite when you have one.
+
+======================================================================
+11. src/screens/ShopScreen.tsx
+======================================================================
+
+  import { useEffect, useState } from 'react';
+  import {
+    Alert, Button, FlatList, SafeAreaView, Text, View,
+  } from 'react-native';
+  import { Avatar } from '../avatar/Avatar';
+  import { CATALOG } from '../avatar/catalog';
+  import { DEFAULT_AVATAR } from '../avatar/types';
+  import { CoinBalance } from '../components/CoinBalance';
+  import {
+    getBalance, listDailyShop, listOwnedItems, purchaseItem,
+    type DailyShop,
+  } from '../api/coins';
+
+  type Slot = keyof typeof CATALOG;
+
+  // Flatten the catalog into one list, remembering each item's slot
+  const ALL_ITEMS = (Object.keys(CATALOG) as Slot[]).flatMap((slot) =>
+    CATALOG[slot].map((item) => ({ ...item, slot }))
+  );
+
+  export function ShopScreen({ userId }: { userId: string }) {
+    const [balance, setBalance] = useState(0);
+    const [shop, setShop] = useState<DailyShop>({ items: [], refreshesAt: null });
+    const [owned, setOwned] = useState<Set<string>>(new Set());
+    const [busy, setBusy] = useState<string | null>(null);
+    const [now, setNow] = useState(() => Date.now());
+
+    const load = () =>
+      Promise.all([getBalance(userId), listDailyShop(), listOwnedItems()])
+        .then(([b, s, o]) => { setBalance(b); setShop(s); setOwned(o); })
+        .catch((e) => Alert.alert('Could not load shop', String(e)));
+
+    useEffect(() => { load(); }, [userId]);
+
+    // Tick once a minute for the countdown
+    useEffect(() => {
+      const timer = setInterval(() => setNow(Date.now()), 60_000);
+      return () => clearInterval(timer);
+    }, []);
+
+    // When the refresh time passes, fetch the new selection
+    const msLeft = shop.refreshesAt ? shop.refreshesAt.getTime() - now : null;
+    useEffect(() => {
+      if (msLeft !== null && msLeft <= 0) load();
+    }, [msLeft !== null && msLeft <= 0]);
+
+    const countdown =
+      msLeft === null || msLeft <= 0
+        ? ''
+        : `New items in ${Math.floor(msLeft / 3_600_000)}h ` +
+          `${Math.floor((msLeft % 3_600_000) / 60_000)}m`;
+
+    // Today's items only, in the order the server picked them
+    const prices = Object.fromEntries(shop.items.map((i) => [i.id, i.price]));
+    const forSale = shop.items
+      .map((s) => ALL_ITEMS.find((i) => i.id === s.id))
+      .filter((i): i is (typeof ALL_ITEMS)[number] => i !== undefined);
+
+    async function buy(itemId: string, label: string, price: number) {
+      Alert.alert('Buy item?', `${label} for ${price} coins`, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Buy',
+          onPress: async () => {
+            setBusy(itemId);
+            try {
+              const newBalance = await purchaseItem(itemId);
+              setBalance(newBalance);
+              setOwned((prev) => new Set(prev).add(itemId));
+            } catch (e) {
+              Alert.alert('Not purchased', (e as Error).message);
+            } finally {
+              setBusy(null);
+            }
+          },
+        },
+      ]);
+    }
+
+    return (
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={{
+          padding: 16, flexDirection: 'row',
+          justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <Text>{countdown}</Text>
+          <CoinBalance balance={balance} />
+        </View>
+        <FlatList
+          data={forSale}
+          keyExtractor={(i) => i.id}
+          contentContainerStyle={{ padding: 16, gap: 12 }}
+          ListEmptyComponent={
+            <Text>Nothing new today. You own everything in the shop!</Text>
+          }
+          renderItem={({ item }) => {
+            const price = prices[item.id];
+            const isOwned = owned.has(item.id);
+            return (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                {/* Preview: default character wearing this item */}
+                <Avatar
+                  config={{ ...DEFAULT_AVATAR, [item.slot]: item.id }}
+                  scale={2}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text>{item.label}</Text>
+                  <Text>{isOwned ? 'Owned' : `${price} coins`}</Text>
+                </View>
+                <Button
+                  title={isOwned ? 'Owned' : 'Buy'}
+                  disabled={isOwned || busy === item.id || balance < price}
+                  onPress={() => buy(item.id, item.label, price)}
+                />
+              </View>
+            );
+          }}
+        />
+      </SafeAreaView>
+    );
+  }
+
+======================================================================
+12. UPDATE THE CHARACTER EDITOR (PART 3)
+======================================================================
+
+Load prices and owned items once, then lock what the user cannot wear.
+
+Add to AvatarEditorScreen:
+
+  import { listOwnedItems, listShopPrices } from '../api/coins';
+
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  const [owned, setOwned] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    listShopPrices().then(setPrices).catch(console.warn);
+    listOwnedItems().then(setOwned).catch(console.warn);
+  }, []);
+
+  // Free starter items are not in the shop table at all
+  const canWear = (id: string) => prices[id] === undefined || owned.has(id);
+
+Change the item buttons to:
+
+  <Button
+    key={item.id}
+    disabled={!canWear(item.id)}
+    title={
+      (avatar[slot] === item.id ? '* ' : '') +
+      item.label +
+      (canWear(item.id) ? '' : ' (from the shop)')
+    }
+    onPress={() => set({ [slot]: item.id })}
+  />
+
+Even if this check had a bug, the trigger in section 5 would reject
+the save.
+
+With a rotating shop the editor shows every item, including locked
+ones that may not be on sale today. That works as a "collection"
+view and gives people a reason to check the shop daily. If you would
+rather keep unreleased items a surprise, hide locked items here
+instead of disabling them.
+
+======================================================================
+13. MAKING STEPS HARD TO FAKE
+======================================================================
+
+Be clear about the limit first: no app that reads steps from a phone
+can make faking IMPOSSIBLE. The count is produced on a device the
+user controls. Someone can shake the phone, strap it to a dog, or use
+a rooted phone. Even the largest fitness apps only make cheating
+difficult and detectable. The layers below, in order of value:
+
+  Layer 1  Ignore typed-in steps                 (app, do first)
+  Layer 2  Only trust known step sources         (app)
+  Layer 3  Server sanity limits                  (database)
+  Layer 4  Prove the request came from your app  (server, before launch)
+  Layer 5  Flag suspicious accounts for review   (database)
+
+Layers 1-3 stop casual cheating, which is nearly all of it. Layer 4
+stops people calling your API directly with made-up numbers.
+
+--- 13a. Layers 1 + 2 on iOS: replace getSteps in steps.ios.ts ---
+
+Approach: take the de-duplicated daily total, then subtract anything
+that was typed in by hand or written by an untrusted app.
+
+The option and field names below follow the library's v9+ style but
+were NOT checked against its type definitions. Open the types for
+your installed version and adjust (the README confirms manual-entry
+metadata is exposed under the key "HKWasUserEntered").
+
+  import {
+    queryQuantitySamples,
+    queryStatisticsForQuantity,
+  } from '@kingstinct/react-native-healthkit';
+
+  const STEPS = 'HKQuantityTypeIdentifierStepCount';
+
+  // Apple's own sources (iPhone and Apple Watch) start with this.
+  // Add other trackers you decide to trust, e.g. 'com.garmin.connect'.
+  const TRUSTED_PREFIXES = ['com.apple.health'];
+
+  export async function getSteps(start: Date, end: Date): Promise<number> {
+    const filter = { date: { startDate: start, endDate: end } };
+
+    const stats = await queryStatisticsForQuantity(
+      STEPS, ['cumulativeSum'], { filter, unit: 'count' }
+    );
+    const total = stats.sumQuantity?.quantity ?? 0;
+
+    const samples = await queryQuantitySamples(STEPS, {
+      filter, unit: 'count', limit: 0,     // 0 = no limit
+    });
+
+    let rejected = 0;
+    for (const s of samples) {
+      const typedIn = s.metadata?.HKWasUserEntered === true;
+      const bundleId = s.sourceRevision?.source?.bundleIdentifier ?? '';
+      const trusted = TRUSTED_PREFIXES.some((p) => bundleId.startsWith(p));
+      if (typedIn || !trusted) rejected += s.quantity;
+    }
+
+    return Math.max(0, Math.round(total - rejected));
+  }
+
+--- 13b. Layers 1 + 2 on Android: replace getSteps in steps.android.ts ---
+
+  import {
+    initialize, aggregateRecord, readRecords,
+  } from 'react-native-health-connect';
+
+  const MANUAL_ENTRY = 3;   // Health Connect RECORDING_METHOD_MANUAL_ENTRY
+
+  // Package names of sources you trust. "android" is the phone's own
+  // built-in step counting on Android 14+. Add watch companions you
+  // choose to allow.
+  const TRUSTED_ORIGINS = [
+    'android',
+    'com.google.android.apps.fitness',        // Google Fit
+    'com.sec.android.app.shealth',            // Samsung Health
+    'com.fitbit.FitbitMobile',
+  ];
+
+  export async function getSteps(start: Date, end: Date): Promise<number> {
+    await initialize();
+    const timeRangeFilter = {
+      operator: 'between' as const,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+    };
+
+    // De-duplicated total, restricted to trusted sources
+    const agg = await aggregateRecord({
+      recordType: 'Steps',
+      timeRangeFilter,
+      dataOriginFilter: TRUSTED_ORIGINS,
+    });
+    const total = agg.COUNT_TOTAL ?? 0;
+
+    // Subtract hand-typed records from those sources
+    const { records } = await readRecords('Steps', {
+      timeRangeFilter,
+      dataOriginFilter: TRUSTED_ORIGINS,
+    });
+    const manual = records
+      .filter((r) => r.metadata?.recordingMethod === MANUAL_ENTRY)
+      .reduce((sum, r) => sum + r.count, 0);
+
+    return Math.max(0, total - manual);
+  }
+
+Confirm the package names on a real device before relying on them:
+log metadata.dataOrigin from readRecords and see what appears.
+
+Tell users plainly in the app: "Manually entered steps and steps
+from unsupported apps do not count." Otherwise the total here will
+not match what their Health app shows and it will look like a bug.
+
+--- 13c. Layer 3: server sanity limits ---
+
+Run in the SQL Editor.
+
+  -- A day cannot be changed once it is more than 7 days old, and
+  -- nobody can upload a day in the future.
+  create function public.check_step_row()
+  returns trigger language plpgsql set search_path = ''
+  as $$
+  begin
+    if new.day > current_date + 1 then
+      raise exception 'Future day';
+    end if;
+    if new.day < current_date - 8 then
+      raise exception 'Day is too old to change';
+    end if;
+    new.updated_at := now();     -- never trust the client's timestamp
+    return new;
+  end;
+  $$;
+
+  create trigger daily_steps_check
+    before insert or update on public.daily_steps
+    for each row execute function public.check_step_row();
+
+Also lower the cap from section 2 if you want it tighter. 100,000 is
+about 50 miles; 60,000 already exceeds almost any real day:
+
+  alter table public.daily_steps drop constraint steps_sane;
+  alter table public.daily_steps
+    add constraint steps_sane check (steps <= 60000);
+
+--- 13d. Layer 4: prove the request came from your real app ---
+
+Right now anyone who signs in can send any number straight to the
+database with a script, skipping the app and layers 1-2 entirely.
+Closing that needs device attestation:
+
+  iOS      App Attest (Apple)       proves: genuine app, real device
+  Android  Play Integrity (Google)  proves: genuine app, not tampered
+
+How it changes the design:
+  1. The app gets a signed attestation token from the OS.
+  2. Instead of writing to daily_steps directly, the app sends
+     { steps, day, token } to a Supabase Edge Function.
+  3. The function verifies the token with Apple or Google, then
+     writes the row using the secret key.
+  4. Remove the "steps insert own" and "steps update own" policies so
+     the app can no longer write that table directly.
+
+This is real work (keys in Apple and Google consoles, verification
+code per platform) and is not written out here. Expo has an app
+integrity package that wraps both platform APIs; check its docs for
+current status. Build layers 1-3 first, add this before a public
+launch.
+
+--- 13e. Layer 5: flag suspicious accounts ---
+
+A view you can check from the Supabase dashboard. Only you can see
+it; do not expose it to the app.
+
+  create view public.suspicious_steps
+  with (security_invoker = true) as
+  select
+    s.user_id,
+    p.username,
+    count(*) filter (where s.steps >= 40000)      as days_over_40k,
+    count(*) filter (where s.steps % 1000 = 0
+                       and s.steps > 0)           as round_number_days,
+    max(s.steps)                                  as best_day,
+    count(*) filter (where s.steps >= 10000)      as goal_days
+  from public.daily_steps s
+  join public.profiles p on p.id = s.user_id
+  where s.day >= current_date - 30
+  group by s.user_id, p.username
+  having count(*) filter (where s.steps >= 40000) >= 3
+      or count(*) filter (where s.steps % 1000 = 0 and s.steps > 0) >= 3;
+
+  revoke all on public.suspicious_steps from anon, authenticated;
+
+What to do with a flagged account is a policy choice: reset coins,
+hide from leaderboards, or ban. Put the rule in your terms of use so
+you can act on it.
+
+--- 13f. What still gets through ---
+
+  - Shaking the phone or using a step-shaker device
+  - Giving the phone to someone else to carry
+  - A rooted or jailbroken phone that defeats attestation
+These are why layer 5 exists. Keep coins cosmetic-only and the
+incentive to bother stays low.
+
+======================================================================
+14. DECISIONS AND OPEN QUESTIONS
+======================================================================
+
+  - DECIDED: coins require step sharing. A user who declines sharing
+    cannot earn coins. The code already works this way (rewards run
+    only after hasConsented). Add this line to ConsentScreen.tsx from
+    Part 2 so the choice is informed:
+
+      <Text>- Sharing is required to earn coins for the shop</Text>
+
+    And change the "Not now" button to make the trade-off visible:
+
+      <Button title="Not now (no coins)" onPress={() => onDone(false)} />
+
+    If a user later turns sharing off, they keep the coins and items
+    they already have but stop earning.
+  - Economy: at 100 coins a day, the full example shop (4,600 coins)
+    takes 46 goal days. Tune reward and prices to how fast you plan
+    to add new items.
+  - Streak bonuses, weekly group challenges, and bigger rewards for
+    15k or 20k days all fit this design: add a new "reason" value and
+    another insert in claim_daily_rewards().
+
+======================================================================
+15. GOTCHAS
+======================================================================
+
+Cheating: see section 13.
+
+App Store rules
+  - Coins earned by walking and spent on cosmetics need no In-App
+    Purchase. The moment users can BUY coins or items with money,
+    Apple and Google require their in-app purchase systems.
+  - Do not let coins be cashed out, traded for money, or gifted
+    between users without reading the store rules on virtual
+    currency first.
+  - No random-reward boxes without disclosing the odds.
+
+Rotating shop
+  - The shop flips at midnight Pacific for everyone, which is 3 a.m.
+    in New York and morning in Europe. Fine for a US audience; pick a
+    different zone in section 4a if yours is elsewhere.
+  - Anyone can see the full item list by reading the shop_items
+    table (the editor needs it). Which items a user will be offered
+    next cannot be predicted, because the pick uses random().
+  - A user who leaves the Shop screen open across midnight and taps
+    Buy on yesterday's item gets the "shop just refreshed" message.
+    The countdown reload normally prevents this.
+  - A user's shop is fixed once they open it that day. Items you add
+    to the pool later show up from the next day. An item you retire
+    disappears from open shops immediately.
+  - Friends will see different shops. That is the point, but expect
+    "why don't I have that hat?" questions; a line on the Shop screen
+    such as "Your shop is unique to you" heads them off.
+  - There is no way for a user to reroll. If you add a "refresh now
+    for 50 coins" button later, it is a small function that deletes
+    today's rows for that user after charging the wallet.
+
+Technical
+  - Time zones: the reward is tied to the "day" row the phone
+    uploaded (the user's local day). The 7-day window uses the
+    server's date, which is fine because the window is generous.
+  - A day that reaches 10,000 late at night pays out on the next
+    sync, not at midnight. The 7-day window covers that.
+  - Never change wallets or user_items from the app or by hand
+    without also adding a coin_transactions row, or the history will
+    not add up.
+  - Refunds and gifts from you: write a small admin SQL snippet that
+    inserts a transaction and updates the wallet together.
+  - Account deletion (Part 2) removes wallet, history, and items
+    automatically through "on delete cascade".
+  - Test with two accounts: confirm user B cannot read user A's
+    balance, and that calling purchase_item with too few coins fails.
+
+======================================================================
+16. BUILD ORDER
+======================================================================
+
+  [ ] SQL from sections 2-5
+  [ ] Stock the shop (section 6) with ids that exist in catalog.ts
+  [ ] Set a test day to 10,000+ steps in the table view, call
+      claim_daily_rewards, confirm +100 once and +0 the second time
+  [ ] coins.ts and the balance badge on the home screen
+  [ ] Reward call after syncSteps
+  [ ] Shop screen: shows today's items and the countdown
+  [ ] Two test accounts see different shops
+  [ ] Force a fresh shop (section 6) several times; confirm no item
+      returns until the rest of the pool has been shown
+  [ ] Bought items never reappear on later days
+  [ ] Shop screen: buy, balance drops, item shows as owned
+  [ ] Call purchase_item for an item NOT in today's shop; must fail
+  [ ] Editor locks unowned items; trigger rejects a forced save
+  [ ] Anti-cheat layers 1-2: new getSteps on iOS and Android (13a, 13b)
+  [ ] Type steps into the Health app by hand; confirm they do NOT count
+  [ ] Anti-cheat layer 3: SQL from 13c
+  [ ] "Manual steps do not count" note in the app
+  [ ] Consent screen: coins line and "Not now (no coins)" button
+  [ ] Privacy policy: mention coins and purchase history
+  [ ] Suspicious-accounts view (13e) and a rule in your terms of use
+  [ ] Before public launch: device attestation (13d)
+
+======================================================================
+17. DOCS
+======================================================================
+
+  Apple App Attest:
+    https://developer.apple.com/documentation/devicecheck/establishing-your-app-s-integrity
+  Google Play Integrity:
+    https://developer.android.com/google/play/integrity
+  Health Connect metadata and recording methods:
+    https://developer.android.com/health-and-fitness/health-connect/metadata
+
+  Supabase database functions (RPC):
+    https://supabase.com/docs/guides/database/functions
+  Supabase Row Level Security:
+    https://supabase.com/docs/guides/database/postgres/row-level-security
+  Postgres triggers:
+    https://supabase.com/docs/guides/database/postgres/triggers
+  Apple App Review Guidelines (3.1.1 in-app purchase):
+    https://developer.apple.com/app-store/review/guidelines/

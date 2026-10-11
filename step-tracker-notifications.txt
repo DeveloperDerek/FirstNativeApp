@@ -1,0 +1,320 @@
+STEP TRACKER - TAB BAR NOTIFICATIONS (BLUEPRINT)
+Show a small red count on the tab bar when something is waiting for
+you, starting with friend requests. Later, the same system can cover
+group quest votes and push notifications when the app is closed.
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. It
+describes what the badges mean, where the numbers come from, when
+they update, and the choices to make before building.
+
+Builds on what the app already has: the tab bar (Today, History,
+Friends, Groups, Profile), friend requests (pending / accepted),
+groups with quest voting, and the way the coin wallet refreshes when
+the app opens and comes back to the foreground.
+
+======================================================================
+1. THE IDEA IN ONE MINUTE
+======================================================================
+
+  - The Friends tab shows a red number: how many friend requests are
+    waiting for you to accept or decline.
+  - The number goes away when you ACT on a request (accept or
+    decline), not when you just open the Friends tab. A badge always
+    means "something needs you."
+  - Because of that, there is no "read / unread" list to keep. The
+    count is worked out fresh from the requests themselves, so it can
+    never drift out of date.
+  - Above 9, the badge shows "9+".
+  - Built in three phases. Each one works on its own, and each later
+    phase adds to the one before without changing it.
+
+======================================================================
+2. PHASE 1 - BADGES ON THE TAB BAR (START HERE)
+======================================================================
+
+  WHERE THE NUMBER COMES FROM
+  - The database gets one function that returns all the counts the
+    app needs in one trip, for example:
+      friend requests waiting: 2
+  - It counts only requests sent TO you that are still pending.
+  - It follows the same privacy rules as the Friends screen. A
+    request from an account that has been blocked or is no longer
+    active is hidden from the list, so it is left out of the count
+    too. The badge and the "Requests" section always agree.
+  - New counts (like quest votes) are added to this same function
+    later, so the app still asks only once.
+
+  WHEN THE NUMBER UPDATES
+  - When the app opens.
+  - Every time the app comes back to the foreground.
+  - Every time the Friends tab is opened (it already reloads its list
+    then, so the badge reloads with it).
+  - Right after you accept or decline a request, so the badge drops
+    straight away.
+
+  HOW THE APP KEEPS IT
+  - One shared place in the app holds the counts, the same way the
+    coin wallet is shared by Today, the Shop and the editor.
+  - The counts belong to the signed-in account. After switching
+    accounts, the old account's badge is never shown, even for a
+    moment.
+
+  ONLY THE NEWEST ANSWER WINS
+  - With several things asking for the counts (open, foreground,
+    Friends tab, after accept / decline, and live updates later), a
+    slow early answer can arrive AFTER a newer one and put an old
+    number back.
+  - Rule: number every request. When an answer comes back, keep it
+    only if it is the latest one sent. Throw away anything older.
+  - Each answer is also tagged with the account it was asked for.
+    If it arrives after an account switch, it is thrown away.
+
+  WHEN A REFRESH FAILS
+  - If Supabase is briefly unreachable or a request errors, keep the
+    last counts that loaded successfully. Never replace good counts
+    with zero just because a request failed.
+  - No error message for the badge. Try again at the next natural
+    moment: coming back to the foreground, opening the Friends tab,
+    or (in Phase 2) the live connection reconnecting.
+  - On sign-out or account change, clear the counts at once. The new
+    account starts with no badge until its own counts load.
+  - A failed or late request from the previous account can never
+    bring its counts back (see "only the newest answer wins").
+
+  ON THE TAB BAR
+  - The tab bar supports badges natively on iPhone and Android. The
+    badge is hidden when the count is 0.
+
+======================================================================
+3. PHASE 2 - LIVE UPDATES WHILE THE APP IS OPEN
+======================================================================
+
+  THE PROBLEM
+  - In Phase 1, if someone sends you a request while you are looking
+    at Today, the badge does not appear until you leave the app and
+    come back, or open Friends.
+
+  THE FIX
+  - The app listens for changes to friend requests sent to you, using
+    the database's live updates.
+  - When anything changes, the app simply asks for the counts again.
+    This is simpler and safer than adding or subtracting by hand.
+  - New requests and accepted requests follow the same privacy rules,
+    so you never hear about other people's requests.
+
+  THE WEAK SPOT: CANCELLED REQUESTS
+  - Today, cancelling or declining a request DELETES it.
+  - In Supabase, delete events are the weak spot. They are not
+    checked against the privacy rules, cannot be filtered to "only
+    requests sent to me", and carry only the request's ID. So a
+    cancelled request may not reach the person it was sent to.
+  - Delete events still arrive, so the app could ask for the counts
+    again on any delete. But if they really go to every signed-in
+    user, everyone learns that SOME request was deleted (and its ID)
+    and refetches for nothing. Even without the request's contents,
+    that is activity other people don't need to see, and wasted
+    traffic.
+
+  DECIDED: KEEP DELETING FOR PHASE 1, PREFER A STATUS CHANGE FOR
+  PHASE 2
+  - Phase 1 does not use live updates, so deleting is fine there.
+  - Before Phase 2, switch to a status change if it fits cleanly with
+    the existing database and privacy rules. The lifecycle:
+      pending -> accepted, declined, or cancelled
+    Each change is then an ordinary update that follows the privacy
+    rules and can be filtered to "requests sent to me." It also
+    gives request history for debugging and future notifications
+    such as "Sam declined."
+  - DO THESE FIRST, as part of the same change:
+      1. Fix the "one per pair" rule. The database currently allows
+         ONE row per pair of people, no matter its status, so a
+         declined or cancelled row would stop either person from
+         ever sending a new request. The rule must only cover
+         pending and accepted requests (or a new request must reuse
+         the old row).
+      2. Decide how unfriend works: delete the row, or give it a
+         status of its own (for example "removed").
+      3. Make the privacy rules, the counts function and the Friends
+         screen ignore declined and cancelled rows.
+  - If deleting is kept instead: check how live updates are actually
+    set up in this project and who really receives delete events,
+    write down what is exposed, and test it with two accounts before
+    shipping.
+  - Until this is done, Phase 2 does NOT promise that a cancelled
+    request disappears "straight away."
+
+  MISSED UPDATES WHILE DISCONNECTED
+  - Live updates sent while the phone is offline or the connection
+    drops are simply lost. Nothing replays them.
+  - Rule: ask for the counts again every time the live connection
+    reconnects, not only when the app comes to the foreground.
+
+  ADD GROUP QUEST VOTES
+  - A good moment to give the Groups tab its own badge: quests in
+    your groups that are waiting for your vote and that you have not
+    voted on yet.
+  - It goes into the same counts function. The badge clears once you
+    vote, or when voting ends.
+
+  "WHEN VOTING ENDS" HAS NOTHING TO TRIGGER IT
+  - Quests have no scheduler. When the vote deadline passes, the
+    quest stays "voting" in the database until someone does something
+    to it, so no change happens and no live update fires.
+  - Rule 1: the counts function only counts quests whose vote
+    deadline is still in the future, comparing against the current
+    time. It never trusts "voting" by itself.
+  - Rule 2: while the app is open, it sets a timer for the soonest
+    vote deadline it knows about and asks for the counts again when
+    it passes. Otherwise the badge stays up while the app is open.
+
+======================================================================
+4. PHASE 3 - PUSH NOTIFICATIONS (WHEN THE APP IS CLOSED)
+======================================================================
+
+  This is a much bigger job. Do it only after Phases 1 and 2 feel
+  right. Plan it iPhone-first (see "Android" below).
+
+  - Ask for permission to send notifications at a sensible moment,
+    for example right after someone sends their first friend request,
+    not on first launch.
+  - Save each device's push address in the database: one per device,
+    and each user can only see their own.
+  - When a friend request is created, the server sends a message to
+    the other person's devices, for example:
+      "@sam wants to be friends"
+  - Tapping the notification opens the Friends tab.
+  - Add a setting on Profile to turn notifications off.
+
+  CLEANING UP PUSH ADDRESSES
+  - On sign-out, remove that device's push address. Otherwise a
+    shared phone keeps getting the previous account's notifications.
+  - When the push service reports an address as dead (app deleted,
+    permission turned off), remove it.
+  - When a device signs in to a different account, its address moves
+    to the new account. It is never kept for both.
+
+  SECURITY RULES FOR PUSH ADDRESSES
+  - A user can never read or change another user's push addresses.
+    The app can only add or remove the address for its own device.
+  - The app itself can never send a push. Push addresses are not a
+    way for one user to message another.
+  - Only trusted server-side logic sends notifications, and only in
+    response to real events (for example, a new friend request).
+  - Before each push, the server checks the recipient again at that
+    moment: the account is still active, they haven't blocked or been
+    blocked by the sender, notifications are on in their settings,
+    and the privacy rules would let them see the request.
+
+  THE APP ICON NUMBER IS HARDER THAN IT LOOKS
+  - While the app is closed, the number on the app icon can only be
+    set by a push notification itself. So the server has to work out
+    the user's total at the moment it sends each push.
+  - Nothing lowers that number while the app is closed. If a request
+    is cancelled, the icon still shows the old number.
+  - Pick: accept a stale icon number until the next time the app
+    opens, then set it to the real total. This is the simplest
+    option.
+  - Other option: send a silent push on cancel / decline to correct
+    it. That means more server work, and delivery is not guaranteed.
+
+  ANDROID
+  - Android icon badges depend on the phone's launcher, are tied to
+    notifications that are still showing, and can't be checked
+    without a real device.
+  - Android 13 and later need their own notification permission
+    prompt.
+  - So: build and test Phase 3 on iPhone first. Treat Android as a
+    follow-up, tested on a real device.
+
+  BEFORE BUILDING THIS, CHECK
+  - Notifications must never reveal anything a blocked or inactive
+    account should not see.
+
+======================================================================
+5. CHOICES MADE (EASY TO CHANGE)
+======================================================================
+
+  WHAT CLEARS THE BADGE
+    Pick: acting on it (accept or decline).
+    Why:  no extra storage, and the count is never out of date.
+    Other option: clear on opening the tab. Needs a "last seen" time
+    saved per user, and a request can be forgotten once the badge
+    is gone.
+
+  IGNORED REQUESTS
+    Decided: no automatic expiry for now.
+    A request stays pending until it is accepted, declined, or
+    cancelled by the sender. Opening the Friends screen without
+    acting does NOT clear it: it keeps counting toward the badge.
+    Why:  people don't lose requests just because they haven't
+    opened the app, the badge keeps meaning "an action is waiting,"
+    and there are no expiry jobs or timing cases to build first.
+    Trade-off: old requests can pile up, and someone who ignores a
+    request keeps a red number. Add expiry later if spam or inactive
+    accounts become a problem.
+
+  NUMBER OR DOT
+    Pick: a number, shown as "9+" above 9.
+    Why:  friend requests are few, and each one needs an action.
+
+  AN "ACTIVITY" FEED (e.g. "Sam accepted your request")
+    Pick: not yet.
+    Why:  those are things to READ, not to act on, so they need a
+    proper notifications list with read / unread. Add it once there
+    are enough of these events to be worth a screen.
+
+======================================================================
+6. TRICKY CASES
+======================================================================
+
+  - Someone sends a request, then cancels it: the count drops the
+    next time it updates. It drops straight away in Phase 2 only if
+    cancel becomes a status change (section 3).
+  - A slow answer arrives after a newer one, or after switching
+    accounts: it is thrown away (section 2).
+  - A quest's vote deadline passes while the app is open: a timer
+    asks for the counts again (section 3).
+  - A phone is shared and someone signs out: that device's push
+    address is removed (section 4).
+  - The sender gets blocked or their account becomes inactive: their
+    request disappears from the list and from the count together.
+  - Two people send each other a request at the same time: the
+    database already allows only one request per pair, so only one
+    badge appears.
+  - Requests YOU sent are never counted. They show in "Sent
+    requests" only.
+  - Signed out: no badges at all.
+
+======================================================================
+7. BUILD ORDER CHECKLIST
+======================================================================
+
+  Phase 1
+    [ ] Counts function in the database (friend requests)
+    [ ] Shared counts in the app, refreshed on open and foreground
+    [ ] Keep only the newest answer, tagged by account
+    [ ] On a failed refresh, keep the last good counts; clear on
+        sign-out or account change
+    [ ] Badge on the Friends tab (iPhone and Android)
+    [ ] Friends screen refreshes the count after accept / decline
+
+  Phase 2
+    [ ] Status change for requests (preferred): fix the "one request
+        per pair" rule, decide unfriend, ignore old rows everywhere
+    [ ] Or, if keeping deletes: check and test who receives them
+    [ ] Live updates for friend requests
+    [ ] Ask for the counts again on every reconnect
+    [ ] Quest votes count (only deadlines still in the future)
+    [ ] Timer for the soonest vote deadline, and Groups tab badge
+
+  Phase 3 (iPhone first)
+    [ ] Permission prompt and device push addresses
+    [ ] Remove push addresses on sign-out and when reported dead
+    [ ] Push address security rules (own device only, server sends)
+    [ ] Server rechecks the recipient before every push
+    [ ] Server sends a push on new friend requests, with the total
+    [ ] App icon number reset to the real total on open
+    [ ] Tapping a notification opens Friends
+    [ ] Notifications on/off setting on Profile
+    [ ] Android: permission prompt and testing on a real device

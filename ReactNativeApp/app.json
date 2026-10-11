@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.yourname.steptracker"
+      "bundleIdentifier": "com.derekho.steptracker"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,14 +19,10 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.yourname.steptracker",
+      "package": "com.derekho.steptracker",
       "permissions": [
         "android.permission.health.READ_STEPS"
       ]
-    },
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       "expo-router",
@@ -41,12 +37,24 @@
       [
         "@kingstinct/react-native-healthkit",
         {
-          "NSHealthShareUsageDescription": "StepTracker reads your step count to show your daily activity.",
+          "NSHealthShareUsageDescription": "StepTracker reads your step count to show your daily activity and, if you choose, to compare totals with your friends and groups.",
           "NSHealthUpdateUsageDescription": false,
           "background": false
         }
       ],
       "react-native-health-connect",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": ["./assets/fonts/Maplestory-Light.ttf", "./assets/fonts/Maplestory-Bold.ttf"]
+        }
+      ],
       [
         "expo-build-properties",
         {

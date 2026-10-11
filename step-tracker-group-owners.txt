@@ -1,0 +1,270 @@
+STEP TRACKER - GROUP OWNERS AND APPLE SIGN-IN ON DELETION (BLUEPRINT)
+Two things that go wrong when someone leaves:
+  A. A group keeps going when its owner leaves or deletes their account
+  B. Deleting an account revokes its Sign in with Apple token
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. It
+describes what changes, what the database and screens need, and the
+decisions made (section 6). Items 1d and 1c of
+step-tracker-recommendations.txt.
+
+======================================================================
+1. HOW IT WORKS TODAY
+======================================================================
+
+  GROUPS
+  - Every group has one owner (groups.owner_id). Only the owner can
+    rename it, delete it and remove members.
+  - The owner's screen has "Delete group" but no "Leave group".
+  - The database doesn't stop an owner leaving anyway (deleting their
+    own membership row, e.g. from an older app or a direct call). The
+    group is then owned by someone who isn't in it: nobody left in the
+    group can rename it or remove members.
+  - Deleting an account deletes every group it owns, for EVERY member
+    (owner_id has "on delete cascade"): the group, its members list,
+    its quests and quest history. The Delete account dialog says so
+    ("any groups you own"), but the members aren't asked.
+
+  APPLE
+  - Sign in with Apple is built but turned off (it needs a paid Apple
+    Developer account; EXPO_PUBLIC_APPLE_SIGN_IN).
+  - Apple requires that when an account made with Sign in with Apple
+    is deleted, the app revokes its Apple tokens, so the app no longer
+    shows under the person's Apple ID > "Sign in with Apple". Today
+    the delete-account Edge Function deletes the account but doesn't
+    revoke anything (there is a TODO for it).
+  - Google is already disconnected on the phone when an account is
+    deleted (GoogleSignin.revokeAccess in src/api/account.ts).
+
+======================================================================
+2. PART A - THE GROUP PASSES ON
+======================================================================
+
+  THE RULE
+  - A group always has an owner who is in it. When the owner goes, the
+    group passes to the member who has been in it longest (the oldest
+    joined_at), and carries on: members, quests, quest history and the
+    invite code all stay.
+  - Only when nobody else is left is the group deleted.
+
+  WHO IS NEXT (DECIDED)
+  - The longest-standing ACTIVE member (signed up, not
+    under age, Terms accepted, not paused). If there are only inactive
+    members left, the longest-standing of them (they may come back);
+    the group is deleted only when there is nobody at all.
+  - Blocks don't matter here: they are between two people, not about
+    the group.
+
+  WHEN IT HAPPENS
+  - The owner leaves: a new "Leave group" for owners, in place of
+    nothing. The confirmation names who takes over:
+      "Leave Walkers? @sam will become the owner."
+    or, alone in the group:
+      "Leave Walkers? You're the only member, so the group will be
+       deleted."
+  - The owner deletes their account: every group they own passes on
+    the same way, in the same step as the deletion.
+  - The account is deleted by an admin (Part D of
+    step-tracker-safety.txt) or by the under-age job: the same.
+  - The owner's membership is removed by any other route (an older app
+    build, a direct call): the same. The database does it, not the
+    app, so every route is covered.
+
+  HANDING IT OVER ON PURPOSE (DECIDED: YES)
+  - The owner can pick the next owner themselves: "Make
+    owner" on a member's card or row in the group (owner only), with a
+    confirmation. The old owner stays in the group as a member.
+
+  TELLING THE NEW OWNER (DECIDED: A PUSH)
+  - A push "You're now the owner of Walkers", the same way
+    friend request pushes go (only if they have push on). Without it,
+    they find out when they next open the group ("Owner" next to it).
+
+  THE DELETE ACCOUNT DIALOG
+  - Today: "...and any groups you own." New: "Groups you own pass to
+    the member who has been in them longest. A group with no one else
+    in it is deleted."
+
+  IN THE DATABASE
+  - The owner_id link stops deleting groups along with the account
+    ("on delete cascade" becomes "on delete restrict"), so a group can
+    never vanish by accident; the step below always moves or deletes
+    it first.
+  - One function does the handing over, used by every route:
+      pass_group_on(group, leaving person)
+        - locks the group row first, so two things at once (the owner
+          leaving while the next member also leaves) can't both pick
+          the same person or leave it ownerless
+        - picks the next owner by the rule above, or deletes the group
+          if there is nobody
+  - Called from:
+      - a check that runs when a membership row is deleted: if it was
+        the owner's, pass the group on
+      - a check that runs before an account is deleted: pass on every
+        group it owns (before the membership rows go)
+      - make_group_owner(group, person): the owner hands it over on
+        purpose; the person must be a current member
+  - The group update rule keeps refusing a change of owner_id from the
+    app, so ownership only moves through these functions.
+  - Old data: groups whose owner isn't a member today are fixed once,
+    by the migration, with the same rule.
+  - Reports (step-tracker-safety.txt): a group report stays about the
+    group, whoever owns it. Nothing changes there.
+
+  BUILT (20261106000000_group_owners.sql)
+  - As designed. Notes from building:
+      - Every membership removal (not just the owner's) locks the group
+        row first and then reads who owns it. Without that, a member
+        leaving at the same moment as the owner could be picked as the
+        next owner on the way out; the race test
+        (supabase/tests/concurrency/group_owner_race.sh) showed it in
+        all three cases before the fix.
+      - The owner's screen now has Leave group too; the confirmation
+        asks the server who would take over (next_group_owner), so the
+        app and the database use one rule.
+      - "Make owner" is in the ••• menu on a member's card, opened from
+        the group screen, for the owner only.
+
+======================================================================
+3. PART B - REVOKING SIGN IN WITH APPLE
+======================================================================
+
+  WHAT APPLE NEEDS
+  - A call to Apple's revoke endpoint with one of the account's Apple
+    tokens, signed with the app's private Sign in with Apple key.
+  - Supabase doesn't keep Apple tokens for the way the app signs in
+    (the app sends Apple's identity token to Supabase, which checks it
+    and keeps nothing else). So there is no token to revoke at deletion
+    time unless the app gets one.
+
+  HOW (DECIDED: ASK FOR APPLE AGAIN AT DELETION)
+  - Ask for Apple once more at deletion. For an account
+    that signed in with Apple, Delete account shows the Apple sheet
+    ("Confirm with Apple"). Apple gives the app a one-time code
+    (valid 5 minutes). The app sends it to the delete-account Edge
+    Function, which:
+      1. swaps the code with Apple for a token
+      2. revokes that token with Apple
+      3. deletes the account, as today
+    Nothing is stored, and the person confirms the deletion with Apple
+    at the same time.
+  - The alternative: swap the code for a long-lived token at every
+    sign-in and keep it (encrypted) on the server until deletion. No
+    extra step at deletion, but a secret kept for every Apple account
+    for as long as it exists. Not chosen.
+
+  IF APPLE CAN'T BE REACHED (DECIDED: DELETE ANYWAY, AND LOG IT)
+  - Delete the account anyway (deleting is what the person
+    asked for and what the stores require), and record the failure in
+    a log with the account id only, so you can see it happened. The
+    person can still remove the app under Apple ID settings. Tried
+    twice before giving up.
+  - Not chosen: refusing to delete until Apple answers (a person
+    could be unable to delete their account).
+
+  SECRETS
+  - The Sign in with Apple private key (.p8), its key ID, the team ID
+    and the bundle ID go into the Edge Function's secrets in the
+    Supabase dashboard. Never in the app or the repo.
+  - Building it needs the paid Apple Developer account (the same one
+    Sign in with Apple needs anyway). Until then it can be built and
+    tested with the Apple call replaced by a stand-in, and stays off
+    while Sign in with Apple is off.
+
+  ACCOUNTS WITH BOTH APPLE AND EMAIL
+  - An account can have more than one way in (DEVICE-TESTS.md §7). If
+    Apple is one of them, Apple is revoked; the others need nothing.
+
+  RELEASE NOTE
+  - Google sign-in is offered, so check whether Apple's guideline 4.8
+    (login services) requires offering Sign in with Apple on iOS before
+    release. If it does, this part is needed for release too.
+
+  BUILT (supabase/functions/delete-account, 20261107000000_apple_revocation_log.sql)
+  - As designed, waiting for the paid Apple Developer account. Notes:
+      - The swap and revoke live in delete-account/apple.ts, tested by
+        `npm test` against a stand-in for Apple (apple.test.ts): two
+        tries when Apple doesn't answer or fails on its side, none for a
+        bad or old code, a failed revoke retried with the same token,
+        and no token or Apple message in the logged reason.
+      - Without the four Apple secrets the function still deletes the
+        account and logs "Sign in with Apple is not set up on the
+        server" (checked end to end against the local Supabase).
+      - Not checked yet: signing Apple's client secret with a real key
+        and Apple's real answers. That needs the key; the phone checks
+        are in DEVICE-TESTS.md §15.
+      - The app asks for Apple only when Sign in with Apple is turned on
+        and the account uses it; cancelling the Apple sheet deletes
+        nothing.
+
+======================================================================
+4. BUILDING ORDER
+======================================================================
+
+  1. Part A in the database: pass_group_on, the checks on membership
+     and account deletion, owner_id no longer cascading, the old-data
+     fix, make_group_owner, the push to the new owner.
+  2. Part A in the app: "Leave group" for owners with the confirmation
+     naming the next owner, "Make owner", the new Delete
+     account wording.
+  3. Part B, once the paid Apple Developer account exists: the
+     "Confirm with Apple" step, the Edge Function's swap and revoke,
+     the failure log, the secrets.
+
+======================================================================
+5. TESTS
+======================================================================
+
+  DATABASE (supabase/tests/database)
+  - Owner leaves: the longest-standing active member becomes owner;
+    members, quests and the invite code are unchanged.
+  - Owner leaves with only inactive members: the longest-standing of
+    them becomes owner.
+  - Owner leaves alone: the group is deleted.
+  - Owner deletes their account (by themselves, by an admin, by the
+    under-age job): each owned group passes on or, if alone, is
+    deleted; groups they were only a member of are untouched.
+  - The owner's membership removed directly (as an older app would):
+    passes on the same way.
+  - make_group_owner: only the owner can call it, only to a current
+    member; the old owner stays a member.
+  - Nobody can change owner_id from the app directly.
+  - A group can't lose its owner by any route: after every test, every
+    group's owner is one of its members.
+  - Old data: a group whose owner wasn't a member is fixed by the
+    migration.
+  - The owner leaving while the next member leaves, from two sessions
+    (supabase/tests/concurrency): the group ends with an owner who is a
+    member, or is deleted if both were the last two.
+
+  EDGE FUNCTION (part B, with Apple replaced by a stand-in)
+  - An Apple account: the code is swapped and revoked, then the account
+    is deleted.
+  - Apple fails twice: the account is still deleted and the failure is
+    logged with the account id only.
+  - Not an Apple account: no Apple call.
+  - A bad or old code: the account is still deleted, the failure logged.
+
+  ON A PHONE (DEVICE-TESTS.md)
+  - As the owner, Leave group: the confirmation names the next owner;
+    on their phone the group now says Owner.
+  - As the only member, Leave group: it says the group will be deleted.
+  - Delete the owner's account: the group carries on for the others.
+  - With Sign in with Apple on (later): Delete account asks to confirm
+    with Apple; afterwards the app is gone from Settings > Apple ID >
+    Sign in with Apple.
+
+======================================================================
+6. DECISIONS
+======================================================================
+
+  1. Next owner: the longest-standing active member; if none is
+     active, the longest-standing member; the group is deleted only
+     when nobody is left.
+  2. "Make owner": yes, an owner can hand the group over on purpose.
+  3. The new owner gets a push ("You're now the owner of <group>"), if
+     they have push on.
+  4. Apple: asked for again at deletion; nothing is stored.
+  5. Apple unreachable: the account is deleted anyway (after two
+     tries) and the failure logged with the account id only.

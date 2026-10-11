@@ -1,0 +1,836 @@
+STEP TRACKER - LATEST CHANGES
+The three most recent changes in one file:
+  A. The step track is now scrollable, so more characters fit
+  B. The step track has a village-themed background
+  C. Coins for opening the app, once every 6 hours
+Last checked: October 2026
+
+Builds on the earlier files (getting started, social features,
+character system, coins and shop). A and B are one piece of work and
+are covered together in PART 1 below. C is PART 2.
+
+None of this code or SQL has been run. Treat it as a scaffold.
+
+Database changes: PART 1 needs none. PART 2 needs the SQL in its
+section 2.
+
+
+######################################################################
+##
+##   PART 1: SCROLLABLE STEP TRACK WITH A VILLAGE BACKGROUND
+##
+######################################################################
+
+======================================================================
+1. HOW IT WORKS
+======================================================================
+
+        what fits on screen
+       |<----------------->|
+  ~~~~~|~~ sky (fixed) ~~~~|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  gate | houses   bakery   | trees   houses      TOWN HALL
+  =====|=[Sam]=====[you]===|==================[Ana]====FLAG====
+  0    |  2.5k      5k     |    7.5k                   10k
+       <------ swipe left / right to scroll ------>
+
+  - The road is wider than the screen and scrolls sideways.
+  - Distance is fixed: every 1,000 steps is 100 points of road, so
+    10,000 steps is about two and a half phone screens. Characters
+    are spread out, which is what lets more of them fit.
+  - The road ends at 10,000 while everyone shown is at or below it.
+  - When anyone passes 10,000, the road is extended to the next 5,000
+    beyond the leader (10,001 -> 15,000; 15,000 -> 20,000). Nobody
+    else moves; there is simply more road to scroll.
+  - The goal flag stays at 10,000.
+  - The screen opens centered on you. "Find me" and "Leader" buttons
+    jump the scroll.
+  - Characters close together stand at slightly different depths on
+    the road instead of covering each other.
+
+Three modes, one component:
+  Solo ....... just you, read straight from the phone
+  Friends .... you + accepted friends
+  Group ...... you + members of one group you pick
+
+No database changes are needed. Friends and Group modes reuse
+friends_leaderboard() and group_leaderboard() from Parts 2 and 3,
+asked for a single day.
+
+======================================================================
+2. FILE LAYOUT (ADDITIONS)
+======================================================================
+
+  assets/
+    village/
+      village_tile_a.png  (+ @2x, @3x)   <- repeating background
+      village_tile_b.png  (+ @2x, @3x)   <- second variant
+      landmark_gate.png   (+ @2x, @3x)   <- at 0
+      landmark_bakery.png (+ @2x, @3x)   <- at 5,000
+      landmark_townhall.png (+ @2x, @3x) <- at 10,000 (the goal)
+      landmark_windmill.png (+ @2x, @3x) <- at 15,000 and beyond
+  src/
+    track/
+      scale.ts          <- the math (no UI, easy to unit test)
+      StepTrack.tsx     <- draws the village, road, and characters
+    screens/
+      TrackScreen.tsx   <- mode switch, loads the data
+
+======================================================================
+3. VILLAGE ART SPEC (GIVE THIS TO WHOEVER DRAWS IT)
+======================================================================
+
+Everything must be original art, in the same pixel style and palette
+as the characters (Part 3, section 2). Do not copy towns, buildings,
+or tiles from MapleStory or any other game.
+
+Background tile
+  - Draw at 256 x 80 pixels. Transparent where the sky shows through.
+  - Bottom 24 rows: the road (packed dirt or cobblestone), flat and
+    plain so characters and name labels read clearly on top of it.
+  - Above the road: a village street seen side-on. Timber houses,
+    shop fronts, market stalls, fences, lamp posts, trees, a well.
+  - Must tile seamlessly left to right: the left and right edges
+    match, and nothing is cut off at an edge.
+  - Draw 2 variants (a and b) so the street does not visibly repeat.
+  - Keep it calmer than the characters: slightly lower contrast and
+    saturation, no pure black outlines, so the characters stand out.
+
+Landmarks (one building each, transparent background)
+  - Draw at up to 64 x 72 pixels, bottom edge sitting on the road
+    line.
+  - Gate (start), bakery (5,000), town hall (10,000), windmill
+    (15,000+). The town hall is the goal, so make it the grandest.
+
+Sky
+  - Plain color in code to start. Optional later: a wide cloud strip.
+
+Export sizes (this is what keeps pixels crisp without extra code)
+  Export every image three times, scaled with NEAREST NEIGHBOR:
+    name.png      2x the drawing   (tile: 512 x 160)
+    name@2x.png   4x the drawing   (tile: 1024 x 320)
+    name@3x.png   6x the drawing   (tile: 1536 x 480)
+  React Native picks the right file for the phone's screen density
+  automatically when you require('name.png').
+
+======================================================================
+4. src/track/scale.ts
+======================================================================
+
+  export const GOAL = 10_000;
+  const GROW_BY = 5_000;
+
+  export const PX_PER_STEP = 0.1;   // 1,000 steps = 100 points of road
+  export const ROAD_PAD = 64;       // empty road before 0 and after the end
+
+  // Where the road ends
+  export function scaleMax(highestSteps: number): number {
+    if (highestSteps <= GOAL) return GOAL;
+    return (Math.floor(highestSteps / GROW_BY) + 1) * GROW_BY;
+  }
+
+  // Total scrollable width
+  export function roadWidth(max: number): number {
+    return ROAD_PAD * 2 + max * PX_PER_STEP;
+  }
+
+  // Horizontal CENTER of anything placed at a step value
+  export function centerFor(steps: number): number {
+    return ROAD_PAD + Math.max(0, steps) * PX_PER_STEP;
+  }
+
+  // Tick marks every 2,500 steps
+  export function ticksFor(max: number): number[] {
+    const ticks: number[] = [];
+    for (let v = 0; v <= max; v += 2_500) ticks.push(v);
+    return ticks;
+  }
+
+  // Characters that would overlap get different depths on the road.
+  // Returns a lane (0 = nearest the viewer) per x, same order as input.
+  export function assignLanes(
+    xs: number[], spriteWidth: number, maxLanes: number
+  ): number[] {
+    const minGap = spriteWidth * 0.7;          // allow a little overlap
+    const order = xs.map((x, i) => ({ x, i })).sort((a, b) => a.x - b.x);
+    const laneEnds: number[] = [];
+    const lanes = new Array<number>(xs.length).fill(0);
+    for (const { x, i } of order) {
+      let lane = laneEnds.findIndex((end) => x >= end);
+      if (lane === -1) lane = laneEnds.length;
+      lane = lane % maxLanes;                  // road is only so deep
+      laneEnds[lane] = x + minGap;
+      lanes[i] = lane;
+    }
+    return lanes;
+  }
+
+  export const formatSteps = (n: number) =>
+    n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : `${n}`;
+
+Worked examples (use these as unit tests):
+  scaleMax(0)       = 10000
+  scaleMax(10000)   = 10000     character stands exactly at the flag
+  scaleMax(10001)   = 15000
+  scaleMax(15000)   = 20000
+  roadWidth(10000)  = 1128      (64 + 1000 + 64)
+  roadWidth(15000)  = 1628
+  centerFor(5000)   = 564
+
+To fit even more characters, raise PX_PER_STEP (0.2 doubles the
+spacing and the amount of scrolling).
+
+======================================================================
+5. src/track/StepTrack.tsx
+======================================================================
+
+  import { useEffect, useRef, useState } from 'react';
+  import {
+    Animated, Button, Image, ScrollView, Text, View,
+  } from 'react-native';
+  import { Avatar } from '../avatar/Avatar';
+  import { DEFAULT_AVATAR, type AvatarConfig } from '../avatar/types';
+  import {
+    GOAL, assignLanes, centerFor, formatSteps, roadWidth, scaleMax,
+    ticksFor,
+  } from './scale';
+
+  export type Walker = {
+    id: string;
+    name: string;
+    steps: number;
+    avatar: Partial<AvatarConfig> | null;
+    isMe: boolean;
+  };
+
+  // Characters
+  const SCALE = 2;                  // avatar pixel scale (whole number)
+  const SPRITE_W = 32 * SCALE;
+  const LABEL_H = 18;
+
+  // Village (sizes match the export spec in section 3)
+  const TILE_W = 512;
+  const TILE_H = 160;
+  const ROAD_BASE = 6;              // feet sit this far above the bottom
+  const LANE_OFFSET = 14;           // each lane stands a bit further back
+  const MAX_LANES = 3;              // 3 x 14 fits inside the 48-point road
+  const SKY = '#bfe6ff';
+
+  const TILES = [
+    require('../../assets/village/village_tile_a.png'),
+    require('../../assets/village/village_tile_b.png'),
+  ];
+
+  const LANDMARK_W = 128;
+  const LANDMARK_H = 144;
+  const LANDMARKS: { steps: number; image: number; label: string }[] = [
+    { steps: 0,      label: 'Village gate',
+      image: require('../../assets/village/landmark_gate.png') },
+    { steps: 5_000,  label: 'Bakery',
+      image: require('../../assets/village/landmark_bakery.png') },
+    { steps: 10_000, label: 'Town hall, the 10,000 step goal',
+      image: require('../../assets/village/landmark_townhall.png') },
+    { steps: 15_000, label: 'Windmill',
+      image: require('../../assets/village/landmark_windmill.png') },
+  ];
+
+  function WalkerSprite({
+    walker, x, lane,
+  }: { walker: Walker; x: number; lane: number }) {
+    // Walk to the new spot whenever the step count changes
+    const anim = useRef(new Animated.Value(x)).current;
+    useEffect(() => {
+      Animated.timing(anim, {
+        toValue: x, duration: 600, useNativeDriver: true,
+      }).start();
+    }, [x]);
+
+    return (
+      <Animated.View
+        accessible
+        accessibilityLabel={
+          `${walker.isMe ? 'You' : walker.name}: ` +
+          `${walker.steps.toLocaleString()} steps`
+        }
+        style={{
+          position: 'absolute',
+          left: 0,
+          bottom: ROAD_BASE + lane * LANE_OFFSET,
+          width: SPRITE_W,
+          alignItems: 'center',
+          zIndex: 100 - lane,              // nearer lanes drawn on top
+          transform: [{ translateX: anim }],
+        }}
+      >
+        <Text
+          numberOfLines={1}
+          style={{
+            height: LABEL_H, fontSize: 11, paddingHorizontal: 4,
+            backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 4,
+            overflow: 'hidden',
+            fontWeight: walker.isMe ? 'bold' : 'normal',
+          }}
+        >
+          {walker.isMe ? 'You' : walker.name}
+        </Text>
+        <Avatar config={{ ...DEFAULT_AVATAR, ...(walker.avatar ?? {}) }}
+                scale={SCALE} />
+      </Animated.View>
+    );
+  }
+
+  export function StepTrack({ walkers }: { walkers: Walker[] }) {
+    const scrollRef = useRef<ScrollView>(null);
+    const [viewport, setViewport] = useState(0);
+
+    const highest = walkers.reduce((m, w) => Math.max(m, w.steps), 0);
+    const max = scaleMax(highest);
+    const width = roadWidth(max);
+
+    const xs = walkers.map((w) => centerFor(w.steps) - SPRITE_W / 2);
+    const lanes = assignLanes(xs, SPRITE_W, MAX_LANES);
+
+    const me = walkers.find((w) => w.isMe);
+    const leader = walkers.reduce<Walker | undefined>(
+      (best, w) => (!best || w.steps > best.steps ? w : best), undefined
+    );
+
+    const scrollToSteps = (steps: number, animated = true) =>
+      scrollRef.current?.scrollTo({
+        x: Math.max(0, centerFor(steps) - viewport / 2),
+        animated,
+      });
+
+    // Open centered on me (once, after sizes are known)
+    const centered = useRef(false);
+    useEffect(() => {
+      if (!centered.current && viewport > 0 && me) {
+        scrollToSteps(me.steps, false);
+        centered.current = true;
+      }
+    }, [viewport, me?.id]);
+
+    const tileCount = Math.ceil(width / TILE_W);
+
+    return (
+      <View>
+        {/* The sky does not scroll, which gives a cheap depth effect */}
+        <View
+          onLayout={(e) => setViewport(e.nativeEvent.layout.width)}
+          style={{ backgroundColor: SKY, borderRadius: 8, overflow: 'hidden' }}
+        >
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            showsHorizontalScrollIndicator
+            accessibilityLabel="Step road. Swipe left or right to scroll."
+          >
+            <View style={{ width }}>
+              {/* Village street + road + characters */}
+              <View style={{ width, height: TILE_H }}>
+                <View style={{ position: 'absolute', flexDirection: 'row' }}>
+                  {Array.from({ length: tileCount }, (_, i) => (
+                    <Image
+                      key={i}
+                      source={TILES[i % TILES.length]}
+                      style={{ width: TILE_W, height: TILE_H }}
+                      accessibilityElementsHidden
+                      importantForAccessibility="no"
+                    />
+                  ))}
+                </View>
+
+                {LANDMARKS.filter((l) => l.steps <= max).map((l) => (
+                  <Image
+                    key={l.steps}
+                    source={l.image}
+                    accessibilityLabel={l.label}
+                    style={{
+                      position: 'absolute',
+                      left: centerFor(l.steps) - LANDMARK_W / 2,
+                      bottom: 48,                 // sits on top of the road
+                      width: LANDMARK_W,
+                      height: LANDMARK_H,
+                    }}
+                  />
+                ))}
+
+                {walkers.map((w, i) => (
+                  <WalkerSprite key={w.id} walker={w} x={xs[i]} lane={lanes[i]} />
+                ))}
+              </View>
+
+              {/* Distance markers under the road */}
+              <View style={{ width, height: 34, backgroundColor: '#3a2a2a' }}>
+                {ticksFor(max).map((v) => (
+                  <View
+                    key={v}
+                    style={{
+                      position: 'absolute', left: centerFor(v) - 24, width: 48,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <View style={{
+                      width: 2, height: 8,
+                      backgroundColor: v === GOAL ? '#f7c948' : '#ffffff',
+                    }} />
+                    <Text style={{
+                      fontSize: 11,
+                      color: v === GOAL ? '#f7c948' : '#ffffff',
+                      fontWeight: v === GOAL ? 'bold' : 'normal',
+                    }}>
+                      {v === GOAL ? 'GOAL' : formatSteps(v)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+          {me && (
+            <Button title="Find me" onPress={() => scrollToSteps(me.steps)} />
+          )}
+          {leader && leader.id !== me?.id && (
+            <Button title="Leader" onPress={() => scrollToSteps(leader.steps)} />
+          )}
+          <Button title="Start" onPress={() => scrollToSteps(0)} />
+        </View>
+
+        {max > GOAL && (
+          <Text style={{ fontSize: 11 }}>
+            Road extended to {max.toLocaleString()} steps
+          </Text>
+        )}
+      </View>
+    );
+  }
+
+Before the art exists: comment out the TILES and LANDMARKS images and
+give the street View a plain backgroundColor. Everything else works.
+
+======================================================================
+6. src/screens/TrackScreen.tsx
+======================================================================
+
+  import { useCallback, useEffect, useState } from 'react';
+  import {
+    Alert, AppState, Button, RefreshControl, SafeAreaView, ScrollView,
+    Text, View,
+  } from 'react-native';
+  import { StepTrack, type Walker } from '../track/StepTrack';
+  import { getSteps, todayRange } from '../health';
+  import { dayKey, syncSteps } from '../api/steps';
+  import { friendsLeaderboard } from '../api/friends';
+  import { groupLeaderboard, listMyGroups } from '../api/groups';
+  import { hasConsented } from '../api/consent';
+  import { loadAvatar } from '../api/avatar';
+
+  type Mode = { kind: 'solo' } | { kind: 'friends' }
+            | { kind: 'group'; id: string; name: string };
+
+  export function TrackScreen({ userId }: { userId: string }) {
+    const [mode, setMode] = useState<Mode>({ kind: 'solo' });
+    const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
+    const [walkers, setWalkers] = useState<Walker[]>([]);
+    const [sharing, setSharing] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    useEffect(() => {
+      listMyGroups().then(setGroups).catch(console.warn);
+      hasConsented(userId).then(setSharing).catch(console.warn);
+    }, [userId]);
+
+    const load = useCallback(async () => {
+      try {
+        const { start, end } = todayRange();
+        const mySteps = await getSteps(start, end);     // from the phone
+
+        if (mode.kind === 'solo') {
+          const avatar = await loadAvatar(userId);
+          setWalkers([
+            { id: userId, name: 'You', steps: mySteps, avatar, isMe: true },
+          ]);
+          return;
+        }
+
+        // Push my latest count first so others (and this query) see it
+        if (sharing) await syncSteps(userId, 1);
+
+        const today = dayKey(new Date());
+        const rows =
+          mode.kind === 'friends'
+            ? await friendsLeaderboard(today, today)
+            : await groupLeaderboard(mode.id, today, today);
+
+        setWalkers(
+          rows.map((r: any) => ({
+            id: r.user_id,
+            name: r.display_name ?? 'Player',
+            // Show my own live phone count even if the upload lagged
+            steps: r.user_id === userId ? mySteps : Number(r.total_steps),
+            avatar: r.avatar,
+            isMe: r.user_id === userId,
+          }))
+        );
+      } catch (e) {
+        Alert.alert('Could not load the track', String(e));
+      }
+    }, [mode, userId, sharing]);
+
+    // Load on open and whenever the mode changes
+    useEffect(() => { load(); }, [load]);
+
+    // Reload when the app comes back to the foreground
+    useEffect(() => {
+      const sub = AppState.addEventListener('change', (state) => {
+        if (state === 'active') load();
+      });
+      return () => sub.remove();
+    }, [load]);
+
+    // Light polling while the screen is open (every 60 seconds)
+    useEffect(() => {
+      const timer = setInterval(load, 60_000);
+      return () => clearInterval(timer);
+    }, [load]);
+
+    const title =
+      mode.kind === 'solo' ? 'Just me'
+      : mode.kind === 'friends' ? 'Friends'
+      : mode.name;
+
+    return (
+      <SafeAreaView style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={{ padding: 16, gap: 16 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                await load();
+                setRefreshing(false);
+              }}
+            />
+          }
+        >
+          <Text style={{ fontSize: 20 }}>Today: {title}</Text>
+
+          <StepTrack walkers={walkers} />
+
+          {mode.kind !== 'solo' && !sharing && (
+            <Text>
+              You are not sharing steps, so others see you at 0. Turn on
+              sharing in Profile to appear on their roads.
+            </Text>
+          )}
+
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <Button title="Just me" onPress={() => setMode({ kind: 'solo' })} />
+            <Button title="Friends" onPress={() => setMode({ kind: 'friends' })} />
+            {groups.map((g) => (
+              <Button
+                key={g.id}
+                title={g.name}
+                onPress={() => setMode({ kind: 'group', id: g.id, name: g.name })}
+              />
+            ))}
+          </View>
+
+          {/* Ranked list under the road, for exact numbers */}
+          {[...walkers]
+            .sort((a, b) => b.steps - a.steps)
+            .map((w, i) => (
+              <Text key={w.id}>
+                {i + 1}. {w.isMe ? 'You' : w.name} - {w.steps.toLocaleString()}
+              </Text>
+            ))}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+Add TrackScreen to your navigation, or make it the home screen and
+move the Part 1 step counter into it.
+
+======================================================================
+7. DESIGN CHOICES YOU CAN CHANGE
+======================================================================
+
+  - Spacing: PX_PER_STEP in scale.ts. Higher = more room between
+    characters and more scrolling.
+  - Growth step: the road grows in 5,000s (GROW_BY in scale.ts).
+  - Road depth: MAX_LANES is 3 because the road is 48 points tall.
+    Draw a taller road in the art to allow more.
+  - Landmarks past 15,000: add more entries (20,000 lighthouse,
+    25,000 castle...). They give far walkers something to reach.
+  - Solo mode works without step sharing, because it reads the phone
+    directly. Friends and Group modes need sharing turned on to show
+    you to others.
+  - Time span: the road shows today only. A weekly road is the same
+    component with a 70,000 goal and a 7-day date range.
+
+======================================================================
+8. GOTCHAS
+======================================================================
+
+Scrolling
+  - With scrolling, some friends are off screen. The ranked list
+    under the road is how people find them. Next improvement: tap a
+    name in the list to scroll the road to that person.
+  - The road sits inside a vertical ScrollView (for pull to refresh).
+    Horizontal inside vertical works fine; do not make both vertical.
+  - Very large groups: every character is rendered even when off
+    screen. Fine up to about 30. Beyond that, only render walkers
+    whose x is near the visible area (track the scroll offset with
+    onScroll).
+  - More than three characters at nearly the same step count will
+    overlap, because the road only has three depths.
+
+Village art
+  - Blurry background: an image was exported with smoothing, or only
+    the base size exists. All three sizes are needed, each scaled
+    with nearest neighbor.
+  - Visible seams between tiles: the left and right edges of the tile
+    do not match. Check by placing two copies side by side.
+  - On Android phones with in-between screen densities the background
+    can look very slightly soft. Characters stay crisp because they
+    are drawn with Skia. If it bothers you, draw the background in
+    Skia too.
+  - Name labels have a light backing so they stay readable over
+    buildings. Keep it when restyling.
+
+Data
+  - Time zones: "today" is YOUR calendar date. A friend several time
+    zones away may already be on tomorrow or still on yesterday, and
+    shows at the wrong spot around midnight.
+  - Stale friends: other people's positions only move when THEIR app
+    syncs. Someone who has not opened the app today shows at 0 even
+    if they have walked. Background sync (Part 1, section 10) is the
+    real fix; a "last updated" time per person is the cheap one.
+  - Members without step sharing appear at 0. Consider hiding them
+    instead, so 0 always means "no steps yet".
+  - Anti-cheat still applies: positions use the same verified counts
+    as coins (Part 4, section 13).
+
+Accessibility
+  - Screen readers cannot "see" positions. Each character has a
+    spoken label with name and steps, and the ranked list repeats the
+    information as text. Keep both.
+
+======================================================================
+9. LATER IDEAS
+======================================================================
+
+  - Live movement: subscribe to daily_steps changes with Supabase
+    Realtime instead of polling, so friends walk forward as they
+    sync.
+  - Walk animation: a 2- to 4-frame walk cycle per sprite, played
+    while a character is moving.
+  - Parallax: a distant hills layer that scrolls at half speed, using
+    Animated and the scroll offset.
+  - Day and night: change the sky color and add lit windows based on
+    the time of day.
+  - Themes: forest, beach, or snow villages as shop items bought with
+    coins (Part 4).
+  - Tap a character to open that friend's profile.
+
+======================================================================
+10. BUILD ORDER
+======================================================================
+
+  [ ] scale.ts plus unit tests using the worked examples in section 4
+  [ ] StepTrack with a plain colored street and hard-coded walkers at
+      0, 5,000, and 10,000; confirm it scrolls and opens on "You"
+  [ ] Add a walker at 12,000; confirm the road extends to 15,000 and
+      nobody else moves
+  [ ] Three walkers at the same count; confirm three depths
+  [ ] Find me / Leader / Start buttons
+  [ ] Solo mode with real steps from the phone
+  [ ] Friends mode, then Group mode, with a second test account
+  [ ] Foreground refresh, pull to refresh, 60-second polling
+  [ ] Village tiles and landmarks from the art spec in section 3
+  [ ] Check tile seams and crispness on a real phone
+
+
+######################################################################
+##
+##   PART 2: COINS FOR OPENING THE APP EVERY 6 HOURS
+##
+######################################################################
+
+======================================================================
+1. HOW IT WORKS
+======================================================================
+
+  - Opening the app (or bringing it back to the foreground) asks the
+    database for a check-in bonus.
+  - The database grants 10 coins if at least 6 hours have passed
+    since the last bonus this user COLLECTED. Otherwise it grants
+    nothing and says when the next one is ready.
+  - The clock is the SERVER's, so changing the phone's time does
+    nothing.
+  - Same rule as step rewards: no step sharing, no coins.
+  - The home screen shows a countdown to the next bonus.
+
+Numbers you can change (section 2):
+  Bonus ......... 10 coins
+  Wait .......... 6 hours
+  Daily maximum . 4 check-ins = 40 coins, against 100 coins for a
+                  10,000-step day
+
+Keep the bonus small so walking stays the main way to earn. A user
+who only taps would need about 8 days for the cheapest 300-coin item.
+
+This uses the wallets and coin_transactions tables and the
+has_sharing_consent() function from the earlier files.
+
+======================================================================
+2. DATABASE
+======================================================================
+
+Run in the Supabase SQL Editor.
+
+  alter table public.wallets
+    add column last_checkin_at timestamptz;
+
+  create function public.claim_checkin()
+  returns table (granted integer, next_at timestamptz)
+  language plpgsql security definer set search_path = ''
+  as $$
+  declare
+    uid      uuid := auth.uid();
+    bonus    constant integer  := 10;                 -- coins per check-in
+    cooldown constant interval := interval '6 hours';
+    last_at  timestamptz;
+  begin
+    if uid is null then
+      raise exception 'Not signed in';
+    end if;
+
+    -- Same rule as step rewards: sharing is required to earn coins
+    if not public.has_sharing_consent() then
+      return query select 0, null::timestamptz;
+      return;
+    end if;
+
+    -- Lock the wallet so two taps at once cannot both collect
+    insert into public.wallets (user_id) values (uid)
+    on conflict (user_id) do nothing;
+    select w.last_checkin_at into last_at
+    from public.wallets w where w.user_id = uid for update;
+
+    -- Too soon: grant nothing, say when the next one is ready
+    if last_at is not null and now() < last_at + cooldown then
+      return query select 0, last_at + cooldown;
+      return;
+    end if;
+
+    update public.wallets w
+    set balance = w.balance + bonus, last_checkin_at = now()
+    where w.user_id = uid;
+
+    insert into public.coin_transactions (user_id, amount, reason, ref)
+    values (uid, bonus, 'checkin',
+            to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS'));
+
+    return query select bonus, now() + cooldown;
+  end;
+  $$;
+
+The 6 hours count from the last collected bonus, not from fixed times
+of day. Open at 8:00 and the next is ready at 14:00.
+
+======================================================================
+3. ADD TO src/api/coins.ts
+======================================================================
+
+  // Check-in bonus. granted = 0 means "not ready yet".
+  // nextAt = null means the user is not sharing steps (no coins).
+  export async function claimCheckin(): Promise<{
+    granted: number; nextAt: Date | null;
+  }> {
+    const { data, error } = await supabase.rpc('claim_checkin');
+    if (error) throw error;
+    const row = data?.[0];
+    return {
+      granted: row?.granted ?? 0,
+      nextAt: row?.next_at ? new Date(row.next_at) : null,
+    };
+  }
+
+======================================================================
+4. CALL IT WHEN THE APP OPENS
+======================================================================
+
+Put this where you already sync steps and claim daily rewards, so it
+runs on launch and every time the app returns to the foreground
+(AppState "active"):
+
+  const checkin = await claimCheckin();
+  if (checkin.granted > 0) {
+    Alert.alert('Welcome back!', `+${checkin.granted} coins for checking in.`);
+    setBalance(await getBalance(session.user.id));
+  }
+  setNextCheckin(checkin.nextAt);   // keep in state for the countdown
+
+Calling claimCheckin() too often is harmless; the database simply
+answers "not yet" with the time remaining.
+
+======================================================================
+5. COUNTDOWN ON THE HOME SCREEN
+======================================================================
+
+  import { useEffect, useState } from 'react';
+  import { Text } from 'react-native';
+
+  export function CheckinCountdown({ nextAt }: { nextAt: Date | null }) {
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+      const t = setInterval(() => setNow(Date.now()), 60_000);
+      return () => clearInterval(t);
+    }, []);
+    if (!nextAt) return null;
+    const ms = nextAt.getTime() - now;
+    if (ms <= 0) return <Text>Bonus ready! Reopen the app to collect.</Text>;
+    return (
+      <Text>
+        Next bonus in {Math.floor(ms / 3_600_000)}h{' '}
+        {Math.floor((ms % 3_600_000) / 60_000)}m
+      </Text>
+    );
+  }
+
+Use it as: <CheckinCountdown nextAt={nextCheckin} />
+
+======================================================================
+6. GOTCHAS
+======================================================================
+
+  - It rewards opening the app, not walking. If check-ins ever earn
+    close to what a goal day earns, the shop stops being a reason to
+    walk. Keep the ratio low.
+  - People only come back on time if something reminds them. A local
+    notification ("Your bonus is ready") scheduled for nextAt does
+    that. It is not built here; it needs the user's notification
+    permission and should be easy to turn off. Apple can reject apps
+    that send notifications users did not agree to.
+  - A script can call claim_checkin() every 6 hours without opening
+    the app. Device attestation (coins and shop file, section 13d)
+    closes that too.
+  - Users who are not sharing steps get no bonus and no countdown.
+    Say so on the consent screen ("Sharing is required to earn
+    coins").
+
+======================================================================
+7. BUILD ORDER
+======================================================================
+
+  [ ] SQL from section 2
+  [ ] claimCheckin() in coins.ts
+  [ ] Call it on launch and on foreground
+  [ ] Collect once, reopen the app; confirm +0 and a 6-hour countdown
+  [ ] Change the phone's clock forward; confirm it still says +0
+  [ ] Account without step sharing; confirm no check-in coins
+  [ ] Countdown on the home screen
