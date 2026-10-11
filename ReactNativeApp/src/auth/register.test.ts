@@ -12,7 +12,6 @@ import {
   isValidEmail,
   isValidDisplayName,
   isValidUsername,
-  parseIsoDay,
   registerErrorMessage,
   suggestUsername,
   toIsoDay,
@@ -142,13 +141,6 @@ describe('birthdays (section 3 and 6g)', () => {
   test('a server date is the same calendar day here', () => {
     const d = isoDayToDate('1990-05-01');
     assert.deepEqual([d.getFullYear(), d.getMonth(), d.getDate()], [1990, 4, 1]);
-  });
-
-  test('typed dates must be real', () => {
-    assert.equal(parseIsoDay(' 2001-01-09 '), '2001-01-09');
-    assert.equal(parseIsoDay('2001-02-30'), null);
-    assert.equal(parseIsoDay('2001-1-9'), null);
-    assert.equal(parseIsoDay('2000-02-29'), '2000-02-29');
   });
 
   test('age counts the birthday itself', () => {

@@ -1,5 +1,5 @@
-// Fallback for platforms without a health store (web). Metro picks
-// steps.ios.ts / steps.android.ts on devices.
+// Types only: Metro always picks steps.ios.ts / steps.android.ts, and
+// TypeScript reads this file for the shared signatures.
 import type { PermissionResult } from './types';
 
 export async function requestStepPermission(): Promise<PermissionResult> {

@@ -21,14 +21,12 @@ import { MapThemeProvider } from '@/hooks/use-map-theme';
 import { useMarkSeen } from '@/hooks/use-mark-seen';
 import { NotificationCountsProvider } from '@/hooks/use-notification-counts';
 import { usePush } from '@/hooks/use-push';
-import { useWebFonts } from '@/hooks/use-web-fonts';
 import { WalletProvider } from '@/hooks/use-wallet';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  useWebFonts();
   return (
     // Swipe gestures (leaderboard rows) need this at the root
     <GestureHandlerRootView style={styles.root}>

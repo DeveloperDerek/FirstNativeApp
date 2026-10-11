@@ -2,9 +2,8 @@ import { DateTimePicker } from '@expo/ui/community/datetime-picker';
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
-import { parseIsoDay, toIsoDay } from '@/auth/register';
+import { toIsoDay } from '@/auth/register';
 import { ThemedText } from '@/components/themed-text';
-import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -19,9 +18,8 @@ export const formatDay = (d: Date) =>
 
 /**
  * A date picker, not free typing (step-tracker-register.txt, section 3):
- * a wheel on iOS, the system dialog on Android. The web has no picker, so
- * there it is typed as YYYY-MM-DD. Nothing is chosen until the person
- * picks; `onChange` gets 'YYYY-MM-DD' or null.
+ * a wheel on iOS, the system dialog on Android. Nothing is chosen until
+ * the person picks; `onChange` gets 'YYYY-MM-DD' or null.
  */
 export function BirthdayField({
   label,
@@ -34,7 +32,6 @@ export function BirthdayField({
 }) {
   const theme = useTheme();
   const [birth, setBirth] = useState<Date | null>(null);
-  const [typed, setTyped] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
 
   function pick(d: Date) {
@@ -45,17 +42,7 @@ export function BirthdayField({
   return (
     <View style={styles.field}>
       <ThemedText type="smallBold">{label}</ThemedText>
-      {Platform.OS === 'web' ? (
-        <TextField
-          value={typed}
-          onChangeText={(t) => {
-            setTyped(t);
-            onChange(parseIsoDay(t));
-          }}
-          placeholder="YYYY-MM-DD"
-          accessibilityLabel={`${label}, as year-month-day`}
-        />
-      ) : Platform.OS === 'ios' && birth ? (
+      {Platform.OS === 'ios' && birth ? (
         <DateTimePicker
           value={birth}
           mode="date"

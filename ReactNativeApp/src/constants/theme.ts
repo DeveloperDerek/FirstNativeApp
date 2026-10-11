@@ -3,8 +3,6 @@
  * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
  */
 
-import '@/global.css';
-
 import { Platform } from 'react-native';
 
 export const Colors = {
@@ -47,18 +45,12 @@ export const Fonts = Platform.select({
     rounded: 'normal',
     mono: 'monospace',
   },
-  web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
-  },
 });
 
 /**
  * The MapleStory font by NEXON, built into the app (expo-font plugin in
- * app.json; web loads it in use-web-fonts.web.ts). iOS knows a font by the
- * name inside the file, Android and web by its file name. Each weight is
+ * app.json). iOS knows a font by the name inside the file, Android by its
+ * file name. Each weight is
  * its own family, so don't add fontWeight on top: Android would fall back
  * to the system font.
  */

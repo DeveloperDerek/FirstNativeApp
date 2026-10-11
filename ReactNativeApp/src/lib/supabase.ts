@@ -1,6 +1,6 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
-import { AppState, Platform } from 'react-native';
+import { AppState } from 'react-native';
 
 import { sessionStorage } from '@/lib/session-storage';
 
@@ -30,11 +30,9 @@ export const supabase = createClient(
 );
 
 // Only refresh the session token while the app is in the foreground.
-if (Platform.OS !== 'web') {
-  AppState.addEventListener('change', (state) => {
-    if (state === 'active') supabase.auth.startAutoRefresh();
-    else supabase.auth.stopAutoRefresh();
-  });
-}
+AppState.addEventListener('change', (state) => {
+  if (state === 'active') supabase.auth.startAutoRefresh();
+  else supabase.auth.stopAutoRefresh();
+});
 
 export const privacyUrl = process.env.EXPO_PUBLIC_PRIVACY_URL || 'https://yourdomain.com/privacy';

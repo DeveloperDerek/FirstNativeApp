@@ -25,7 +25,6 @@ const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 export const appleSignInEnabled =
   Platform.OS === 'ios' && process.env.EXPO_PUBLIC_APPLE_SIGN_IN === 'true';
 export const googleSignInEnabled =
-  Platform.OS !== 'web' &&
   Boolean(googleWebClientId) &&
   (Platform.OS !== 'ios' || Boolean(googleIosClientId));
 

@@ -89,13 +89,6 @@ export function isoDayToDate(day: string): Date {
   return new Date(y, m - 1, d);
 }
 
-/** 'YYYY-MM-DD' typed by hand (web has no date picker), or null until it is a real date. */
-export function parseIsoDay(text: string): string | null {
-  const t = text.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return null;
-  return toIsoDay(isoDayToDate(t)) === t ? t : null;
-}
-
 /** Whole years old on `today` (the birthday itself counts). */
 export function ageOn(birthDay: string, today = new Date()): number {
   const b = isoDayToDate(birthDay);

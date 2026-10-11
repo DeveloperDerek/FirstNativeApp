@@ -272,7 +272,7 @@ export default function TodayScreen() {
                   Steps.
                 </ThemedText>
               )}
-              {blocked && Platform.OS !== 'web' && (
+              {blocked && (
                 <Pressable onPress={() => openHealthSettings(permission)}>
                   <ThemedText type="linkPrimary">
                     {permission === 'unavailable' && Platform.OS === 'android'
