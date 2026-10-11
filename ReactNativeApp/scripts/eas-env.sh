@@ -5,8 +5,10 @@
 #
 # Only the names below are ever sent. They are all values the app carries
 # inside it anyway (anyone can read them from a build), so they're stored
-# as plain text. Secrets (SUPABASE_DB_PASSWORD, any service role key, the
-# Apple .p8 key, a Sentry auth token) are NOT in the list and never sent.
+# as plain text (SENTRY_ORG and SENTRY_PROJECT are names, not secrets).
+# Secrets (SUPABASE_DB_PASSWORD, any service role key, the Apple .p8 key,
+# SENTRY_AUTH_TOKEN) are NOT in the list and never sent: the Sentry token
+# goes in by hand, as a secret (see the README).
 #
 # Usage, after `eas login` and `eas init`:
 #   bash scripts/eas-env.sh                 # all three environments
@@ -25,7 +27,10 @@ ALLOWED=(
   EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID
   EXPO_PUBLIC_PUSH_NOTIFICATIONS
   EXPO_PUBLIC_EAS_PROJECT_ID
+  EXPO_PUBLIC_SENTRY_DSN
   APPLE_TEAM_ID
+  SENTRY_ORG
+  SENTRY_PROJECT
 )
 
 if [ ! -f .env ]; then

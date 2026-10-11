@@ -14,6 +14,7 @@ import { StyleSheet, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
+import { withCrashReports } from '@/lib/crash-reports';
 import { redirectFor } from '@/auth/route';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { LoadFailedScreen, LoadingScreen } from '@/components/startup-screens';
@@ -25,7 +26,9 @@ import { WalletProvider } from '@/hooks/use-wallet';
 
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+export default withCrashReports(RootLayout);
+
+function RootLayout() {
   const colorScheme = useColorScheme();
   return (
     // Swipe gestures (leaderboard rows) need this at the root
