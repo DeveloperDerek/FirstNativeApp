@@ -41,11 +41,13 @@ $$;
 
 -- The Year view for sharers: one row per month of the year that has any
 -- uploaded days (up to the phone's today), with the days with data, their
--- total and the days at goal, each day by its own goal. The monthly average
--- is total_steps / days_with_data, the same rule as the Month view. Not
--- sharing: no rows (the phone reads Health, with goals from my_history).
+-- total, the days at goal (each day by its own goal), and the month's best
+-- day (the earliest, if two tie). The monthly average is total_steps /
+-- days_with_data, the same rule as the Month view. Not sharing: no rows
+-- (the phone reads Health, with goals from my_history).
 create function public.my_history_by_month(p_year integer, my_today date)
-returns table (month date, days_with_data integer, total_steps bigint, days_at_goal integer)
+returns table (month date, days_with_data integer, total_steps bigint, days_at_goal integer,
+               best_day date, best_steps integer)
 language plpgsql stable security definer set search_path = ''
 as $$
 declare uid uuid := auth.uid();
@@ -62,7 +64,9 @@ begin
     select date_trunc('month', s.day)::date,
            count(*)::integer,
            sum(s.steps)::bigint,
-           count(*) filter (where s.steps >= public.goal_on(uid, s.day))::integer
+           count(*) filter (where s.steps >= public.goal_on(uid, s.day))::integer,
+           (array_agg(s.day order by s.steps desc, s.day))[1],
+           max(s.steps)
     from public.daily_steps s
     where s.user_id = uid
       and s.day between make_date(p_year, 1, 1) and least(make_date(p_year, 12, 31), my_today)

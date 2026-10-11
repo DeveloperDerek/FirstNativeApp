@@ -6,7 +6,7 @@
 -- year (Y), so they don't depend on how far into this year T is.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(32);
 
 insert into auth.users (id, email)
 select ('000000' || lpad(to_hex(n), 2, '0') || '-91a1-0000-0000-000000000000')::uuid,
@@ -134,6 +134,9 @@ select is((select m.total_steps from public.my_history_by_month(pg_temp.y(), cur
            where m.month = pg_temp.yd(3, 1)), 130000::bigint, 'March: the total');
 select is((select m.days_at_goal from public.my_history_by_month(pg_temp.y(), current_date) m
            where m.month = pg_temp.yd(3, 1)), 11, 'March: days at goal, each by its own goal (10 + the 15th)');
+select is((select (m.best_day, m.best_steps)::text from public.my_history_by_month(pg_temp.y(), current_date) m
+           where m.month = pg_temp.yd(3, 1)), (pg_temp.yd(3, 1), 12000)::text,
+          'March: the best day (the earliest of the 12,000 days)');
 select is((select (m.days_with_data, m.total_steps, m.days_at_goal)::text
            from public.my_history_by_month(pg_temp.y(), current_date) m where m.month = pg_temp.yd(1, 1)),
           '(1,0,0)', 'January: one real 0, not at goal');

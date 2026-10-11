@@ -23,9 +23,22 @@ export function PeriodPicker({
   value: Period;
   onChange: (period: Period) => void;
 }) {
+  return <PillPicker options={PERIODS} value={value} onChange={onChange} />;
+}
+
+/** A row of pills, one selected (the leaderboard's periods, History's views). */
+export function PillPicker<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
   return (
     <ThemedView type="backgroundElement" style={styles.picker}>
-      {PERIODS.map((p) => (
+      {options.map((p) => (
         <Pressable
           key={p.value}
           onPress={() => onChange(p.value)}

@@ -156,8 +156,9 @@ suggested order.
     only, every step null; the phone takes the steps from Health and
     judges them by these goals.
   - my_history_by_month(year, my_today): the Year view for sharers. One
-    row per month: days with data, total steps, and days at goal (each
-    day by its own goal). A year is one small answer, not 365 rows.
+    row per month: days with data, total steps, days at goal (each
+    day by its own goal), and the month's best day and its steps (so
+    the Year view can show its best day too). A year is one small answer, not 365 rows.
     Not sharing: the goals only, through my_history over the year (366
     small rows at most), since the phone has the steps.
   - Everything is checked on the server, never left to the phone:
@@ -176,7 +177,9 @@ suggested order.
   WHERE PHONE AND SERVER MEET (SHARERS)
   - Each day comes from exactly one place: the last 7 days (today and
     the 6 before) from the phone's copy, every older day from the
-    server. Never both, so nothing is counted twice.
+    server. Never both, so nothing is counted twice. (A phone day the
+    copy doesn't have yet, e.g. on a new phone before its first
+    refresh, keeps the server's value.)
   - Every day's goal comes from the server (my_history), for the phone
     days too. A goal change inside the last 7 days is therefore judged
     the same way as on the server.
