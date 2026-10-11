@@ -1,0 +1,60 @@
+# Every check on every push and pull request (step-tracker-builds.txt,
+# Part C). Needs no secrets: the database job runs its own throwaway
+# Supabase, never the hosted one, and nothing here builds the app or talks
+# to EAS, Apple, Google or Sentry.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch replaces a run still going
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: ReactNativeApp
+
+jobs:
+  app:
+    name: Typecheck, lint, unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ReactNativeApp/.nvmrc
+          cache: npm
+          cache-dependency-path: ReactNativeApp/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc --noEmit
+      - run: npx expo lint
+      - run: npm test
+
+  database:
+    name: Database tests and race checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.120.0
+      # Every migration applied to an empty database, so this also proves
+      # they all still apply from scratch. Services the tests don't use
+      # are left out.
+      - run: supabase start -x studio,imgproxy,logflare,vector,supavisor,mailpit,edge-runtime,storage-api
+      - run: supabase test db
+      # Two database sessions at once (pgTAP runs in one)
+      - name: Race checks
+        run: |
+          for script in supabase/tests/concurrency/*.sh; do
+            echo "== $script"
+            bash "$script"
+          done
