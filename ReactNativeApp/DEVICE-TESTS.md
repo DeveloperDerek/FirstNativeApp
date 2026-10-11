@@ -250,6 +250,20 @@ Also run `bash supabase/tests/concurrency/group_owner_race.sh` against the local
 
 Also run `bash supabase/tests/concurrency/streak_race.sh` against the local database (two phones claiming at once).
 
+## 17. Longer History (`step-tracker-history-reminders.txt`, Part A)
+
+Needs the `my_history` migration on the Supabase project the build uses.
+
+- [ ] iPhone  - [ ] Android — **Views:** History shows Week, Month and Year; ‹ goes back a week / month / year and › comes forward; ‹ stops after a period with no data.
+- [ ] iPhone  - [ ] Android — **Agrees with Today:** walk, then open History before the next upload: today's row (Week) and this month's bar (Year) match Today; the streak at the top matches Today's.
+- [ ] iPhone  - [ ] Android — **Goals:** change the goal near the end of a month; in the next month, days before and after the change are judged by their own goals, in Month and Year.
+- [ ] iPhone  - [ ] Android — **Not synced:** a sharer who didn't open the app for over a week sees "N days not synced"; "What's this?" explains it.
+- [ ] iPhone  - [ ] Android — **New phone:** sign in on another phone (sharer, then non-sharer): the same days at goal as on the first phone.
+- [ ] iPhone  - [ ] Android — **Not sharing:** History shows a month and a year from Health, no streak ("Share your steps to keep a streak"), and days before your first steps as "without step data", not 0.
+- [ ] iPhone  - [ ] Android — **Health access:** turn Steps access off: iPhone shows the "Seeing 0?" hint, not a history of zero days; Android shows that access is off with Open settings. Turn it back on and pull to refresh: the real steps return.
+- [ ] Android — **Year speed (decision 5):** not sharing, with a large dataset (a year of phone plus watch), open Year in a development build and note the Metro log lines `[history] Health …: N ms` and `[history] working out the year: N ms`, first open and after going back and forth. Only if it still feels slow (about 2 seconds as a guide) does the 90-day limit go in. Result: ______
+- [ ] iPhone  - [ ] Android — **Midnight:** leave History open across midnight, switch away and back: the new day is Today.
+
 ---
 
 ## Sign-off

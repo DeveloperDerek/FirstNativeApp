@@ -201,3 +201,39 @@ export function summarizeMonths(months: MonthRow[], dayCount: number): HistorySt
     daysAtGoal,
   };
 }
+
+/** A range cut into calendar months, so each can be read (and kept) on its own. */
+export function monthSpans(from: string, to: string): { from: string; to: string }[] {
+  const spans: { from: string; to: string }[] = [];
+  let start = from;
+  while (start <= to) {
+    const monthEnd = addDays(monthOf(addDays(monthOf(start), 31)), -1);
+    const end = monthEnd < to ? monthEnd : to;
+    spans.push({ from: start, to: end });
+    start = addDays(end, 1);
+  }
+  return spans;
+}
+
+/**
+ * A non-sharer's days from Health (part A, "Days with data"): Health gives
+ * a number for every day, even before the person had any steps, so days
+ * before the first day with steps are missing; from then on a day Health
+ * has nothing for is a real 0. The last 7 days come from the phone's copy,
+ * as for sharers. With no first day at all (no steps, or no access on
+ * iPhone, which looks the same), every day is missing.
+ */
+export function healthDays(
+  goals: HistoryDay[],
+  health: Record<string, number>,
+  phone: Record<string, number>,
+  firstDay: string | null,
+  today: string
+): HistoryDay[] {
+  const phoneFrom = addDays(today, -(PHONE_DAYS - 1));
+  return goals.map((d) => {
+    if (firstDay === null || d.day < firstDay) return { ...d, steps: null };
+    const fromPhone = d.day >= phoneFrom && d.day <= today ? phone[d.day] : undefined;
+    return { ...d, steps: fromPhone ?? health[d.day] ?? 0 };
+  });
+}

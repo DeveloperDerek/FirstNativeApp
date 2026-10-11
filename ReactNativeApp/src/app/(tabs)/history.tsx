@@ -8,6 +8,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Screen } from '@/components/ui/screen';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/auth/AuthProvider';
+import { openHealthSettings, permissionHelp } from '@/health';
 import {
   addDays,
   daysBetween,
@@ -19,6 +20,7 @@ import {
   type MonthRow,
   parseDay,
 } from '@/history/history';
+import { clearHealthHistory } from '@/history/health-read';
 import { useHistory } from '@/hooks/use-history';
 import { useMapTheme } from '@/hooks/use-map-theme';
 import { useSteps } from '@/hooks/use-steps';
@@ -69,7 +71,8 @@ export default function HistoryScreen() {
   const { theme: mapTheme } = useMapTheme();
   const { profile } = useAuth();
   const sharing = Boolean(profile?.sharing_consent_at);
-  const { today: todaySteps, streak, refresh } = useSteps();
+  const { today: todaySteps, streak, permission, refresh } = useSteps();
+  const healthBlocked = permission === 'denied' || permission === 'unavailable';
   const [view, setView] = useState<HistoryView>('week');
   const [offset, setOffset] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -84,6 +87,7 @@ export default function HistoryScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    clearHealthHistory();
     await refresh();
     h.reload();
     setRefreshing(false);
@@ -128,6 +132,19 @@ export default function HistoryScreen() {
           <ThemedText type="subtitle">›</ThemedText>
         </Pressable>
       </View>
+
+      {healthBlocked && (
+        <ThemedView type="backgroundElement" style={styles.card}>
+          <ThemedText type="small">{permissionHelp[permission]}</ThemedText>
+          <Pressable onPress={() => openHealthSettings(permission)} accessibilityRole="button">
+            <ThemedText type="linkPrimary">
+              {permission === 'unavailable' && Platform.OS === 'android'
+                ? 'Get Health Connect'
+                : 'Open settings'}
+            </ThemedText>
+          </Pressable>
+        </ThemedView>
+      )}
 
       {h.error && (
         <ThemedView type="backgroundElement" style={styles.card}>
@@ -174,7 +191,10 @@ export default function HistoryScreen() {
                 {missing} {missing === 1 ? 'day' : 'days'} without step data.
               </ThemedText>
             ))}
-          {Platform.OS === 'ios' && h.stats.daysWithData > 0 && h.stats.total === 0 && (
+          {/* On iPhone, no access looks like 0 (sharers) or no steps at all (not sharing) */}
+          {Platform.OS === 'ios' &&
+            h.stats.total === 0 &&
+            (h.stats.daysWithData > 0 || !sharing) && (
             <ThemedText type="small">
               Seeing 0? Check Settings › Health › Data Access & Devices › StepTracker and allow
               Steps.

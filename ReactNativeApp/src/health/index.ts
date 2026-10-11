@@ -1,4 +1,11 @@
-export { getSteps, openHealthSettings, permissionHelp, requestStepPermission } from './steps';
+export {
+  getDailySteps,
+  getFirstStepDay,
+  getSteps,
+  openHealthSettings,
+  permissionHelp,
+  requestStepPermission,
+} from './steps';
 export type { PermissionResult } from './types';
 
 /** Midnight-to-midnight range for the local calendar day `daysAgo` days back (0 = today, ends now). */

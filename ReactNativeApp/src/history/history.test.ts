@@ -6,10 +6,12 @@ import { test } from 'node:test';
 import {
   addDays,
   daysFrom,
+  healthDays,
   type HistoryDay,
   mergeDays,
   monthAverage,
   monthRows,
+  monthSpans,
   periodRange,
   phoneMonthsRange,
   summarize,
@@ -178,4 +180,52 @@ test('Year: no phone months for a year the last 7 days don\'t reach', () => {
     from: '2026-12-01',
     to: '2026-12-31',
   });
+});
+
+test('a range cut into calendar months', () => {
+  assert.deepEqual(monthSpans('2026-01-01', '2026-03-10'), [
+    { from: '2026-01-01', to: '2026-01-31' },
+    { from: '2026-02-01', to: '2026-02-28' },
+    { from: '2026-03-01', to: '2026-03-10' },
+  ]);
+  assert.deepEqual(monthSpans('2026-10-05', '2026-10-11'), [{ from: '2026-10-05', to: '2026-10-11' }]);
+  assert.deepEqual(monthSpans('2025-12-29', '2026-01-02'), [
+    { from: '2025-12-29', to: '2025-12-31' },
+    { from: '2026-01-01', to: '2026-01-02' },
+  ]);
+  assert.equal(monthSpans('2025-01-01', '2025-12-31').length, 12);
+});
+
+test('non-sharers: before the first day with steps is missing, after it a 0 is real', () => {
+  const today = '2026-10-11';
+  const goals = daysFrom('2026-09-01', '2026-09-10').map((d) => day(d, null));
+  // Health starts with zero days: steps first appear on the 4th
+  const health = { '2026-09-04': 8_000, '2026-09-06': 12_000 };
+  const days = healthDays(goals, health, {}, '2026-09-04', today);
+  assert.deepEqual(
+    days.map((d) => d.steps),
+    [null, null, null, 8_000, 0, 12_000, 0, 0, 0, 0]
+  );
+  const s = summarize(days);
+  assert.equal(s.daysWithData, 7, 'the 3 days before the first are left out');
+  assert.equal(s.average, 2_857); // 20,000 / 7
+  assert.equal(s.daysAtGoal, 1);
+});
+
+test('non-sharers: the last 7 days from the phone, older from Health', () => {
+  const today = '2026-10-11';
+  const goals = daysFrom('2026-10-01', today).map((d) => day(d, null));
+  const health = { '2026-10-04': 4_000, '2026-10-11': 1_000 };
+  const days = healthDays(goals, health, { '2026-10-11': 6_000 }, '2026-09-01', today);
+  const steps = Object.fromEntries(days.map((d) => [d.day, d.steps]));
+  assert.equal(steps['2026-10-04'], 4_000);
+  assert.equal(steps['2026-10-11'], 6_000, 'today as the phone has it');
+  assert.equal(steps['2026-10-07'], 0, 'a phone day the copy lacks: Health\'s 0');
+});
+
+test('non-sharers with no steps in Health at all (or no access on iPhone): all missing', () => {
+  const goals = daysFrom('2026-10-01', '2026-10-03').map((d) => day(d, null));
+  const s = summarize(healthDays(goals, {}, { '2026-10-03': 0 }, null, '2026-10-03'));
+  assert.equal(s.daysWithData, 0);
+  assert.equal(s.average, null);
 });
