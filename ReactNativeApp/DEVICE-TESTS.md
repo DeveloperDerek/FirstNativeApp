@@ -204,6 +204,23 @@ Two phones (A and B), friends, both in one group G.
 
 Also run `bash supabase/tests/concurrency/block_request_race.sh` against the local database (a request and a block at the same moment).
 
+## 14. Reports and the admin side (`step-tracker-safety.txt`, Parts B and D)
+
+Do these with `reports_enabled` on in a test project, and your account in `public.admins` with push turned on. Turn it back off unless you're ready to review every day (`supabase/admin/reports.sql`, step 5).
+
+- [ ] iPhone  - [ ] Android — **Hidden while off:** with `reports_enabled` = 0, no Report anywhere (player card •••, Friends •••, Blocked people, group screen).
+- [ ] iPhone  - [ ] Android — **Turned on:** set it to 1, switch away from the app and back: Report appears without reopening the app.
+- [ ] iPhone  - [ ] Android — **Report a person:** player card ••• > Report closes the card and opens the sheet; pick a reason, add a note, Send: "Thanks. We review every report." They are NOT blocked.
+- [ ] iPhone  - [ ] Android — **Also block:** report someone with "Also block this person" on: they're blocked too.
+- [ ] iPhone  - [ ] Android — **After blocking:** Profile > Blocked people > Report works without unblocking.
+- [ ] iPhone  - [ ] Android — **Group name:** as a member (not the owner), "Report group name" offers only "Offensive name" and "Something else".
+- [ ] iPhone  - [ ] Android — **Admin push:** each new report pushes "New report" to the admin's phone, with no names in it.
+- [ ] iPhone  - [ ] Android — **Paused:** `admin_hide` a test account; on its phone, switching away and back shows "Your account is paused…" with the support email and Sign out. Others can't find it. `admin_unhide` brings it back.
+- [ ] iPhone  - [ ] Android — **Username reset:** `admin_rename(..., 'username')`; on its phone, switching away and back shows "Pick a new username"; saving one goes back into the app.
+- [ ] iPhone  - [ ] Android — **The whole loop, once:** a test report from a phone, the push, `open_reports()` shows it with its snapshot, an action closes it, `report_history()` shows both.
+
+Also run `bash supabase/tests/concurrency/report_race.sh` against the local database (reports sent at the same moment).
+
 ---
 
 ## Sign-off

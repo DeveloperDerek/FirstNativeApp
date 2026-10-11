@@ -1,4 +1,5 @@
-import { Alert } from 'react-native';
+import type { Href } from 'expo-router';
+import { Alert, type AlertButton } from 'react-native';
 
 import { blockUser, unblockUser } from '@/api/blocks';
 import { errorMessage } from '@/lib/error-message';
@@ -54,10 +55,31 @@ export function confirmUnblock(person: Person, onDone: () => void) {
   );
 }
 
-/** The "..." menu for someone: Block (more choices join it later, e.g. Report). */
-export function personMenu(person: Person, onBlocked: () => void) {
-  Alert.alert(`@${person.username}`, undefined, [
-    { text: 'Block', style: 'destructive', onPress: () => confirmBlock(person, onBlocked) },
-    { text: 'Cancel', style: 'cancel' },
-  ]);
+/** The report sheet for a person or a group's name. */
+export const reportHref = (kind: 'person' | 'group', id: string, label: string): Href => ({
+  pathname: '/report',
+  params: { kind, id, label },
+});
+
+/**
+ * The "..." menu for someone: Report (only when given, i.e. reports are
+ * turned on), then Block, or Unblock for someone you blocked.
+ */
+export function personMenu(
+  person: Person,
+  {
+    blocked = false,
+    onChanged,
+    onReport,
+  }: { blocked?: boolean; onChanged: () => void; onReport?: () => void }
+) {
+  const buttons: AlertButton[] = [];
+  if (onReport) buttons.push({ text: 'Report', onPress: onReport });
+  buttons.push(
+    blocked
+      ? { text: 'Unblock', onPress: () => confirmUnblock(person, onChanged) }
+      : { text: 'Block', style: 'destructive', onPress: () => confirmBlock(person, onChanged) }
+  );
+  buttons.push({ text: 'Cancel', style: 'cancel' });
+  Alert.alert(`@${person.username}`, undefined, buttons);
 }

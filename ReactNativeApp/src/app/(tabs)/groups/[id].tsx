@@ -17,6 +17,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { checkName } from '@/auth/name-rules';
 import { nameProblem } from '@/auth/register';
 import { Leaderboard, PeriodPicker } from '@/components/leaderboard';
+import { reportHref } from '@/components/block-actions';
 import { PlayerCard } from '@/components/player-card';
 import { QuestCard } from '@/components/quest-card';
 import { ThemedText } from '@/components/themed-text';
@@ -32,7 +33,7 @@ import { errorMessage } from '@/lib/error-message';
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, account } = useAuth();
   const myId = session?.user.id ?? '';
 
   const [group, setGroup] = useState<Group | null>(null);
@@ -262,6 +263,15 @@ export default function GroupDetailScreen() {
             <Button title="Share" size="small" onPress={shareCode} />
           </Row>
         </Section>
+      )}
+
+      {/* Members report the name; the owner can rename it instead */}
+      {group && !isOwner && account?.reportsEnabled && (
+        <Button
+          title="Report group name"
+          variant="secondary"
+          onPress={() => router.push(reportHref('group', group.id, group.name))}
+        />
       )}
 
       {group && isOwner && (

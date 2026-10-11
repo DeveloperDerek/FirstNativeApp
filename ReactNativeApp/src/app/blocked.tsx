@@ -1,10 +1,12 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
+import { View } from 'react-native';
 
 import { type BlockedPerson, listBlocked } from '@/api/blocks';
+import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
-import { confirmUnblock } from '@/components/block-actions';
+import { confirmUnblock, reportHref } from '@/components/block-actions';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -13,10 +15,12 @@ import { errorMessage } from '@/lib/error-message';
 
 /**
  * Profile > Blocked people (step-tracker-safety.txt, section 8): the
- * people you blocked, with Unblock. Never who blocked you.
+ * people you blocked, with Unblock, and Report so someone can be reported
+ * without unblocking them first. Never who blocked you.
  */
 export default function BlockedScreen() {
   const router = useRouter();
+  const { account } = useAuth();
   const [people, setPeople] = useState<BlockedPerson[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,12 +66,22 @@ export default function BlockedScreen() {
                 accessibilityLabel={`${p.display_name || p.username}'s character`}
               />
             }>
-            <Button
-              title="Unblock"
-              size="small"
-              variant="secondary"
-              onPress={() => confirmUnblock({ id: p.user_id, username: p.username }, load)}
-            />
+            <View>
+              {account?.reportsEnabled && (
+                <Button
+                  title="Report"
+                  size="small"
+                  variant="secondary"
+                  onPress={() => router.push(reportHref('person', p.user_id, `@${p.username}`))}
+                />
+              )}
+              <Button
+                title="Unblock"
+                size="small"
+                variant="secondary"
+                onPress={() => confirmUnblock({ id: p.user_id, username: p.username }, load)}
+              />
+            </View>
           </Row>
         ))}
       </Section>

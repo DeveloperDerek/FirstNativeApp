@@ -43,6 +43,7 @@ select is(public.complete_signup('current_one', 'C', '1990-01-01'), 'OK',
 set local request.jwt.claim.sub = '000001a4-0000-0000-0000-000000000000';
 select is(public.account_status(),
           jsonb_build_object('onboarded', false, 'blocked', false, 'terms_ok', false,
+            'paused', false, 'pick_username', false, 'reports_enabled', false,
             'minimum_age', 13, 'terms_to_accept', jsonb_build_array(
               jsonb_build_object('document', 'privacy', 'version', 'p1',
                                  'url', 'https://example.test/privacy/p1'),

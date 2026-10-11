@@ -14,6 +14,7 @@ select is(
           and p.proname not in (
             -- the check itself, and helpers the row rules use
             'is_active_account', 'is_active_user', 'is_friend', 'is_group_member',
+            'is_active_member',
             'shares_group', 'has_sharing_consent',
             -- no user data
             'shop_day', 'quest_grace', 'quest_cooldown', 'quest_multiplier',

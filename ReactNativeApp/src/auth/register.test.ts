@@ -102,6 +102,10 @@ describe('server error codes', () => {
     assert.equal(registerErrorMessage('something else'), null);
     assert.equal(registerErrorMessage('NAME_NOT_ALLOWED'), "That name isn't allowed. Try another.");
     assert.equal(
+      registerErrorMessage('REPORT_LIMIT'),
+      "You've sent a lot of reports today. Try again later."
+    );
+    assert.equal(
       registerErrorMessage('BAD_GROUP_NAME'),
       'Use 1 to 15 characters for the group name.'
     );

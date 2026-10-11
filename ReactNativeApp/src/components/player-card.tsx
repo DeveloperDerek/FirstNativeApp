@@ -1,9 +1,11 @@
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { loadGroupMemberCard, loadPlayerProfile, type PlayerProfile, timeAgo } from '@/api/players';
 import { normalizeAvatar } from '@/avatar/catalog';
-import { confirmBlock, confirmUnblock } from '@/components/block-actions';
+import { useAuth } from '@/auth/AuthProvider';
+import { personMenu, reportHref } from '@/components/block-actions';
 import { MoreButton } from '@/components/more-button';
 import { ThemedButton } from '@/components/themed-button';
 import { ThemedText } from '@/components/themed-text';
@@ -53,6 +55,8 @@ export function PlayerCard({
   onBlockChanged?: () => void;
 }) {
   const { width } = useWindowDimensions();
+  const router = useRouter();
+  const { account } = useAuth();
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   // Bumped to read the card again (after Block / Unblock in a group)
   const [version, setVersion] = useState(0);
@@ -90,19 +94,24 @@ export function PlayerCard({
   function openMenu() {
     if (!profile || !walker) return;
     const person = { id: walker.id, username: profile.username };
-    if (profile.blockedByMe) {
-      confirmUnblock(person, () => {
-        setVersion((v) => v + 1);
+    personMenu(person, {
+      blocked: profile.blockedByMe,
+      onChanged: () => {
         onBlockChanged?.();
-      });
-      return;
-    }
-    confirmBlock(person, () => {
-      onBlockChanged?.();
-      // In a group you still see each other, so the card stays (with the
-      // note); anywhere else they're gone, so it closes
-      if (group) setVersion((v) => v + 1);
-      else onClose();
+        // In a group you still see each other, so the card stays (with or
+        // without the note); anywhere else a blocked person is gone, so it
+        // closes
+        if (group || profile.blockedByMe) setVersion((v) => v + 1);
+        else onClose();
+      },
+      // The card is a modal over the page: close it first, or it would sit
+      // on top of the report sheet
+      onReport: account?.reportsEnabled
+        ? () => {
+            onClose();
+            router.push(reportHref('person', person.id, `@${person.username}`));
+          }
+        : undefined,
     });
   }
 

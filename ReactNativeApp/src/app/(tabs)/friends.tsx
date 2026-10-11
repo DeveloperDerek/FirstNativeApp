@@ -19,7 +19,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
 import { GroundText } from '@/components/ground-text';
-import { personMenu } from '@/components/block-actions';
+import { personMenu, reportHref } from '@/components/block-actions';
 import { Leaderboard, PeriodPicker } from '@/components/leaderboard';
 import { MoreButton } from '@/components/more-button';
 import { PlayerCard } from '@/components/player-card';
@@ -47,7 +47,7 @@ const character = (p: PublicProfile) => (
 
 export default function FriendsScreen() {
   const router = useRouter();
-  const { session, profile } = useAuth();
+  const { session, profile, account } = useAuth();
   const myId = session?.user.id ?? '';
   const sharing = Boolean(profile?.sharing_consent_at);
   const { refreshCounts } = useNotificationCounts();
@@ -111,6 +111,12 @@ export default function FriendsScreen() {
     }
   }
 
+  // Report is offered only once reviewing works (a server setting)
+  const reportFor = (p: PublicProfile) =>
+    account?.reportsEnabled
+      ? () => router.push(reportHref('person', p.id, `@${p.username}`))
+      : undefined;
+
   const confirmRemove = (f: Friendship, other: PublicProfile) =>
     Alert.alert('Remove friend?', `${name(other)} will no longer see your steps.`, [
       { text: 'Cancel', style: 'cancel' },
@@ -167,7 +173,11 @@ export default function FriendsScreen() {
                 variant="secondary"
                 onPress={() => act(() => declineFriendRequest(f.id))}
               />
-              <MoreButton onPress={() => personMenu(f.requester, load)} />
+              <MoreButton
+                onPress={() =>
+                  personMenu(f.requester, { onChanged: load, onReport: reportFor(f.requester) })
+                }
+              />
             </Row>
           ))}
         </Section>
@@ -192,10 +202,13 @@ export default function FriendsScreen() {
           <Row key={p.id} title={name(p)} detail={`@${p.username}`} leading={character(p)}>
             <MoreButton
               onPress={() =>
-                personMenu(p, () => {
-                  // Gone for you now: off the results and the lists
-                  setResults((r) => r?.filter((x) => x.id !== p.id) ?? null);
-                  load();
+                personMenu(p, {
+                  onChanged: () => {
+                    // Gone for you now: off the results and the lists
+                    setResults((r) => r?.filter((x) => x.id !== p.id) ?? null);
+                    load();
+                  },
+                  onReport: reportFor(p),
                 })
               }
             />

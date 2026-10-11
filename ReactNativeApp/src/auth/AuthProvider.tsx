@@ -152,6 +152,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [userId]
   );
 
+  // Asked again whenever the app comes back to the foreground, quietly (a
+  // failure keeps the current screen), so a pause, a username reset or
+  // reports being turned on (step-tracker-safety.txt, Part D) shows up
+  // without reopening the app
+  useEffect(() => {
+    if (!userId) return;
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') reloadAccount().catch(() => {});
+    });
+    return () => sub.remove();
+  }, [userId, reloadAccount]);
+
   const endRecovery = useCallback(async () => {
     if (userId) await AsyncStorage.removeItem(recoveryKey(userId)).catch(() => {});
     setRecoveryLink(null);

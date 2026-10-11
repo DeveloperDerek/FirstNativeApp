@@ -82,6 +82,7 @@ function RootNavigator() {
         <Stack.Screen name="change-password" options={{ presentation: 'modal' }} />
         <Stack.Screen name="birthday-correction" options={{ presentation: 'modal' }} />
         <Stack.Screen name="blocked" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="report" options={{ presentation: 'modal' }} />
       </Stack.Protected>
       <Stack.Protected guard={route === 'setup'}>
         <Stack.Screen name="setup" options={{ gestureEnabled: false }} />
@@ -91,6 +92,12 @@ function RootNavigator() {
       </Stack.Protected>
       <Stack.Protected guard={route === 'blocked'}>
         <Stack.Screen name="age-blocked" options={{ gestureEnabled: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={route === 'paused'}>
+        <Stack.Screen name="paused" options={{ gestureEnabled: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={route === 'pickUsername'}>
+        <Stack.Screen name="new-username" options={{ gestureEnabled: false }} />
       </Stack.Protected>
       <Stack.Protected guard={route === 'recovery'}>
         <Stack.Screen name="new-password" options={{ gestureEnabled: false }} />

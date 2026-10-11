@@ -135,6 +135,12 @@ export function registerErrorMessage(code: string): string | null {
       return 'You already have a request open. Support will be in touch.';
     case 'NOTE_TOO_LONG':
       return 'Keep the note to 500 characters.';
+    case 'REPORT_LIMIT':
+      return "You've sent a lot of reports today. Try again later.";
+    case 'REPORT_NOT_ALLOWED':
+    case 'REPORTS_OFF':
+    case 'BAD_REASON':
+      return "This can't be reported right now.";
     case 'RATE_LIMITED':
       return 'Too many tries. Wait a few minutes, then try again.';
     default:

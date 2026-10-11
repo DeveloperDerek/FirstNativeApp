@@ -784,6 +784,25 @@ table.
   - All admin functions can't be called from the app, only from the SQL
     Editor (like the existing admin functions).
 
+  BUILT (20261105000000_reports.sql)
+  - As designed. Notes from building:
+      - Admin functions take your admin id (from public.admins) as an
+        argument, since the SQL Editor isn't signed in as anyone. How to
+        use them: supabase/admin/reports.sql.
+      - A username reset puts the account's sign-up placeholder
+        (user_xxxxxxxx) in place at once, so the reported name is gone
+        straight away; they pick a new one on next open.
+      - is_active_user() can no longer be called from the app: next to
+        can_see() it would have told a blocked person they were
+        blocked. The two row rules that used it now use can_see() and a
+        group-only helper (is_active_member), which also keeps a blocked
+        member removable by the group owner.
+      - The app asks the server for its status again whenever it comes
+        to the foreground, so a pause, a username reset or reports being
+        turned on show without reopening it.
+      - Reports sent at the same moment are tested by
+        supabase/tests/concurrency/report_race.sh (two sessions).
+
   AN URGENT REPORT (serious abuse)
   - Hide the account at once, then look into it. Keep the report open
     until you've decided. If it involves a risk to someone's safety,

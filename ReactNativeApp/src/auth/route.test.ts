@@ -8,6 +8,9 @@ import { type AccountStatus, parseAccountStatus, redirectFor, routeFor } from '.
 const active: AccountStatus = {
   onboarded: true,
   blocked: false,
+  paused: false,
+  pickUsername: false,
+  reportsEnabled: false,
   termsOk: true,
   minimumAge: 13,
   termsToAccept: [],
@@ -67,6 +70,17 @@ describe('routeFor (step-tracker-register.txt, section 7)', () => {
   test('step 2 comes before the Terms screen (it has its own checkbox)', () => {
     assert.equal(signedIn({ ...active, onboarded: false, termsOk: false }), 'setup');
   });
+
+  test('paused by an admin: the paused screen, but the age block wins', () => {
+    assert.equal(signedIn({ ...active, paused: true }), 'paused');
+    assert.equal(signedIn({ ...active, paused: true, blocked: true }), 'blocked');
+    assert.equal(signedIn({ ...active, paused: true, termsOk: false }), 'paused');
+  });
+
+  test('a reset username: pick a new one before the app, after the Terms', () => {
+    assert.equal(signedIn({ ...active, pickUsername: true }), 'pickUsername');
+    assert.equal(signedIn({ ...active, pickUsername: true, termsOk: false }), 'updatedTerms');
+  });
 });
 
 describe('parseAccountStatus', () => {
@@ -80,6 +94,9 @@ describe('parseAccountStatus', () => {
       parseAccountStatus({
         onboarded: true,
         blocked: false,
+        paused: true,
+        pick_username: true,
+        reports_enabled: true,
         terms_ok: false,
         minimum_age: 16,
         terms_to_accept: [doc],
@@ -87,6 +104,9 @@ describe('parseAccountStatus', () => {
       {
         onboarded: true,
         blocked: false,
+        paused: true,
+        pickUsername: true,
+        reportsEnabled: true,
         termsOk: false,
         minimumAge: 16,
         termsToAccept: [doc],
@@ -98,6 +118,9 @@ describe('parseAccountStatus', () => {
     assert.deepEqual(parseAccountStatus(null), {
       onboarded: false,
       blocked: false,
+      paused: false,
+      pickUsername: false,
+      reportsEnabled: false,
       termsOk: false,
       minimumAge: 13,
       termsToAccept: [],
@@ -106,6 +129,13 @@ describe('parseAccountStatus', () => {
 });
 
 describe('redirectFor: each state on its own screen', () => {
+  test('paused and a username reset each have their screen', () => {
+    assert.equal(redirectFor('paused', '/', false), '/paused');
+    assert.equal(redirectFor('pickUsername', '/profile', false), '/new-username');
+    assert.equal(redirectFor('app', '/paused', false), '/');
+    assert.equal(redirectFor('app', '/new-username', false), '/');
+  });
+
   test('under 13 lands on the blocked screen, wherever the router fell back to', () => {
     assert.equal(redirectFor('blocked', '/auth/reset', false), '/age-blocked');
     assert.equal(redirectFor('blocked', '/', false), '/age-blocked');

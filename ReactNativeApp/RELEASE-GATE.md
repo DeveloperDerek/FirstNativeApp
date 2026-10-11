@@ -184,3 +184,14 @@ needs them set by hand.
    no Block button, so ship the new build soon after. Once no older
    build is in use, drop `group_leaderboard(uuid, date, date)` and
    `friends_leaderboard(date, date)`.
+8. Reports (`step-tracker-safety.txt`, Parts B and D): push
+   `20261105000000_reports.sql`. Reports start turned OFF
+   (`app_settings.reports_enabled` = 0); nothing changes for users until
+   it's on. Before turning it on: the support email is live
+   (`EXPO_PUBLIC_SUPPORT_EMAIL`, shown on the paused screen, and in the
+   store listings), the published Terms include the content rules (gate
+   3), your account is in `public.admins` with push on, and one test
+   report has gone end to end (`DEVICE-TESTS.md` §14). Then use
+   `supabase/admin/reports.sql` daily. Check the two new scheduled jobs:
+   `select jobname, schedule from cron.job;` (remind-old-reports
+   `15 * * * *`, delete-old-reports `30 3 * * *`).

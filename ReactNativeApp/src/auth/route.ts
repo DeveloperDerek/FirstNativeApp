@@ -12,6 +12,12 @@ export type LegalDoc = {
 export type AccountStatus = {
   onboarded: boolean;
   blocked: boolean;
+  /** Paused by an admin while a report is looked into (step-tracker-safety.txt, Part D) */
+  paused: boolean;
+  /** An admin reset the username: pick a new one before going on */
+  pickUsername: boolean;
+  /** Whether Report is offered (a server setting, off until reviewing works) */
+  reportsEnabled: boolean;
   /** false = a version that requires re-acceptance hasn't been accepted */
   termsOk: boolean;
   minimumAge: number;
@@ -26,8 +32,10 @@ export type Route =
   | 'loading' // signed in, account not loaded yet: splash, never the tabs
   | 'loadFailed' // "Can't reach StepTracker"
   | 'blocked' // under the minimum age
+  | 'paused' // paused by an admin
   | 'setup' // step 2
   | 'updatedTerms'
+  | 'pickUsername' // after an admin reset the username
   | 'app';
 
 export function routeFor(state: {
@@ -43,8 +51,11 @@ export function routeFor(state: {
   if (state.account === 'loading') return 'loading';
   if (state.account === 'failed') return 'loadFailed';
   if (state.account.blocked) return 'blocked';
+  // The age block wins: that account is deleted within the hour anyway
+  if (state.account.paused) return 'paused';
   if (!state.account.onboarded) return 'setup';
   if (!state.account.termsOk) return 'updatedTerms';
+  if (state.account.pickUsername) return 'pickUsername';
   return 'app';
 }
 
@@ -54,6 +65,9 @@ export function parseAccountStatus(raw: unknown): AccountStatus {
   return {
     onboarded: r.onboarded === true,
     blocked: r.blocked === true,
+    paused: r.paused === true,
+    pickUsername: r.pick_username === true,
+    reportsEnabled: r.reports_enabled === true,
     termsOk: r.terms_ok === true,
     minimumAge: typeof r.minimum_age === 'number' ? r.minimum_age : 13,
     termsToAccept: Array.isArray(r.terms_to_accept) ? (r.terms_to_accept as LegalDoc[]) : [],
@@ -69,8 +83,10 @@ const HOME: Record<Exclude<Route, 'starting' | 'loading' | 'loadFailed'>, string
   signedOut: '/sign-in',
   recovery: '/new-password',
   blocked: '/age-blocked',
+  paused: '/paused',
   setup: '/setup',
   updatedTerms: '/updated-terms',
+  pickUsername: '/new-username',
   app: '/',
 };
 const STATE_SCREENS = Object.values(HOME).filter((p) => p !== '/');

@@ -36,3 +36,6 @@ AppState.addEventListener('change', (state) => {
 });
 
 export const privacyUrl = process.env.EXPO_PUBLIC_PRIVACY_URL || 'https://yourdomain.com/privacy';
+
+/** Shown on the paused screen; empty until there is one (RELEASE-GATE.md, open items). */
+export const supportEmail = process.env.EXPO_PUBLIC_SUPPORT_EMAIL || '';
