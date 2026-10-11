@@ -195,3 +195,20 @@ needs them set by hand.
    `supabase/admin/reports.sql` daily. Check the two new scheduled jobs:
    `select jobname, schedule from cron.job;` (remind-old-reports
    `15 * * * *`, delete-old-reports `30 3 * * *`).
+9. Group owners (`step-tracker-group-owners.txt`, Part A): push
+   `20261106000000_group_owners.sql`. From then on a group passes to its
+   longest-standing member when the owner leaves or deletes their
+   account, for older app builds too. The migration also fixes any group
+   whose owner had already left it. Older builds have no "Leave group"
+   for owners and still say "any groups you own" will be deleted, so
+   ship the new build soon after.
+10. Sign in with Apple on deletion (`step-tracker-group-owners.txt`,
+   Part B): push `20261107000000_apple_revocation_log.sql` and deploy the
+   function (`supabase functions deploy delete-account`). Until the Apple
+   secrets are set, an Apple account is still deleted and a row in
+   `public.apple_revocation_failures` says Apple wasn't revoked. Needed
+   before Sign in with Apple is turned on: in the Apple Developer account,
+   a Sign in with Apple key (.p8); then, in Supabase > Edge Functions >
+   Secrets, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` (the .p8
+   file's contents) and `APPLE_CLIENT_ID` (`com.derekho.steptracker`).
+   Then the Part B checks in `DEVICE-TESTS.md` §15.

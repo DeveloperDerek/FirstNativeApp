@@ -52,7 +52,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "lint": "expo lint",
-    "test": "node --test \"src/**/*.test.ts\"",
+    "test": "node --test \"src/**/*.test.ts\" \"supabase/functions/**/*.test.ts\"",
     "gen:name-tests": "node scripts/gen-name-tests.ts"
   },
   "private": true

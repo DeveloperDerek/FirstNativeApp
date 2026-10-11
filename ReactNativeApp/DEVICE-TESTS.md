@@ -221,6 +221,23 @@ Do these with `reports_enabled` on in a test project, and your account in `publi
 
 Also run `bash supabase/tests/concurrency/report_race.sh` against the local database (reports sent at the same moment).
 
+## 15. Group owners (`step-tracker-group-owners.txt`, Part A)
+
+Three phones (O owns a group; A joined before B).
+
+- [ ] iPhone  - [ ] Android — **Owner leaves:** on O, group > Leave group says "@A will become the owner." After leaving, A's phone gets "You're now the owner of …" and A sees Manage (Rename, Delete group).
+- [ ] iPhone  - [ ] Android — **Alone:** an owner alone in a group: Leave group says the group will be deleted, and it is.
+- [ ] iPhone  - [ ] Android — **Make owner:** as owner, tap B in the group ranking > ••• > Make owner > Make owner. B owns the group; the old owner is still in it.
+- [ ] iPhone  - [ ] Android — **Owner deletes their account:** Delete account's message says groups pass on; afterwards the group carries on for A and B with A as owner.
+
+Also run `bash supabase/tests/concurrency/group_owner_race.sh` against the local database (the owner and the next member leaving at the same moment).
+
+**Sign in with Apple on deletion (Part B), once Sign in with Apple is on and the Apple secrets are set:**
+
+- [ ] iPhone — **Confirm with Apple:** an account made with Apple: Delete account > Continue with Apple shows the Apple sheet; after confirming, the account is gone, and Settings > [your name] > Sign in with Apple no longer lists StepTracker.
+- [ ] iPhone — **Cancel:** cancelling the Apple sheet deletes nothing.
+- [ ] iPhone — **No log row:** `select * from public.apple_revocation_failures;` has nothing for that account (a row means Apple wasn't revoked, with the reason).
+
 ---
 
 ## Sign-off

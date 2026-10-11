@@ -15,7 +15,7 @@ import {
   isValidUsername,
   nameProblem,
 } from '@/auth/register';
-import { signOut } from '@/auth/signIn';
+import { appleCodeForDeletion, appleSignInEnabled, signOut } from '@/auth/signIn';
 import { Avatar } from '@/avatar/Avatar';
 import { formatDay } from '@/components/birthday-field';
 import { ThemedText } from '@/components/themed-text';
@@ -71,23 +71,42 @@ export default function ProfileScreen() {
     );
   }
 
+  // Sign in with Apple is one of this account's ways in: deleting asks for
+  // Apple once more, so the app's Apple tokens can be revoked (Part B)
+  const usesApple =
+    appleSignInEnabled &&
+    ((session?.user.app_metadata.providers as string[] | undefined) ?? []).includes('apple');
+
+  async function deleteNow() {
+    try {
+      let appleCode: string | null = null;
+      if (usesApple) {
+        try {
+          appleCode = await appleCodeForDeletion();
+          if (appleCode === null) return; // cancelled on the Apple sheet: nothing deleted
+        } catch {
+          // Apple failed: the account is still deleted, and the server logs
+          // that Apple couldn't be revoked (decision 5)
+        }
+      }
+      await deleteAccount(appleCode);
+    } catch (e) {
+      Alert.alert('Could not delete account', errorMessage(e));
+    }
+  }
+
   function confirmDelete() {
     Alert.alert(
       'Delete account?',
-      'This permanently deletes your account, step history, friends, ' +
-        'and any groups you own. This cannot be undone.',
+      'This permanently deletes your account, step history and friends. ' +
+        'Groups you own pass to the member who has been in them longest; a group ' +
+        'with no one else in it is deleted. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: usesApple ? 'Continue with Apple' : 'Delete',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteAccount();
-            } catch (e) {
-              Alert.alert('Could not delete account', errorMessage(e));
-            }
-          },
+          onPress: deleteNow,
         },
       ]
     );

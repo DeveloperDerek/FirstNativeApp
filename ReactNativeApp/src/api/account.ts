@@ -4,8 +4,16 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { googleSignInEnabled, signOut } from '@/auth/signIn';
 import { supabase } from '@/lib/supabase';
 
-export async function deleteAccount() {
-  const { error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
+/**
+ * appleCode: for an account with Sign in with Apple, the one-time code from
+ * asking for Apple again, so the server can revoke the app's Apple tokens.
+ * Without it the account is still deleted (the server logs it).
+ */
+export async function deleteAccount(appleCode?: string | null) {
+  const { error } = await supabase.functions.invoke('delete-account', {
+    method: 'POST',
+    body: appleCode ? { apple_authorization_code: appleCode } : {},
+  });
   if (error) throw error;
 
   // Disconnect Google so the next sign-in asks for consent again

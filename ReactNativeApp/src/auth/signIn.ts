@@ -134,6 +134,23 @@ export async function signInWithApple(): Promise<boolean> {
   return true;
 }
 
+/**
+ * Asks for Apple once more when an Apple account is deleted, for the
+ * one-time code the server uses to revoke the app's Apple tokens
+ * (step-tracker-group-owners.txt, Part B). Null if the person cancels.
+ * Any other failure throws; the caller deletes the account anyway.
+ */
+export async function appleCodeForDeletion(): Promise<string | null> {
+  try {
+    const credential = await AppleAuthentication.signInAsync({ requestedScopes: [] });
+    if (!credential.authorizationCode) throw new Error('No authorization code');
+    return credential.authorizationCode;
+  } catch (e) {
+    if ((e as { code?: string } | null)?.code === 'ERR_REQUEST_CANCELED') return null;
+    throw failure('apple', e);
+  }
+}
+
 // ---------- GOOGLE ----------
 export async function signInWithGoogle(): Promise<boolean> {
   let idToken: string | null;
