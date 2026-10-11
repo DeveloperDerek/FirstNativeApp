@@ -41,6 +41,7 @@ export function PlayerCard({
   onClose,
   onEditMine,
   onBlockChanged,
+  onMakeOwner,
 }: {
   /** null = the card is closed */
   walker: Walker | null;
@@ -53,6 +54,8 @@ export function PlayerCard({
   onEditMine?: () => void;
   /** After blocking or unblocking from the card, so the page can reload. */
   onBlockChanged?: () => void;
+  /** Group owners on the group screen: hand the group to this person. */
+  onMakeOwner?: (person: { id: string; username: string }) => void;
 }) {
   const { width } = useWindowDimensions();
   const router = useRouter();
@@ -104,6 +107,7 @@ export function PlayerCard({
         if (group || profile.blockedByMe) setVersion((v) => v + 1);
         else onClose();
       },
+      onMakeOwner: onMakeOwner ? () => onMakeOwner(person) : undefined,
       // The card is a modal over the page: close it first, or it would sit
       // on top of the report sheet
       onReport: account?.reportsEnabled

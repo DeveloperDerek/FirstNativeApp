@@ -50,8 +50,10 @@ select is_empty($$ select 1 from public.profiles where id = '00000ac1-0000-0000-
 select is_empty($$ select 1 from public.profile_private
                    where user_id = '00000ac1-0000-0000-0000-000000000000' $$,
                 'its private row is gone');
-select is_empty($$ select 1 from public.groups where id = '00000ae1-0000-0000-0000-000000000000' $$,
-                'groups it owned are gone, as with "Delete account"');
+-- step-tracker-group-owners.txt: groups pass to the longest-standing member
+select is((select owner_id from public.groups where id = '00000ae1-0000-0000-0000-000000000000'),
+          '00000aa1-0000-0000-0000-000000000000'::uuid,
+          'the group it owned passes to A, as with "Delete account"');
 select is((select outcome from public.account_cleanup_log
            where user_id = '00000ac1-0000-0000-0000-000000000000' order by id desc limit 1),
           'deleted', 'the deletion is logged');

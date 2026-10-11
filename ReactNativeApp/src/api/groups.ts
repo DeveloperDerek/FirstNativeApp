@@ -55,8 +55,26 @@ export async function joinGroup(inviteCode: string): Promise<string> {
   return data as string; // group id
 }
 
+// An owner leaving passes the group to its longest-standing member, or
+// deletes it if nobody else is in it; the server does that
+// (step-tracker-group-owners.txt, Part A)
 export async function leaveGroup(groupId: string, userId: string) {
   await removeMember(groupId, userId);
+}
+
+export type NextOwner = { user_id: string; username: string; display_name: string | null };
+
+/** Who would take over if you (the owner) left now; null if you're alone. */
+export async function nextGroupOwner(groupId: string): Promise<NextOwner | null> {
+  const { data, error } = await supabase.rpc('next_group_owner', { gid: groupId });
+  if (error) throw error;
+  return data;
+}
+
+/** Owner only: hand the group to another current member. You stay in it. */
+export async function makeGroupOwner(groupId: string, personId: string) {
+  const { error } = await supabase.rpc('make_group_owner', { gid: groupId, person: personId });
+  if (error) throw error;
 }
 
 // Owner only for anyone but yourself (RLS "members leave or kick")

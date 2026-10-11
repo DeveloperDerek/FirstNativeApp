@@ -7,6 +7,8 @@ import {
   getGroup,
   type Group,
   groupLeaderboard,
+  makeGroupOwner,
+  nextGroupOwner,
   leaveGroup,
   removeMember,
   renameGroup,
@@ -154,8 +156,22 @@ export default function GroupDetailScreen() {
     }
   }
 
-  function confirmLeave() {
-    Alert.alert('Leave group?', 'You will stop seeing this group and its members will stop seeing your steps.', [
+  async function confirmLeave() {
+    if (!group) return;
+    let message = 'You will stop seeing this group and its members will stop seeing your steps.';
+    if (isOwner) {
+      // Who takes over, from the server (the same rule it uses)
+      try {
+        const next = await nextGroupOwner(group.id);
+        message = next
+          ? `@${next.username} will become the owner.`
+          : "You're the only member, so the group will be deleted.";
+      } catch (e) {
+        setError(errorMessage(e));
+        return;
+      }
+    }
+    Alert.alert(`Leave ${group.name}?`, message, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Leave',
@@ -170,6 +186,29 @@ export default function GroupDetailScreen() {
         },
       },
     ]);
+  }
+
+  function confirmMakeOwner(person: { id: string; username: string }) {
+    if (!group) return;
+    Alert.alert(
+      `Make @${person.username} the owner of ${group.name}?`,
+      "You'll stay in the group as a member. Only the owner can rename it, remove members or delete it.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Make owner',
+          onPress: async () => {
+            try {
+              await makeGroupOwner(group.id, person.id);
+              setSelectedId(null);
+              await load();
+            } catch (e) {
+              setError(errorMessage(e));
+            }
+          },
+        },
+      ]
+    );
   }
 
   function confirmRemove(row: LeaderboardRow) {
@@ -288,7 +327,8 @@ export default function GroupDetailScreen() {
         </Section>
       )}
 
-      {group && !isOwner && (
+      {/* An owner leaving hands the group on (or, alone, deletes it) */}
+      {group && (
         <Section>
           <Button title="Leave group" variant="danger" onPress={confirmLeave} />
         </Section>
@@ -311,6 +351,7 @@ export default function GroupDetailScreen() {
         group={group ? { id: group.id, name: group.name } : undefined}
         onClose={() => setSelectedId(null)}
         onEditMine={() => router.navigate('/profile')}
+        onMakeOwner={isOwner ? confirmMakeOwner : undefined}
       />
     </Screen>
   );

@@ -71,9 +71,17 @@ export function personMenu(
     blocked = false,
     onChanged,
     onReport,
-  }: { blocked?: boolean; onChanged: () => void; onReport?: () => void }
+    onMakeOwner,
+  }: {
+    blocked?: boolean;
+    onChanged: () => void;
+    onReport?: () => void;
+    /** Group owners only, on the group screen */
+    onMakeOwner?: () => void;
+  }
 ) {
   const buttons: AlertButton[] = [];
+  if (onMakeOwner) buttons.push({ text: 'Make owner', onPress: onMakeOwner });
   if (onReport) buttons.push({ text: 'Report', onPress: onReport });
   buttons.push(
     blocked
