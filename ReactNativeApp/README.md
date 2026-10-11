@@ -1,3 +1,56 @@
+# StepTracker
+
+## Making a build (EAS)
+
+Builds are made in the cloud by EAS, Expo's build service
+(`step-tracker-builds.txt`, Part A). Three kinds, set in `eas.json`:
+
+| Profile | For | Install |
+|---|---|---|
+| `development` | you, while working on the app (replaces `npx expo run:ios`) | a link or QR code; then `npx expo start` |
+| `preview` | testers, outside the stores | Android: an APK link. iOS: needs the paid Apple Developer account |
+| `production` | TestFlight and Google Play | through the stores |
+
+The app version (`version` in `app.json`) is yours to change for each
+release. Build numbers are kept by EAS and go up by one on every
+production build.
+
+### Once, to set up
+
+1. A free Expo account at expo.dev, then `npx eas-cli@latest login`.
+2. `npx eas-cli@latest init` creates the EAS project and saves its ID in
+   `app.json` (`extra.eas.projectId`; not a secret). Push notifications
+   use the same ID. Done: @derekqho/ReactNativeApp.
+3. `bash scripts/eas-env.sh` copies the app's settings from `.env` into
+   EAS (`.env` itself is never uploaded). Only the public `EXPO_PUBLIC_*`
+   values and `APPLE_TEAM_ID` are sent; never `SUPABASE_DB_PASSWORD` or any
+   other secret. Run it again whenever `.env` changes.
+
+### Each build
+
+```bash
+npx eas-cli@latest build --profile preview --platform android      # an APK for an Android phone
+npx eas-cli@latest build --profile development --platform ios      # for your own iPhone
+npx eas-cli@latest build --profile production --platform all       # for the stores
+npx eas-cli@latest submit --profile production --platform android  # send the latest build to Google Play
+```
+
+The free plan includes a number of builds a month in a slower queue; see
+expo.dev/pricing. Google wants the first upload of a new app done by hand
+in the Play Console; after that `submit` works.
+
+## Checks
+
+CI runs on every push (`.github/workflows/ci.yml`). The same, locally:
+
+```bash
+npx tsc --noEmit && npx expo lint && npm test   # the app
+supabase start && supabase test db              # the database
+for f in supabase/tests/concurrency/*.sh; do bash "$f"; done   # two sessions at once
+```
+
+---
+
 # Welcome to your Expo app 👋
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).

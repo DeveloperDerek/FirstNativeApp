@@ -52,7 +52,10 @@
       [
         "expo-font",
         {
-          "fonts": ["./assets/fonts/Maplestory-Light.ttf", "./assets/fonts/Maplestory-Bold.ttf"]
+          "fonts": [
+            "./assets/fonts/Maplestory-Light.ttf",
+            "./assets/fonts/Maplestory-Bold.ttf"
+          ]
         }
       ],
       [
@@ -67,6 +70,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "378e1ea9-49da-4a1b-99ca-33d9e13eb6a1"
+      }
+    },
+    "owner": "derekqho"
   }
 }
