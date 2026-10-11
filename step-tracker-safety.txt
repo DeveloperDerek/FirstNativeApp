@@ -349,6 +349,22 @@ table.
                                                blocker's own note
   - Deleting either account deletes their block rows.
 
+  BUILT (20261104000000_blocking.sql)
+  - As designed. Notes from building:
+      - group_leaderboard now refuses an inactive caller
+        (ACCOUNT_NOT_ACTIVE), like group_quest; the old date-based call
+        returns nothing for them, as before.
+      - step_period (the periods and the window) runs with extra rights
+        so the version that takes any clock (step_period_at, used by the
+        tests) stays internal.
+      - The old date-based leaderboard calls stay for app builds from
+        before this, mapped onto 'today' / 'week'; anything else is
+        refused. Drop them once those builds are gone.
+      - The player card is also opened from the group screen now (tap a
+        member), reading through group_member_card.
+      - The request / block race is tested by
+        supabase/tests/concurrency/block_request_race.sh (two sessions).
+
   FRIEND REQUESTS (DECIDED: NO LIMITS)
   - No daily limit and no wait after a decline. Blocking is how
     someone stops repeat requests for good. A report without "Also

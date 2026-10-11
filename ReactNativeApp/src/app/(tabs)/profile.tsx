@@ -129,6 +129,14 @@ export default function ProfileScreen() {
           detail={sharing ? 'Friends and groups can see your daily totals' : 'Not sharing'}>
           <Switch value={sharing} onValueChange={toggleSharing} />
         </Row>
+        <Row title="Blocked people" detail="People you've blocked, and Unblock">
+          <Button
+            title="Open"
+            size="small"
+            variant="secondary"
+            onPress={() => router.push('/blocked')}
+          />
+        </Row>
         <Pressable onPress={() => Linking.openURL(privacyUrl)}>
           <ThemedText type="linkPrimary">Privacy policy</ThemedText>
         </Pressable>

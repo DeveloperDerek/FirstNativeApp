@@ -176,3 +176,11 @@ needs them set by hand.
    app build from before this shows a refused name's code
    (`NAME_NOT_ALLOWED`) instead of words, so ship the new build soon
    after.
+7. Blocking (`step-tracker-safety.txt`, Part A): push
+   `20261104000000_blocking.sql`. Older app builds keep working: their
+   date-based leaderboard calls are mapped onto the new periods. In them,
+   a group mate's card no longer shows "last seen" (group mates who
+   aren't friends can't read it from the table any more), and there is
+   no Block button, so ship the new build soon after. Once no older
+   build is in use, drop `group_leaderboard(uuid, date, date)` and
+   `friends_leaderboard(date, date)`.

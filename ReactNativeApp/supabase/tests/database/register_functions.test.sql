@@ -18,6 +18,8 @@ select is(
             -- no user data
             'shop_day', 'quest_grace', 'quest_cooldown', 'quest_multiplier',
             'quest_step_coins', 'quest_coins_each',
+            -- date arithmetic only (step-tracker-safety.txt, section 2)
+            'step_period',
             -- the caller's own status, needed to pick the screen
             'account_status',
             -- for unfinished accounts; they refuse blocked ones (checked below)

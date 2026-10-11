@@ -81,6 +81,7 @@ function RootNavigator() {
         <Stack.Screen name="propose-quest" options={{ presentation: 'modal' }} />
         <Stack.Screen name="change-password" options={{ presentation: 'modal' }} />
         <Stack.Screen name="birthday-correction" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="blocked" options={{ presentation: 'modal' }} />
       </Stack.Protected>
       <Stack.Protected guard={route === 'setup'}>
         <Stack.Screen name="setup" options={{ gestureEnabled: false }} />

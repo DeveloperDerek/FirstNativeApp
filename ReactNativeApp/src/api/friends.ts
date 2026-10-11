@@ -1,4 +1,4 @@
-import type { LeaderboardRow } from '@/api/steps';
+import { type LeaderboardRow, myToday, type Period } from '@/api/steps';
 import { supabase } from '@/lib/supabase';
 
 export type PublicProfile = {
@@ -76,10 +76,10 @@ export const cancelFriendRequest = (id: string) => setStatus(id, 'cancelled');
 export const removeFriend = (id: string) => setStatus(id, 'removed');
 
 // Compare
-export async function friendsLeaderboard(fromDay: string, toDay: string): Promise<LeaderboardRow[]> {
+export async function friendsLeaderboard(period: Period): Promise<LeaderboardRow[]> {
   const { data, error } = await supabase.rpc('friends_leaderboard', {
-    from_day: fromDay,
-    to_day: toDay,
+    period,
+    my_today: myToday(),
   });
   if (error) throw error;
   return data;

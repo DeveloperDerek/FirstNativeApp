@@ -1,5 +1,5 @@
 import { rethrow } from '@/api/register';
-import type { LeaderboardRow } from '@/api/steps';
+import { type LeaderboardRow, myToday, type Period } from '@/api/steps';
 import { supabase } from '@/lib/supabase';
 
 export type Group = { id: string; name: string; owner_id: string; invite_code: string };
@@ -70,15 +70,13 @@ export async function removeMember(groupId: string, userId: string) {
 }
 
 // Compare
-export async function groupLeaderboard(
-  groupId: string,
-  fromDay: string,
-  toDay: string
-): Promise<LeaderboardRow[]> {
+// Read through the server's group function, which shows every active
+// member of this group (step-tracker-safety.txt, section 2)
+export async function groupLeaderboard(groupId: string, period: Period): Promise<LeaderboardRow[]> {
   const { data, error } = await supabase.rpc('group_leaderboard', {
     gid: groupId,
-    from_day: fromDay,
-    to_day: toDay,
+    period,
+    my_today: myToday(),
   });
   if (error) throw error;
   return data;

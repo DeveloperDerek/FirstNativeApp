@@ -1,3 +1,4 @@
+import { myToday } from '@/api/steps';
 import { normalizeAvatar } from '@/avatar/catalog';
 import type { AvatarConfig } from '@/avatar/types';
 import { supabase } from '@/lib/supabase';
@@ -9,34 +10,63 @@ export type PlayerProfile = {
   mapTheme: string | null;
   /** null = never seen, not sharing, or not someone you can see */
   lastSeen: Date | null;
+  /** You blocked them (only known on a card opened from a group you share). */
+  blockedByMe: boolean;
 };
 
 /**
- * Someone's public profile for the player card. Only these columns on
- * purpose: never select('*'), since profiles also holds
- * sharing_consent_at, which other users have no reason to see.
+ * Someone's public profile for the player card, or null when they aren't
+ * available to you (blocked either way, or no longer active: the server
+ * doesn't say which). Only these columns on purpose: never select('*'),
+ * since profiles also holds sharing_consent_at, which other users have no
+ * reason to see.
  */
-export async function loadPlayerProfile(userId: string): Promise<PlayerProfile> {
+export async function loadPlayerProfile(userId: string): Promise<PlayerProfile | null> {
   const [{ data, error }, lastSeen] = await Promise.all([
     supabase
       .from('profiles')
       .select('username, display_name, avatar, map_theme')
       .eq('id', userId)
-      .single(),
+      .maybeSingle(),
     loadLastSeen(userId),
   ]);
   if (error) throw error;
+  if (!data) return null;
   return {
     username: data.username,
     displayName: data.display_name,
     avatar: normalizeAvatar(data.avatar),
     mapTheme: data.map_theme,
     lastSeen,
+    blockedByMe: false,
   };
 }
 
-// The database only answers for yourself, friends and group mates. A
-// failure just hides the line rather than the whole card.
+/**
+ * The player card opened from a group: read through the server's group
+ * function, which shows any member of a group you share, including
+ * someone you blocked or who blocked you (decision 1).
+ */
+export async function loadGroupMemberCard(groupId: string, userId: string): Promise<PlayerProfile> {
+  const { data, error } = await supabase.rpc('group_member_card', {
+    gid: groupId,
+    person: userId,
+    my_today: myToday(),
+  });
+  if (error) throw error;
+  return {
+    username: data.username,
+    displayName: data.display_name,
+    avatar: normalizeAvatar(data.avatar),
+    mapTheme: data.map_theme,
+    lastSeen: data.last_seen ? new Date(data.last_seen) : null,
+    blockedByMe: Boolean(data.blocked_by_me),
+  };
+}
+
+// The database only answers for yourself and friends (group mates come
+// through loadGroupMemberCard). A failure just hides the line rather than
+// the whole card.
 async function loadLastSeen(userId: string): Promise<Date | null> {
   const { data, error } = await supabase
     .from('last_seen')

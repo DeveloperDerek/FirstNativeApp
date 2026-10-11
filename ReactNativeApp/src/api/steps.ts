@@ -22,13 +22,12 @@ export async function syncSteps(userId: string, entries: [Date, number][]) {
 
 export type Period = 'today' | 'week';
 
-/** Inclusive local-day range for a leaderboard period. */
-export function periodRange(period: Period) {
-  const end = new Date();
-  const start = new Date(end);
-  if (period === 'week') start.setDate(start.getDate() - 6);
-  return { fromDay: dayKey(start), toDay: dayKey(end) };
-}
+/**
+ * The phone's local date, sent with a leaderboard period. The server
+ * works out the days itself and only accepts a date that is "today"
+ * somewhere on Earth (step-tracker-safety.txt, section 2).
+ */
+export const myToday = () => dayKey(new Date());
 
 export type LeaderboardRow = {
   user_id: string;

@@ -190,6 +190,20 @@ follow-up on a real phone (section 4 of the blueprint).
 - [ ] iPhone  - [ ] Android — **Groups:** create a group named 16 characters: "Use 1 to 15 characters." Rename one to "N4zi": refused. "Walkers 🚶" works.
 - [ ] iPhone  - [ ] Android — **Real names:** "Yamashita", "José María" and "Scunthorpe Striders" all save.
 
+## 13. Blocking (`step-tracker-safety.txt`, Part A)
+
+Two phones (A and B), friends, both in one group G.
+
+- [ ] iPhone  - [ ] Android — **Block from the card:** on A, Friends > tap B in the ranking > ••• > Block > Block. The card closes; B is gone from Friends and A's ranking at once.
+- [ ] iPhone  - [ ] Android — **On B's phone:** A is gone from search, Friends and the friends ranking. Nothing says why.
+- [ ] iPhone  - [ ] Android — **Shared group:** both still in G's ranking (group screen and Today in group mode) and its quest. A's card for B (opened from G) says "You've blocked this person…"; B's card for A says nothing different.
+- [ ] iPhone  - [ ] Android — **Requests:** B can't add A (search doesn't find A). From a request row on Friends, ••• > Block removes the request.
+- [ ] iPhone  - [ ] Android — **Repeat requests (decision 6):** C declines D's request; D sends again at once and it arrives. C blocks D: D can't find C any more.
+- [ ] iPhone  - [ ] Android — **Blocked people:** Profile > Blocked people lists B; Unblock asks first, then B can be found again but isn't a friend.
+- [ ] iPhone  - [ ] Android — **VoiceOver / TalkBack:** the ••• button reads as "More options".
+
+Also run `bash supabase/tests/concurrency/block_request_race.sh` against the local database (a request and a block at the same moment).
+
 ---
 
 ## Sign-off

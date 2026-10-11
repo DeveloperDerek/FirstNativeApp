@@ -12,11 +12,12 @@ import {
   renameGroup,
 } from '@/api/groups';
 import { getGroupQuest, type GroupQuest, markQuestSeen, voteQuest } from '@/api/quests';
-import { type LeaderboardRow, type Period, periodRange } from '@/api/steps';
+import { type LeaderboardRow, type Period } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
 import { checkName } from '@/auth/name-rules';
 import { nameProblem } from '@/auth/register';
 import { Leaderboard, PeriodPicker } from '@/components/leaderboard';
+import { PlayerCard } from '@/components/player-card';
 import { QuestCard } from '@/components/quest-card';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,8 @@ export default function GroupDetailScreen() {
   const [group, setGroup] = useState<Group | null>(null);
   const [period, setPeriod] = useState<Period>('week');
   const [board, setBoard] = useState<LeaderboardRow[]>([]);
+  // The member whose profile card is open
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [quest, setQuest] = useState<GroupQuest | null>(null);
   const [voting, setVoting] = useState(false);
   const { refresh: refreshSteps, refreshQuests, error: stepsError } = useSteps();
@@ -63,10 +66,9 @@ export default function GroupDetailScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const { fromDay, toDay } = periodRange(period);
       const [g, rows] = await Promise.all([
         getGroup(id),
-        groupLeaderboard(id, fromDay, toDay),
+        groupLeaderboard(id, period),
         loadQuest(),
       ]);
       setGroup(g);
@@ -242,7 +244,12 @@ export default function GroupDetailScreen() {
       )}
 
       <PeriodPicker value={period} onChange={setPeriod} />
-      <Leaderboard rows={board} myId={myId} onRemove={isOwner ? confirmRemove : undefined} />
+      <Leaderboard
+        rows={board}
+        myId={myId}
+        onSelect={(r) => setSelectedId(r.user_id)}
+        onRemove={isOwner ? confirmRemove : undefined}
+      />
       {isOwner && board.length > 1 && (
         <ThemedText type="small" themeColor="textSecondary">
           Swipe a member left to remove them.
@@ -276,6 +283,25 @@ export default function GroupDetailScreen() {
           <Button title="Leave group" variant="danger" onPress={confirmLeave} />
         </Section>
       )}
+      {/* Opens over the page when a ranking row is tapped; reads through the group */}
+      <PlayerCard
+        walker={(() => {
+          const row = board.find((r) => r.user_id === selectedId);
+          return row
+            ? {
+                id: row.user_id,
+                name: row.display_name || 'Player',
+                steps: Number(row.total_steps), // bigint arrives as a number or string
+                avatar: row.avatar,
+                isMe: row.user_id === myId,
+              }
+            : null;
+        })()}
+        stepsLabel={period === 'today' ? 'Today' : 'Last 7 days'}
+        group={group ? { id: group.id, name: group.name } : undefined}
+        onClose={() => setSelectedId(null)}
+        onEditMine={() => router.navigate('/profile')}
+      />
     </Screen>
   );
 }

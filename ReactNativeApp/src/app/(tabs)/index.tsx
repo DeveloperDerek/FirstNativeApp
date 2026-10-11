@@ -30,7 +30,6 @@ import { useMapTheme } from '@/hooks/use-map-theme';
 import { useSteps } from '@/hooks/use-steps';
 import { useWallet } from '@/hooks/use-wallet';
 import { errorMessage } from '@/lib/error-message';
-import { dayKey } from '@/storage/stepStore';
 import { pickShown } from '@/track/scale';
 import { StepTrack, type Walker } from '@/track/StepTrack';
 
@@ -75,12 +74,12 @@ export default function TodayScreen() {
   const loadBoard = useCallback(async () => {
     if (!sharing) return;
     try {
-      const day = dayKey(new Date()); // "today" is your own calendar date
+      // "today" is your own calendar date (sent with the period)
       const [rows, myGroups] = await Promise.all([
         mode.kind === 'friends'
-          ? friendsLeaderboard(day, day)
+          ? friendsLeaderboard('today')
           : mode.kind === 'group'
-            ? groupLeaderboard(mode.id, day, day)
+            ? groupLeaderboard(mode.id, 'today')
             : Promise.resolve([]),
         listMyGroups(),
       ]);
@@ -297,8 +296,10 @@ export default function TodayScreen() {
       {/* Opens over the page (and the tab bar) when a ranking row is tapped */}
       <PlayerCard
         walker={selected}
+        group={mode.kind === 'group' ? { id: mode.id, name: mode.name } : undefined}
         onClose={() => setSelectedId(null)}
         onEditMine={() => router.navigate('/profile')}
+        onBlockChanged={loadBoard}
       />
     </View>
   );

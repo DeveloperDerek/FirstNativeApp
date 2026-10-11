@@ -14,12 +14,14 @@ import {
   searchUsers,
   sendFriendRequest,
 } from '@/api/friends';
-import { type LeaderboardRow, type Period, periodRange } from '@/api/steps';
+import { type LeaderboardRow, type Period } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
 import { GroundText } from '@/components/ground-text';
+import { personMenu } from '@/components/block-actions';
 import { Leaderboard, PeriodPicker } from '@/components/leaderboard';
+import { MoreButton } from '@/components/more-button';
 import { PlayerCard } from '@/components/player-card';
 import { SharingRequired } from '@/components/sharing-required';
 import { ThemedText } from '@/components/themed-text';
@@ -67,9 +69,8 @@ export default function FriendsScreen() {
     refreshCounts();
     setError(null);
     try {
-      const { fromDay, toDay } = periodRange(period);
       const [rows, list] = await Promise.all([
-        friendsLeaderboard(fromDay, toDay),
+        friendsLeaderboard(period),
         listFriendships(),
       ]);
       setBoard(rows);
@@ -166,6 +167,7 @@ export default function FriendsScreen() {
                 variant="secondary"
                 onPress={() => act(() => declineFriendRequest(f.id))}
               />
+              <MoreButton onPress={() => personMenu(f.requester, load)} />
             </Row>
           ))}
         </Section>
@@ -188,6 +190,15 @@ export default function FriendsScreen() {
         )}
         {results?.map((p) => (
           <Row key={p.id} title={name(p)} detail={`@${p.username}`} leading={character(p)}>
+            <MoreButton
+              onPress={() =>
+                personMenu(p, () => {
+                  // Gone for you now: off the results and the lists
+                  setResults((r) => r?.filter((x) => x.id !== p.id) ?? null);
+                  load();
+                })
+              }
+            />
             {relatedIds.has(p.id) ? (
               <ThemedText type="small" themeColor="textSecondary">
                 Added
@@ -267,6 +278,7 @@ export default function FriendsScreen() {
         stepsLabel={period === 'today' ? 'Today' : 'Last 7 days'}
         onClose={() => setSelectedId(null)}
         onEditMine={() => router.navigate('/profile')}
+        onBlockChanged={load}
       />
     </Screen>
   );
