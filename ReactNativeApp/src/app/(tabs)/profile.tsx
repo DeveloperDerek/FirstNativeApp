@@ -300,7 +300,8 @@ function GoalSection() {
   if (value === null) return null;
   return (
     <Section title="Daily goal">
-      <Row title={`${value.toLocaleString()} steps`} detail="Today, History and your streak follow it">
+      {/* Rows show one line of detail: the longer note goes below */}
+      <Row title={`${value.toLocaleString()} steps`} detail="Steps a day">
         <Button
           title="−"
           size="small"
@@ -316,7 +317,8 @@ function GoalSection() {
         </ThemedText>
       )}
       <ThemedText type="small" themeColor="textSecondary">
-        Coins are still earned at 10,000 steps a day.
+        Today, History and your streak follow your goal. Coins are still earned at 10,000 steps
+        a day.
       </ThemedText>
       {streak?.sharing && streak.best > 0 && (
         <ThemedText type="small" themeColor="textSecondary">
