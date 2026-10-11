@@ -2,6 +2,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useR
 import { Alert, AppState } from 'react-native';
 
 import { claimDailyRewards } from '@/api/coins';
+import { getMyGoal, getMyStreak, type MyGoal, type MyStreak } from '@/api/goals';
 import { listMyQuests, type MyQuest } from '@/api/quests';
 import { syncSteps } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
@@ -25,6 +26,12 @@ type StepsState = {
   error: string | null;
   /** Group quests that need me (votes, running quests, results), for the banners. */
   quests: MyQuest[];
+  /** Your daily goal (today's, any change waiting, the last 7 days'); null until loaded */
+  goal: MyGoal | null;
+  /** Your streak, from the server; null until loaded */
+  streak: MyStreak | null;
+  /** Reload the goal and streak (after changing the goal in Profile). */
+  refreshGoal: () => Promise<void>;
   /** Read, save and upload steps now (buttons, pull to refresh). */
   refresh: () => Promise<void>;
   /** The same, unless a refresh started in the last 60 seconds (timers). */
@@ -43,6 +50,8 @@ export function StepsProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [quests, setQuests] = useState<MyQuest[]>([]);
+  const [goal, setGoal] = useState<MyGoal | null>(null);
+  const [streak, setStreak] = useState<MyStreak | null>(null);
   const { session, profile } = useAuth();
   const userId = session?.user.id;
   // Only upload once the user has agreed on the consent screen.
@@ -65,6 +74,19 @@ export function StepsProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // The goal and streak, read from the server. Quiet on failure: Today
+  // falls back to 10,000 and no streak.
+  const loadGoal = useCallback(async () => {
+    if (!userId) return;
+    const [g, s] = await Promise.all([
+      getMyGoal().catch(() => null),
+      getMyStreak().catch(() => null),
+    ]);
+    if (!mounted.current || signedIn.current !== userId) return;
+    if (g) setGoal(g);
+    if (s) setStreak(s);
+  }, [userId]);
+
   // The work itself. Every state change comes after the first await.
   const load = useCallback(async () => {
     const stillMine = () => mounted.current && signedIn.current === userId;
@@ -81,6 +103,7 @@ export function StepsProvider({ children }: { children: ReactNode }) {
           const list = await listMyQuests().catch(() => []);
           if (stillMine()) setQuests(list);
         }
+        await loadGoal();
         return;
       }
 
@@ -118,12 +141,14 @@ export function StepsProvider({ children }: { children: ReactNode }) {
         });
         if (stillMine()) setQuests(list);
       }
+      // After the claim, so the streak includes what was just uploaded
+      await loadGoal();
     } catch (e) {
       if (stillMine()) setError(e instanceof Error ? e.message : String(e));
     } finally {
       if (stillMine()) setLoading(false);
     }
-  }, [userId, sharing, refreshBalance]);
+  }, [userId, sharing, refreshBalance, loadGoal]);
 
   // Joins a running refresh for the same account and sharing setting.
   const run = useCallback(() => flight(`${userId}:${sharing}`, load), [flight, userId, sharing, load]);
@@ -160,7 +185,20 @@ export function StepsProvider({ children }: { children: ReactNode }) {
 
   return (
     <StepsContext.Provider
-      value={{ today, log, permission, loading, error, quests, refresh, refreshIfStale, refreshQuests }}>
+      value={{
+        today,
+        log,
+        permission,
+        loading,
+        error,
+        quests,
+        goal,
+        streak,
+        refreshGoal: loadGoal,
+        refresh,
+        refreshIfStale,
+        refreshQuests,
+      }}>
       {children}
     </StepsContext.Provider>
   );

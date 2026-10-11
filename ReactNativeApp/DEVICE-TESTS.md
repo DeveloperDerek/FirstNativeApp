@@ -238,6 +238,18 @@ Also run `bash supabase/tests/concurrency/group_owner_race.sh` against the local
 - [ ] iPhone — **Cancel:** cancelling the Apple sheet deletes nothing.
 - [ ] iPhone — **No log row:** `select * from public.apple_revocation_failures;` has nothing for that account (a row means Apple wasn't revoked, with the reason).
 
+## 16. Daily goal and streaks (`step-tracker-goals-streaks.txt`)
+
+- [ ] iPhone  - [ ] Android — **New goal:** Profile > Daily goal, + to 7,500, Save: "Your new goal starts on <tomorrow's date>". Today still shows "% of 10,000 goal" until that date, then "% of 7,500 goal". Profile shows "Changes to 7,500 on …" meanwhile.
+- [ ] iPhone  - [ ] Android — **Coins unchanged:** with a 7,500 goal, a day at 8,000 shows no "+100 coins"; a day at 10,000 does.
+- [ ] iPhone  - [ ] Android — **The track:** with a 7,500 goal, the road's 7.5k tick reads MINE and 10,000 shows "10k" with the flag; with 10,000, it reads GOAL as before.
+- [ ] iPhone  - [ ] Android — **Streak:** walk past your goal: Today's line goes up at once ("6-day streak · best 6"). Before reaching it: "5-day streak. 2,140 steps to keep it going."
+- [ ] iPhone  - [ ] Android — **7th day:** the "Goal reached!" message includes the 200-coin bonus once; reopening the app doesn't pay it again.
+- [ ] iPhone  - [ ] Android — **Friends:** a friend's player card shows your streak; someone who isn't a friend (outside a group) doesn't.
+- [ ] iPhone  - [ ] Android — **Not sharing:** Today says "Share your steps to keep a streak".
+
+Also run `bash supabase/tests/concurrency/streak_race.sh` against the local database (two phones claiming at once).
+
 ---
 
 ## Sign-off

@@ -212,3 +212,10 @@ needs them set by hand.
    Secrets, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` (the .p8
    file's contents) and `APPLE_CLIENT_ID` (`com.derekho.steptracker`).
    Then the Part B checks in `DEVICE-TESTS.md` §15.
+11. Daily goal and streaks (`step-tracker-goals-streaks.txt`): push
+   `20261108000000_goals_streaks.sql`. The day it runs on the hosted
+   database becomes the launch day (`app_settings.streak_bonus_from`):
+   streaks show from history at once, and only milestones reached from
+   that day on pay a bonus. Daily coins are unchanged (10,000). Then a
+   new build: older builds keep 10,000 everywhere, show no streak, and
+   still say "+100 coins" at 10,000 (which stays true).

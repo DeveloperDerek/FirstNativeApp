@@ -146,8 +146,8 @@ select is((public.group_member_card('0000006a-b10c-0000-0000-000000000000',
 select is(
   (select array_agg(k order by k) from jsonb_object_keys(public.group_member_card(
      '0000006a-b10c-0000-0000-000000000000', '0000000a-b10c-0000-0000-000000000000', current_date)) k),
-  array['avatar', 'blocked_by_me', 'display_name', 'last_seen', 'map_theme', 'today_steps',
-        'user_id', 'username', 'week_steps'],
+  array['avatar', 'blocked_by_me', 'display_name', 'last_seen', 'map_theme', 'streak',
+        'today_steps', 'user_id', 'username', 'week_steps'],
   'group_member_card returns only the approved fields');
 select is(
   (select array_agg(k order by k) from jsonb_object_keys(

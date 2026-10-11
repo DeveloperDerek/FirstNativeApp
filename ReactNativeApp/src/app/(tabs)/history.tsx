@@ -3,10 +3,11 @@ import { StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Screen } from '@/components/ui/screen';
-import { DailyStepGoal, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { dayRange } from '@/health';
 import { HISTORY_DAYS, useSteps } from '@/hooks/use-steps';
 import { useTheme } from '@/hooks/use-theme';
+import { DEFAULT_GOAL } from '@/lib/goal';
 import { dayKey } from '@/storage/stepStore';
 
 function dayLabel(daysAgo: number, date: Date) {
@@ -17,14 +18,22 @@ function dayLabel(daysAgo: number, date: Date) {
 
 export default function HistoryScreen() {
   const theme = useTheme();
-  const { log } = useSteps();
+  const { log, goal } = useSteps();
+  // Each day is judged by the goal you had that day
+  const goalByDay = new Map((goal?.recent ?? []).map((g) => [g.day, g.goal]));
 
   const days = Array.from({ length: HISTORY_DAYS }, (_, daysAgo) => {
     const { start } = dayRange(daysAgo);
-    return { daysAgo, label: dayLabel(daysAgo, start), steps: log[dayKey(start)] };
+    const key = dayKey(start);
+    return {
+      daysAgo,
+      label: dayLabel(daysAgo, start),
+      steps: log[key],
+      goal: goalByDay.get(key) ?? DEFAULT_GOAL,
+    };
   });
   const recorded = days.filter((d) => d.steps !== undefined);
-  const max = Math.max(DailyStepGoal, ...recorded.map((d) => d.steps ?? 0));
+  const max = Math.max(...days.map((d) => d.goal), ...recorded.map((d) => d.steps ?? 0));
   const average = recorded.length
     ? Math.round(recorded.reduce((sum, d) => sum + (d.steps ?? 0), 0) / recorded.length)
     : null;
@@ -54,7 +63,7 @@ export default function HistoryScreen() {
                   {
                     width: `${((d.steps ?? 0) / max) * 100}%`,
                     backgroundColor: theme.accent,
-                    opacity: (d.steps ?? 0) >= DailyStepGoal ? 1 : 0.55,
+                    opacity: (d.steps ?? 0) >= d.goal ? 1 : 0.55,
                   },
                 ]}
               />
