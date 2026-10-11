@@ -44,3 +44,8 @@ example
 
 # Supabase / sign-in keys (copy .env.example)
 .env
+
+# Build output (EAS local builds)
+*.apk
+*.aab
+*.ipa
