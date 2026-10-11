@@ -39,6 +39,22 @@ The free plan includes a number of builds a month in a slower queue; see
 expo.dev/pricing. Google wants the first upload of a new app done by hand
 in the Play Console; after that `submit` works.
 
+## Crash reports (Sentry)
+
+On only in real builds once `EXPO_PUBLIC_SENTRY_DSN` is set
+(`src/lib/crash-reports.ts`). Reports carry no user id, IP, device name,
+steps, names, emails or tokens, and no network or console trail
+(`src/lib/crash-scrub.ts`, tested by `npm test`).
+
+Once:
+1. At sentry.io, a free account and a React Native project.
+2. In `.env`: `EXPO_PUBLIC_SENTRY_DSN` (the project's DSN), `SENTRY_ORG` and
+   `SENTRY_PROJECT` (the org and project slugs). Then `bash scripts/eas-env.sh`.
+3. For readable crash reports, an auth token from Sentry (Settings > Auth
+   Tokens) as an EAS **secret**, never in `.env` or the repo:
+   `npx eas-cli@latest env:set --name SENTRY_AUTH_TOKEN --value <token> --visibility secret --environment preview --environment production`
+4. The next build reports crashes.
+
 ## Checks
 
 CI runs on every push (`.github/workflows/ci.yml`). The same, locally:

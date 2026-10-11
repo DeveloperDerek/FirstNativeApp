@@ -126,6 +126,15 @@ people in a new build, and there is no set way to make one.
     an EXPO_PUBLIC_ value. The Sentry auth token (for uploading source
     maps) is a secret: an EAS secret only, never in the repo.
 
+  BUILT (waiting for the Sentry account)
+  - src/lib/crash-reports.ts starts Sentry only in real builds with
+    EXPO_PUBLIC_SENTRY_DSN set; src/lib/crash-scrub.ts filters every
+    report and breadcrumb (tested by npm test). No tracing, screen
+    recording, screenshots or profiling.
+  - The source map upload plugin is added only when SENTRY_ORG and
+    SENTRY_PROJECT are set, and uploads only with SENTRY_AUTH_TOKEN (an
+    EAS secret). Steps: README, "Crash reports (Sentry)".
+
 ======================================================================
 4. PART C - CI (GITHUB ACTIONS)
 ======================================================================

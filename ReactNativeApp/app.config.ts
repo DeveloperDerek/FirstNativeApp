@@ -27,6 +27,22 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const easProjectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
 
   const plugins: ExpoConfig['plugins'] = [...(config.plugins ?? [])];
+  // Sentry's build step uploads source maps so crash reports show readable
+  // code. Only once the Sentry organization and project are set; upload
+  // also needs SENTRY_AUTH_TOKEN, an EAS secret (never in the repo or .env).
+  const sentryOrg = process.env.SENTRY_ORG;
+  const sentryProject = process.env.SENTRY_PROJECT;
+  if (sentryOrg && sentryProject) {
+    plugins.push([
+      '@sentry/react-native/expo',
+      {
+        url: 'https://sentry.io/',
+        organization: sentryOrg,
+        project: sentryProject,
+        disableAutoUpload: !process.env.SENTRY_AUTH_TOKEN,
+      },
+    ]);
+  }
   if (appleSignIn) plugins.push('expo-apple-authentication');
   // Always listed, so the module is set up; the iOS push entitlement is
   // only added when turned on.
