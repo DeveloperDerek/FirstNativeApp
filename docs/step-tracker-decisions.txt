@@ -349,15 +349,16 @@ Contents
 ======================================================================
 
   REFRESH-1  Quiet time: 60 seconds from the last refresh's start,
-             for returning to the app and the Today timer. Never for
-             the first refresh, pull to refresh or the button.
+             for returning to the app. Never for the first refresh,
+             pull to refresh or the button.
              Change to:
 
   REFRESH-2  Phone cache: only the 7 days History shows.
              Change to:
 
-  REFRESH-3  The Today timer keeps its refresh, under the same quiet
-             time.
+  REFRESH-3  No Today timer: Today loads the board when it opens and
+             on pull to refresh, never by itself while open.
+             (Changed October 2026: was a refresh every 60 seconds.)
              Change to:
 
 ======================================================================

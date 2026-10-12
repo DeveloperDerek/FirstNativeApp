@@ -13,13 +13,6 @@ export async function getBalance(userId: string): Promise<number> {
   return data?.balance ?? 0;
 }
 
-/** Returns how many coins were just granted (0 if nothing new). Safe to call repeatedly. */
-export async function claimDailyRewards(): Promise<number> {
-  const { data, error } = await supabase.rpc('claim_daily_rewards');
-  if (error) throw error;
-  return data as number;
-}
-
 /**
  * Every item that has to be owned to be worn: paid ones (on sale or
  * retired) and reward items, which are never active. An item not listed

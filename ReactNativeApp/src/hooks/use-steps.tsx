@@ -1,10 +1,9 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Alert, AppState } from 'react-native';
 
-import { claimDailyRewards } from '@/api/coins';
 import { getMyGoal, getMyStreak, type MyGoal, type MyStreak } from '@/api/goals';
 import { listMyQuests, type MyQuest } from '@/api/quests';
-import { syncSteps } from '@/api/steps';
+import { syncDay } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
 import { dayRange, getSteps, type PermissionResult, requestStepPermission } from '@/health';
 import { useAchievementNotices } from '@/hooks/use-achievement-notices';
@@ -36,7 +35,7 @@ type StepsState = {
   refreshGoal: () => Promise<void>;
   /** Read, save and upload steps now (buttons, pull to refresh). */
   refresh: () => Promise<void>;
-  /** The same, unless a refresh started in the last 60 seconds (timers). */
+  /** The same, unless a refresh started in the last 60 seconds (coming back to the app). */
   refreshIfStale: () => Promise<void>;
   /** Reload just the quests (after starting one, or seeing a result). */
   refreshQuests: () => Promise<void>;
@@ -90,6 +89,8 @@ export function StepsProvider({ children }: { children: ReactNode }) {
   }, [userId]);
 
   // The work itself. Every state change comes after the first await.
+  // One server call (syncDay) uploads, claims, and reads quests, goal and
+  // streak; a second only while a quest is taking steps.
   const load = useCallback(async () => {
     const stillMine = () => mounted.current && signedIn.current === userId;
     lastStarted.current = Date.now();
@@ -99,58 +100,57 @@ export function StepsProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       setError(null);
       setPermission(result);
-      if (result !== 'granted') {
-        // No steps to send, but they can still follow quests
-        if (userId && sharing) {
-          const list = await listMyQuests().catch(() => []);
-          if (stillMine()) setQuests(list);
-        }
-        await loadGoal();
-        return;
-      }
 
       // Today plus a backfill of the previous days, saved in one write.
-      const entries = await Promise.all(
-        Array.from({ length: HISTORY_DAYS }, async (_, daysAgo) => {
-          const { start, end } = dayRange(daysAgo);
-          return [start, await getSteps(start, end)] as [Date, number];
-        })
-      );
+      // Without permission there are none, but they can still follow quests.
+      const entries =
+        result === 'granted'
+          ? await Promise.all(
+              Array.from({ length: HISTORY_DAYS }, async (_, daysAgo) => {
+                const { start, end } = dayRange(daysAgo);
+                return [start, await getSteps(start, end)] as [Date, number];
+              })
+            )
+          : [];
       if (!stillMine()) return;
-      setToday(entries[0][1]);
+      if (entries.length) setToday(entries[0][1]);
       if (!userId) return;
-      const saved = await saveManySteps(userId, entries);
-      if (!stillMine()) return;
-      setLog(saved);
+      if (entries.length) {
+        const saved = await saveManySteps(userId, entries);
+        if (!stillMine()) return;
+        setLog(saved);
+      }
 
-      if (sharing) {
-        await syncSteps(userId, entries).catch((e) => {
-          throw new Error(`Couldn't upload steps: ${e instanceof Error ? e.message : String(e)}`);
-        });
-        if (!stillMine()) return;
-        // Sync first, then claim: the database pays for the rows just written.
-        // Coins need sharing, so this only runs for users who agreed.
-        const earned = await claimDailyRewards();
-        if (!stillMine()) return;
-        if (earned > 0) {
-          Alert.alert('Goal reached!', `You earned ${earned} coins. Spend them in the Shop.`);
-          await refreshBalance();
-        }
-        // Quest steps last: the server checks them against the daily
-        // totals just uploaded. Today's steps are already saved above.
-        const list = await syncQuestSteps().catch((e) => {
+      // Uploads only with sharing on (coins and quests need it too); the
+      // goal and streak come back either way. With nothing to upload a
+      // failure is quiet: Today falls back to 10,000 and no streak.
+      const upload = sharing ? entries : [];
+      const synced = await syncDay(upload).catch((e) => {
+        if (!upload.length) return null;
+        throw new Error(`Couldn't sync steps: ${e instanceof Error ? e.message : String(e)}`);
+      });
+      if (!stillMine() || !synced) return;
+      setGoal(synced.goal);
+      setStreak(synced.streak);
+      setQuests(synced.quests);
+      if (synced.earned > 0) {
+        Alert.alert('Goal reached!', `You earned ${synced.earned} coins. Spend them in the Shop.`);
+        await refreshBalance();
+      }
+      // Quest steps last: the server checks them against the daily totals
+      // just uploaded. Today's steps are already saved above.
+      if (sharing && entries.length) {
+        const list = await syncQuestSteps(synced.quests).catch((e) => {
           throw new Error(`Couldn't send quest steps: ${e instanceof Error ? e.message : String(e)}`);
         });
         if (stillMine()) setQuests(list);
       }
-      // After the claim, so the streak includes what was just uploaded
-      await loadGoal();
     } catch (e) {
       if (stillMine()) setError(e instanceof Error ? e.message : String(e));
     } finally {
       if (stillMine()) setLoading(false);
     }
-  }, [userId, sharing, refreshBalance, loadGoal]);
+  }, [userId, sharing, refreshBalance]);
 
   // Joins a running refresh for the same account and sharing setting.
   const run = useCallback(() => flight(`${userId}:${sharing}`, load), [flight, userId, sharing, load]);

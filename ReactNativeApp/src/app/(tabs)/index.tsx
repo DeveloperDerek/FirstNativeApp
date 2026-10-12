@@ -46,7 +46,7 @@ const MAX_ON_TRACK = 30;
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { today, permission, loading, error, refresh, refreshIfStale, goal, streak } = useSteps();
+  const { today, permission, loading, error, refresh, goal, streak } = useSteps();
   const { session, profile } = useAuth();
   const { balance, nextCheckin, checkIn } = useWallet();
   const myId = session?.user.id ?? '';
@@ -99,22 +99,15 @@ export default function TodayScreen() {
     }
   }, [mode, sharing]);
 
-  // On open: status bar text that reads on this map's sky, load the
-  // board, then poll lightly every 60 seconds while visible. Other people
-  // only move when their own app syncs.
+  // On open: status bar text that reads on this map's sky, and load the
+  // board. No timer: pull to refresh for newer numbers. Other people only
+  // move when their own app syncs.
   useFocusEffect(
     useCallback(() => {
       setStatusBarStyle(theme.statusBar);
       loadBoard();
-      const timer = setInterval(() => {
-        refreshIfStale();
-        loadBoard();
-      }, 60_000);
-      return () => {
-        clearInterval(timer);
-        setStatusBarStyle('auto');
-      };
-    }, [loadBoard, refreshIfStale, theme.statusBar])
+      return () => setStatusBarStyle('auto');
+    }, [loadBoard, theme.statusBar])
   );
 
   async function pullToRefresh() {

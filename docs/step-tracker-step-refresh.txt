@@ -195,7 +195,12 @@ in the order A, B, C: B reuses A's split, and C reuses B's checks.
 ======================================================================
 
   - Quiet time: 60 seconds, counted from when the last refresh
-    started, for coming back to the app and for the Today timer.
-    Never for the first refresh, pull to refresh or the button.
+    started, for coming back to the app. Never for the first
+    refresh, pull to refresh or the button.
   - Phone cache: only the 7 days History shows.
-  - The Today timer: keeps its refresh, under the same quiet time.
+  - The Today timer: removed (October 2026). Today loads the board
+    when it opens and on pull to refresh, never by itself.
+  - One server call (October 2026): sync_day() uploads the days,
+    claims coins, and returns quests, goal and streak in one round
+    trip (supabase/migrations/*_sync_day.sql). Quest steps are a
+    second call, only while a quest is taking steps.

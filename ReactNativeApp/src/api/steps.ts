@@ -1,23 +1,35 @@
+import type { MyGoal, MyStreak } from '@/api/goals';
+import type { MyQuest } from '@/api/quests';
 import { supabase } from '@/lib/supabase';
 import { dayKey } from '@/storage/stepStore';
 
+export type SyncResult = {
+  /** Coins just paid for days over the coin target (0 if none) */
+  earned: number;
+  /** Group quests that need me; empty when not sharing */
+  quests: MyQuest[];
+  goal: MyGoal;
+  streak: MyStreak;
+};
+
 /**
- * Upload daily totals. The caller passes the last few days it just read
- * from HealthKit / Health Connect, so late-arriving watch data gets
- * picked up. The database refuses this unless the user has consented.
+ * The refresh in one round trip (supabase/migrations/*_sync_day.sql):
+ * uploads the daily totals, claims coins for them, and returns my quests,
+ * goal and streak. The caller passes the last few days it just read from
+ * HealthKit / Health Connect, so late-arriving watch data gets picked up,
+ * or none when steps can't be read (then nothing is uploaded or claimed).
+ * The database refuses an upload unless the user has consented.
  */
-export async function syncSteps(userId: string, entries: [Date, number][]) {
-  const updatedAt = new Date().toISOString();
-  const rows = entries.map(([date, steps]) => ({
-    user_id: userId,
+export async function syncDay(entries: [Date, number][]): Promise<SyncResult> {
+  const days = entries.map(([date, steps]) => ({
     day: dayKey(date),
     // The database rejects days over 100,000 (an anti-cheat limit). Cap
     // here so one odd reading can't make the whole upload fail.
     steps: Math.min(steps, 100_000),
-    updated_at: updatedAt,
   }));
-  const { error } = await supabase.from('daily_steps').upsert(rows, { onConflict: 'user_id,day' });
+  const { data, error } = await supabase.rpc('sync_day', { my_today: myToday(), p_days: days });
   if (error) throw error;
+  return data as SyncResult;
 }
 
 export type Period = 'today' | 'week';

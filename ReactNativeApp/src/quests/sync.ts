@@ -1,4 +1,4 @@
-import { listMyQuests, type MyQuest, uploadQuestSteps } from '@/api/quests';
+import { type MyQuest, uploadQuestSteps } from '@/api/quests';
 import { getSteps } from '@/health';
 import { hourPieces } from '@/quests/rules';
 
@@ -17,10 +17,10 @@ function isTakingSteps(q: MyQuest, now: Date) {
  * daily totals are uploaded: the server never counts more quest steps
  * than the days they fall in.
  *
- * Returns the quests it looked at, for the banners.
+ * Takes my quests (from syncDay) and returns them with the new group
+ * totals, for the banners. No call at all when none is taking steps.
  */
-export async function syncQuestSteps(): Promise<MyQuest[]> {
-  const quests = await listMyQuests();
+export async function syncQuestSteps(quests: MyQuest[]): Promise<MyQuest[]> {
   const now = new Date();
   for (const q of quests.filter((q) => isTakingSteps(q, now))) {
     const pieces = hourPieces(new Date(q.starts_at!), new Date(q.ends_at!), now);
