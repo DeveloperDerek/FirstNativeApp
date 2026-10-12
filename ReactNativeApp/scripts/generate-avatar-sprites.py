@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Generates the placeholder sprites in assets/avatar/, assets/track/ and
-assets/maps/ (one folder per map theme).
+Generates the placeholder sprites in assets/avatar/, assets/track/,
+assets/badges/ and assets/maps/ (one folder per map theme), and the
+Mimic pet in assets/pets/ (the other pets are hand-drawn files).
 
 Original art drawn in code, following the original character spec:
 every layer is a 32 x 56 PNG with a transparent background: the 32 x 48
@@ -1234,6 +1235,259 @@ def shop_collection():
     outfit_knight('outfit_knight')
     outfit_pajamas('outfit_pajamas', '#8fb8e8')
     outfit_dress('outfit_dress', '#f48fb1')
+
+
+# ================================================================ achievement rewards
+# Items no one can buy: each is unlocked by one achievement
+# (docs/step-tracker-achievements.txt, section 4). Drawn to look unlike
+# anything in the shop, so wearing one says "earned".
+PETS_OUT = os.path.join(os.path.dirname(__file__), '..', 'assets', 'pets')
+GOLD_DARK = hexc('#c9971f')
+
+
+def shoes_winged(name):
+    """A million steps: white high-tops, a gold stripe above the sole and
+    a small gold wing on the outside of each heel."""
+    SHOE_SHAPES['winged'] = (41, ['OOOOOO',
+                                  'OhcccO',
+                                  'OcaacO',
+                                  'OccccO',
+                                  'OaaaaO',
+                                  'OwwwwO'])
+    shoes(name, '#f4f4f4', 'winged', sole='#c9ccd6', accent='#f2c94c', shine='#ffffff')
+    # The wing on the left shoe, columns 4-8, sweeping up and out; mirrored
+    wing = Layer()
+    stamp(wing, ['OO...',
+                 'OhOO.',
+                 'OhhgO',
+                 '.OOgg',
+                 '...OO'], {'O': OUTLINE, 'g': GOLD, 'h': hexc('#fff3b0')}, 4, 39)
+    layer = Layer()
+    layer.px = {(x2, y): c for (x, y), c in wing.px.items() for x2 in (x, W - 1 - x)}
+    layer.px.update(LAYERS[name])  # the shoe stays in front of the wing
+    layer.save(name)
+
+
+def cape_ember(name):
+    """A month in a row: deep red at the shoulders to orange at a hem of
+    flames, with sparks, like the flame on the streak badges."""
+    bands = [(30, '#a8231c'), (35, '#c8361f'), (39, '#e0582a'), (99, '#f08a3c')]
+    back = set()
+    for y in range(25, 45):
+        spread = (y - 25) // 4
+        back |= {(x, y) for x in range(7 - spread, 25 + spread)}
+    # Flame tongues: the hem rises and falls in points across the width
+    tips = {}
+    for x in range(0, W):
+        phase = (x + 1) % 5
+        tips[x] = 44 - (0, 1, 3, 1, 0)[phase] - (1 if (x // 5) % 2 else 0)
+    back = {(x, y) for x, y in back if y <= tips[x]}
+    layer = Layer().part(back, hexc(bands[0][1]), darker(hexc(bands[0][1])))
+    for (x, y), c in list(layer.px.items()):
+        if c == OUTLINE:
+            continue
+        color = hexc(next(col for end, col in bands if y <= end))
+        if c == warm_light(hexc(bands[0][1])):
+            layer.px[(x, y)] = warm_light(color)
+        elif c == cool_shadow(darker(hexc(bands[0][1]))):
+            layer.px[(x, y)] = cool_shadow(darker(color, 0.82))
+        else:
+            layer.px[(x, y)] = color
+    # Yellow at the heart of each flame tongue
+    flame = hexc('#ffd24a')
+    for x, top in tips.items():
+        for y in range(top - 3, top + 1):
+            if layer.px.get((x, y), OUTLINE) != OUTLINE and (x + 1) % 5 == 2 and y >= 40:
+                layer.px[(x, y)] = flame
+    layer.dots(flame, [(3, 34), (28, 32)])  # sparks
+    layer.save(f'{name}_back')
+    front = Layer()
+    front.part(rect(10, 25, 21, 26), hexc('#a8231c'), darker(hexc('#a8231c')))
+    front.part(ell(11.5, 27.5, 1.6, 1.6) | ell(20.5, 27.5, 1.6, 1.6), hexc('#f08a3c'),
+               darker(hexc('#f08a3c'), 0.8))
+    front.save(name)
+
+
+def leaf(cx, cy, angle, length=3.0, width=1.6):
+    """A pointed leaf: an ellipse turned to angle (radians, 0 = pointing right)."""
+    import math
+
+    ca, sa = math.cos(angle), math.sin(angle)
+    pts = set()
+    for x in range(int(cx) - 5, int(cx) + 6):
+        for y in range(int(cy) - 5, int(cy) + 6):
+            dx, dy = x + 0.5 - cx, y + 0.5 - cy
+            u, v = dx * ca + dy * sa, -dx * sa + dy * ca
+            if (u / length) ** 2 + (v / width) ** 2 <= 1:
+                pts.add((x, y))
+    return pts
+
+
+def hat_laurel(name):
+    """100 days in a row: a wreath of gold-green leaves around the head,
+    the old prize for endurance."""
+    import math
+
+    green, gold, line_ = hexc('#9cc24a'), hexc('#f0d455'), hexc('#4a5a1e')
+    layer = Layer().part(band_over_head(7, 1.0), hexc('#6f8a2a'), hexc('#5a7020'), line_)
+    # One leaf per spot around the top of the head, alternating just
+    # outside and just inside the band, each pointing up toward the front
+    # where the two branches meet. Each is outlined on its own so they
+    # read as leaves, not a bush.
+    for i, t in enumerate((2.80, 2.50, 2.20, 1.92, 1.68)):  # angle around the head
+        side = 1 if i % 2 == 0 else -1
+        r = 12.4 + 1.3 * side
+        cx, cy = 16 + r * math.cos(t), 14 - r * math.sin(t)
+        tone = green if i % 2 == 0 else gold
+        pts = leaf(cx, cy, -(t - math.pi / 2) - 0.35 * side, 2.8, 1.7)
+        # Too small for a shadow band: keep the leaf color to the outline
+        layer.part(pts | {(W - 1 - x, y) for x, y in pts}, tone, tone, line_)
+    layer.part(ell(16, 1, 1.5, 1.5), GOLD, GOLD_DARK, line_)  # a gold berry at the front
+    layer.save(name)
+
+
+def pet_mimic(name):
+    """First quest won: a treasure chest that hops along beside you.
+    Frame a closed, frame b mid-hop with the lid open, eyes and a tongue."""
+    size = (16, 16)
+    wood, band, dark = hexc('#a0622e'), GOLD, hexc('#2a1a1a')
+    o = hexc('#3a2a2a')
+
+    def chest(lift, open_):
+        layer = Layer(size)
+        base_top, bottom = 9 - lift, 15 - lift
+        layer.part(rect(2, base_top, 13, bottom), wood, darker(wood, 0.78), o, lighter(wood, 0.3))
+        layer.dots(band, [(x, y) for x in (4, 11) for y in range(base_top + 1, bottom)])
+        if open_:
+            # Lid raised from the hinge at the back, mouth open between lid
+            # and chest: teeth on both edges, eyes inside, tongue out front
+            lid = {(x, y) for x in range(2, 14) for y in range(base_top - 5 - x // 4, base_top - 1 - x // 4)}
+            mouth = {(x, y) for x in range(3, 13) for y in range(base_top - 2 - x // 4, base_top)}
+            layer.part(mouth, dark, dark, o)
+            layer.part(lid, wood, darker(wood, 0.78), o, lighter(wood, 0.3))
+            layer.dots(band, [(x, base_top - 4 - x // 4 + d) for x in (4, 11) for d in (0, 1)])
+            layer.dots(WHITE, [(x, base_top - 1 - x // 4) for x in (4, 6, 8, 10, 12)])
+            layer.dots(WHITE, [(x, base_top - 1) for x in (5, 7, 9, 11)])
+            layer.dots(hexc('#ffd24a'), [(7, base_top - 2), (9, base_top - 2)])
+            layer.dots(TONGUE, [(13, base_top + 1), (14, base_top + 1), (14, base_top + 2)])
+            layer.dots(o, [(15, base_top + 1), (15, base_top + 2), (14, base_top + 3),
+                           (13, base_top + 2)])
+        else:
+            # Closed, it passes for an ordinary chest
+            lid = rect(2, base_top - 4, 13, base_top) - {(2, base_top - 4), (13, base_top - 4)}
+            layer.part(lid, wood, darker(wood, 0.78), o, lighter(wood, 0.3))
+            layer.dots(band, [(x, y) for x in (4, 11) for y in range(base_top - 3, base_top)])
+            layer.dots(o, [(x, base_top) for x in range(3, 13)])  # the seam
+        # The lock on the front (the right, the way it walks)
+        layer.part(rect(12, base_top + 1, 13, base_top + 2), band, GOLD_DARK, o)
+        return layer
+
+    chest(0, False).save(f'{name}_a', folder=PETS_OUT)
+    chest(1, True).save(f'{name}_b', folder=PETS_OUT)
+
+
+# ---------------------------------------------------------------- achievement badges
+# One medal frame and a symbol per kind, each 22 x 22, drawn one on top
+# of the other; the app writes the number (10K, 1M, 30...) under it.
+# Every piece also comes in grey (_locked) for achievements not earned yet.
+BADGES_OUT = os.path.join(os.path.dirname(__file__), '..', 'assets', 'badges')
+BADGE = (22, 22)
+
+
+def stamp(layer, rows, colors, x0, y0):
+    for dy, row in enumerate(rows):
+        for dx, key in enumerate(row):
+            if key != '.':
+                layer.px[(x0 + dx, y0 + dy)] = colors[key]
+    return layer
+
+
+def save_badge(layer, name):
+    os.makedirs(BADGES_OUT, exist_ok=True)
+    layer.save(name, folder=BADGES_OUT)
+    grey = Layer(BADGE)
+    for p, (r, g, b) in layer.px.items():
+        v = int(0.3 * r + 0.59 * g + 0.11 * b)
+        v = int(110 + (v - 110) * 0.55)  # flatter, so locked ones sit back
+        grey.px[p] = (v, v, v + 4)
+    grey.save(f'{name}_locked', folder=BADGES_OUT)
+
+
+def badge_frame():
+    rim, face = GOLD, hexc('#fbf3dc')
+    layer = Layer(BADGE).part(ell(11, 11, 10.3, 10.3), rim, GOLD_DARK, OUTLINE, hexc('#fff3b0'))
+    layer.part(ell(11, 11, 8.1, 8.1), face, hexc('#efe0bc'), GOLD_DARK)
+    save_badge(layer, 'badge_frame')
+
+
+def badge_day_steps():
+    """A sneaker, toe to the right."""
+    c = hexc('#d9534f')
+    colors = {'O': OUTLINE, 'r': c, 'h': lighter(c, 0.35), 'W': WHITE, 'w': hexc('#e6e6ea')}
+    rows = ['.OOOO.......',
+            '.OhrrO......',
+            '.OrWrrOOO...',
+            '.OrrrrrhhOO.',
+            'OrrrrrrrrrrO',
+            'OwwwwwwwwwwO',
+            '.OOOOOOOOOO.']
+    save_badge(stamp(Layer(BADGE), rows, colors, 5, 7), 'badge_day_steps')
+
+
+def badge_total_steps():
+    """Two footprints walking up and to the right."""
+    f = hexc('#7a4a2a')
+    rows = ['.ff.',
+            'ffff',
+            'ffff',
+            'ffff',
+            '.ff.',
+            '....',
+            '.ff.',
+            '.ff.']
+    layer = Layer(BADGE)
+    stamp(layer, rows, {'f': f}, 5, 9)
+    stamp(layer, rows, {'f': f}, 12, 5)
+    save_badge(layer, 'badge_total_steps')
+
+
+def badge_streak():
+    """A flame: orange outside, yellow at the heart, its tip leaning right."""
+    def flame(cx, bottom, r, tip):
+        pts = ell(cx, bottom - r, r, r)
+        for y in range(tip, int(bottom - r) + 1):
+            k = (y - tip) / (bottom - r - tip)  # 0 at the tip, 1 at the widest
+            mid = cx + (1 - k) * 1.5
+            pts |= {(x, y) for x in range(22) if abs(x + 0.5 - mid) <= r * k ** 0.8}
+        return pts
+
+    layer = Layer(BADGE).part(flame(11, 18, 4.6, 3), hexc('#f08a3c'), hexc('#d9622a'),
+                              hexc('#8a2f1a'), hexc('#f6a85a'))
+    layer.part(flame(11, 17, 2.4, 9), hexc('#ffd24a'), hexc('#f2b83c'), hexc('#e8742e'))
+    save_badge(layer, 'badge_streak')
+
+
+def badge_quests():
+    """A swallowtail banner on a pole."""
+    blue = hexc('#3f6fd8')
+    layer = Layer(BADGE).part(rect(6, 5, 8, 17), hexc('#c08040'), hexc('#a0622e'), OUTLINE)
+    cloth = rect(8, 5, 16, 12) - {(16, 8), (16, 9), (15, 8), (15, 9), (16, 7), (16, 10)}
+    layer.part(cloth, blue, darker(blue, 0.8), OUTLINE, lighter(blue, 0.3))
+    layer.dots(GOLD, [(10, 8), (11, 8), (10, 9), (11, 9)])  # a gold mark on the cloth
+    save_badge(layer, 'badge_quests')
+
+
+def achievement_rewards():
+    shoes_winged('shoes_winged')
+    cape_ember('cape_ember')
+    hat_laurel('hat_laurel')
+    pet_mimic('mimic')
+
+    badge_frame()
+    badge_day_steps()
+    badge_total_steps()
+    badge_streak()
+    badge_quests()
 
 
 # ---------------------------------------------------------------- step track
@@ -2926,6 +3180,7 @@ if __name__ == '__main__':
     hat_crown('hat_crown_gold', '#f2c94c')
 
     shop_collection()
+    achievement_rewards()
 
     os.makedirs(TRACK_OUT, exist_ok=True)
     goal_flag()
@@ -2954,6 +3209,7 @@ if __name__ == '__main__':
 
     print(f'Wrote {len(os.listdir(OUT))} sprites to {os.path.normpath(OUT)}')
     print(f'Wrote {len(os.listdir(TRACK_OUT))} sprites to {os.path.normpath(TRACK_OUT)}')
+    print(f'Wrote {len(os.listdir(BADGES_OUT))} badge pieces to {os.path.normpath(BADGES_OUT)}')
     for theme in THEMES:
         folder = os.path.join(MAPS_OUT, theme)
         print(f'Wrote {len(os.listdir(folder))} images to {os.path.normpath(folder)}')

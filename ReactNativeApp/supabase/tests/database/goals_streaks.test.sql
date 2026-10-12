@@ -135,8 +135,9 @@ select pg_temp.as_user(5);
 select is(public.claim_daily_rewards() - 800, 200 + 1000, '100 days in a row: 200 + 1,000 (plus 8 days of daily coins)');
 select is(pg_temp.bonuses(5, 'streak_7'), array[(current_date - 93)::text], 'the 7-day bonus, once for the run');
 select is(pg_temp.bonuses(5, 'streak_30'), array[(current_date - 70)::text], 'the 30-day bonus, once');
+-- (Its achievement reward items are in the coin history too, at 0 coins)
 select is((select count(*)::int from public.coin_transactions where user_id = pg_temp.u(5)
-           and reason not in ('daily_goal', 'streak_7', 'streak_30')), 0, 'nothing at 100 days');
+           and reason not in ('daily_goal', 'streak_7', 'streak_30', 'achievement')), 0, 'nothing at 100 days');
 
 -- U6: a run, a break, a new run: each pays its 7
 select pg_temp.walk(6, 20, 14, 12000);
