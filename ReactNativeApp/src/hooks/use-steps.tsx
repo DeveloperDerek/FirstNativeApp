@@ -7,6 +7,7 @@ import { listMyQuests, type MyQuest } from '@/api/quests';
 import { syncSteps } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
 import { dayRange, getSteps, type PermissionResult, requestStepPermission } from '@/health';
+import { useAchievementNotices } from '@/hooks/use-achievement-notices';
 import { useGoalReminders } from '@/hooks/use-goal-reminders';
 import { useWallet } from '@/hooks/use-wallet';
 import { singleFlight } from '@/lib/single-flight';
@@ -186,6 +187,10 @@ export function StepsProvider({ children }: { children: ReactNode }) {
 
   // Goal reminders follow every refresh (step-tracker-history-reminders.txt, B)
   useGoalReminders({ userId, loading, today, goal, streak });
+
+  // New achievements, also after every refresh: the claim above and a
+  // quest won (even while the app was closed) are when they're earned
+  useAchievementNotices({ userId, loading });
 
   return (
     <StepsContext.Provider

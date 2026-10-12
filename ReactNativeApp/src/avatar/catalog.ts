@@ -4,6 +4,9 @@ import { type AvatarConfig, DEFAULT_AVATAR } from './types';
 // Metro needs every require() written out literally; you cannot build the
 // path from a string at runtime. So each item is listed once here.
 // To add an item: drop the 32 x 56 PNG in assets/avatar/ and add a line.
+// An item that isn't free needs its shop_items row deployed first: one with
+// no row is free to wear. A reward item (earned, never sold) is also listed
+// in src/achievements/achievements.ts, which keeps it locked in Customize.
 
 export type Slot =
   | 'face'
@@ -205,7 +208,14 @@ export const CATALOG: Record<Slot, Item[]> = {
       label: 'Roller skates',
       image: require('@/assets/avatar/shoes_skates_pink.png'),
     },
-    { id: 'shoes_rocket', label: 'Rocket boots', image: require('@/assets/avatar/shoes_rocket.png') },  ],
+    { id: 'shoes_rocket', label: 'Rocket boots', image: require('@/assets/avatar/shoes_rocket.png') },
+    // Earned, never sold (src/achievements/achievements.ts)
+    {
+      id: 'shoes_winged',
+      label: 'Winged sneakers',
+      image: require('@/assets/avatar/shoes_winged.png'),
+    },
+  ],
   hat: [
     { id: 'hat_beanie_teal', label: 'Teal beanie', image: require('@/assets/avatar/hat_beanie_teal.png') },
     { id: 'hat_cap_red', label: 'Red cap', image: require('@/assets/avatar/hat_cap_red.png') },
@@ -226,7 +236,10 @@ export const CATALOG: Record<Slot, Item[]> = {
       id: 'hat_propeller',
       label: 'Propeller cap',
       image: require('@/assets/avatar/hat_propeller.png'),
-    },  ],
+    },
+    // Earned, never sold (src/achievements/achievements.ts)
+    { id: 'hat_laurel', label: 'Laurel wreath', image: require('@/assets/avatar/hat_laurel.png') },
+  ],
   // Face accessories, over the eyes
   glasses: [
     {
@@ -280,6 +293,13 @@ export const CATALOG: Record<Slot, Item[]> = {
       id: 'wings_fairy',
       label: 'Fairy wings',
       back: require('@/assets/avatar/wings_fairy_back.png'),
+    },
+    // Earned, never sold (src/achievements/achievements.ts)
+    {
+      id: 'cape_ember',
+      label: 'Ember cape',
+      image: require('@/assets/avatar/cape_ember.png'),
+      back: require('@/assets/avatar/cape_ember_back.png'),
     },
   ],
   // Held in the hand on the left. back (if any) is drawn just behind the

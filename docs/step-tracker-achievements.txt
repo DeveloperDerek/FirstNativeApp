@@ -514,9 +514,15 @@ step-tracker-recommendations.txt; step 7 of its suggested order.
      everyone.
   3. Profile > Achievements and the full list with progress, the
      unlock message (acknowledged after showing; one summary the first
-     time), and the lock on reward items in Customize. Note: Customize
-     today treats any item without an active price as free
-     (src/app/avatar.tsx), so it must learn about unlocked_by before
-     the reward items are added to the catalog.
+     time), and the lock on reward items in Customize (written): the
+     names, badge numbers and reward items in
+     src/achievements/achievements.ts (tested against the migration's
+     ids, thresholds and reward rows), src/app/achievements.tsx, the
+     Profile section, src/hooks/use-achievement-notices.ts. Customize
+     now counts any shop_items row (active or not) as not free, and
+     keeps an item from that list locked unless owned even if its row
+     is missing; only then were the four items added to catalog.ts and
+     pets.ts. The migration must still be deployed before this build
+     ships (RELEASE-GATE.md step 12).
   4. Player card badges (friends and group cards) and the person's
      earned list.

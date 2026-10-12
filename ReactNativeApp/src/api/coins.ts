@@ -21,13 +21,15 @@ export async function claimDailyRewards(): Promise<number> {
 }
 
 /**
- * The FULL pool of paid items and their prices. The character editor uses
- * it to know which items are locked; the Shop shows listDailyShop() instead.
+ * Every item that has to be owned to be worn: paid ones (on sale or
+ * retired) and reward items, which are never active. An item not listed
+ * is free for everyone. The character editor uses it to know which items
+ * are free; the Shop shows listDailyShop() instead.
  */
-export async function listShopPrices(): Promise<Record<string, number>> {
-  const { data, error } = await supabase.from('shop_items').select('id, price').eq('active', true);
+export async function listShopItemIds(): Promise<Set<string>> {
+  const { data, error } = await supabase.from('shop_items').select('id');
   if (error) throw error;
-  return Object.fromEntries(data.map((r) => [r.id, r.price]));
+  return new Set(data.map((r) => r.id));
 }
 
 export type DailyShop = {

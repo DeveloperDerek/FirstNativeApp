@@ -278,6 +278,20 @@ Local notifications: these work without push being set up. To see what's schedul
 - [ ] iPhone  - [ ] Android — **Timing:** open the app a minute before the reminder time without reaching the goal: it still comes. Open it just before and just after midnight: the next day's reminder is there.
 - [ ] iPhone  - [ ] Android — **Ids (scheduled list):** change the time: exactly one `goal-reminder:` per date, at the new time. Open the app five times quickly: still at most one per date. Turn reminders off: none left. Schedule a test notification with another id first: it's still there after each of these. Schedule the same id twice directly and note whether this phone replaces it (cancelling first covers it either way): ______
 
+## 19. Achievements (`step-tracker-achievements.txt`)
+
+Needs the `achievements` migration on the Supabase project the build uses (RELEASE-GATE step 12).
+
+- [ ] iPhone  - [ ] Android — **First open:** an account that already had 10,000-step days and a streak before the migration: one "Achievements unlocked · You've earned N achievements" message, not one per achievement. Profile > Achievements shows them with their real dates, not today's.
+- [ ] iPhone  - [ ] Android — **Earning one:** walk past 10,000 (or use a test account): "Achievement unlocked · First 10K." comes once; the badge shows on Profile straight away. Reopen the app: it doesn't come again.
+- [ ] iPhone  - [ ] Android — **Closed while showing:** with the message on screen, close the app before tapping it: it comes again on the next open.
+- [ ] iPhone  - [ ] Android — **Two phones:** one account on two phones; tap the message on one: the other doesn't show it after its next refresh.
+- [ ] iPhone  - [ ] Android — **Quest won while closed:** the message on the next open ("The Mimic can now walk beside you."), and the Mimic walking beside the character once chosen in Customize.
+- [ ] iPhone  - [ ] Android — **Reward items:** before earning, each of the four shows faded with a lock at the end of its row in Customize; tapping says "Earn A million steps to unlock…" and doesn't put it on. After earning, it's wearable, and looks right on the character and the player card.
+- [ ] iPhone  - [ ] Android — **The list:** Profile > Achievements > See all: earned ones first, newest first, with dates; then the rest closest first, with progress ("640,000 of 1,000,000 steps", "Best streak 12 of 30").
+- [ ] iPhone  - [ ] Android — **Not sharing:** the list says "Share your steps to earn these", every achievement locked, no progress.
+- [ ] iPhone  - [ ] Android — **Small phone:** the three badges on Profile fit on one line; long progress lines wrap rather than cut off.
+
 ---
 
 ## Sign-off

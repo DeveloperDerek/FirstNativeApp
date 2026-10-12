@@ -53,7 +53,8 @@ function RootLayout() {
 // section 7). Signed out: sign-in. Signed in: "Set a new password" after a
 // reset link, then step 2 until the profile is finished, the blocked or
 // Updated Terms screen when those apply, and otherwise the tabs with the
-// consent screen, character editor, shop and quest proposal as modals.
+// consent screen, character editor, shop, quest proposal and achievements
+// list as modals.
 function RootNavigator() {
   const { session, route } = useAuth();
   const router = useRouter();
@@ -85,6 +86,7 @@ function RootNavigator() {
         <Stack.Screen name="change-password" options={{ presentation: 'modal' }} />
         <Stack.Screen name="birthday-correction" options={{ presentation: 'modal' }} />
         <Stack.Screen name="blocked" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="achievements" options={{ presentation: 'modal' }} />
         <Stack.Screen name="report" options={{ presentation: 'modal' }} />
       </Stack.Protected>
       <Stack.Protected guard={route === 'setup'}>
