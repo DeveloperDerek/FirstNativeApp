@@ -156,11 +156,17 @@ export function PlayerCard({
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      {/* Dimmed backdrop: tap it to close */}
-      <Pressable onPress={onClose} accessibilityLabel="Close profile" style={styles.backdrop}>
-        {/* Taps on the card itself must not close it */}
+      <View style={styles.backdrop}>
+        {/* Dimmed backdrop: tap it to close. A layer behind the card, not
+            around it: a Pressable around the card would take the drag
+            gestures, and the achievements list couldn't scroll. Taps on
+            the card never reach it. */}
         <Pressable
-          onPress={() => {}}
+          onPress={onClose}
+          accessibilityLabel="Close profile"
+          style={StyleSheet.absoluteFill}
+        />
+        <View
           accessibilityViewIsModal
           style={[styles.card, { width: cardW, backgroundColor: ready ? theme.ground : LOADING }]}>
           {/* Their sky, their scenery, their character */}
@@ -265,8 +271,8 @@ export function PlayerCard({
               </View>
             </View>
           )}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -296,7 +302,11 @@ function EarnedList({
       <ThemedText type="smallBold" accessibilityRole="header" style={{ color: ink }}>
         {title}
       </ThemedText>
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+      {/* The scrollbar stays visible on Android, so a long list looks scrollable */}
+      <ScrollView
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        persistentScrollbar>
         {entries.map(({ achievement: a, earnedOn }) => (
           <View key={a.id} style={styles.entry}>
             <AchievementBadge achievement={a} earned scale={1} color={ink} />
