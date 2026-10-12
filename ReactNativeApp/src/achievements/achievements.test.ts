@@ -7,7 +7,9 @@ import { test } from 'node:test';
 
 import {
   ACHIEVEMENTS,
+  achievementCount,
   achievementList,
+  earnedList,
   findAchievement,
   formatEarnedOn,
   lockText,
@@ -93,6 +95,26 @@ test('ids this app does not know are left out', () => {
   });
   assert.equal(list.length, ACHIEVEMENTS.length);
   assert.equal(unlockMessage([fresh('from_the_future')]), null);
+});
+
+test("someone else's earned list: earned only, newest first, no progress", () => {
+  const list = earnedList([
+    { id: 'steps_100k', earned_on: '2026-05-10' },
+    { id: 'from_the_future', earned_on: '2026-09-01' },
+    { id: 'first_10k', earned_on: '2026-03-02' },
+    { id: 'streak_7', earned_on: '2026-05-10' },
+  ]);
+  assert.deepEqual(
+    list.map((e) => [e.achievement.id, e.earnedOn, e.progress]),
+    [
+      ['streak_7', '2026-05-10', null],
+      ['steps_100k', '2026-05-10', null],
+      ['first_10k', '2026-03-02', null],
+    ]
+  );
+  assert.deepEqual(earnedList([]), []);
+  assert.equal(achievementCount(list.length), '3 achievements');
+  assert.equal(achievementCount(1), '1 achievement');
 });
 
 test('earned dates are the day itself, in any time zone', () => {

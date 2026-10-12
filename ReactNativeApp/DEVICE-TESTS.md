@@ -291,6 +291,10 @@ Needs the `achievements` migration on the Supabase project the build uses (RELEA
 - [ ] iPhone  - [ ] Android — **The list:** Profile > Achievements > See all: earned ones first, newest first, with dates; then the rest closest first, with progress ("640,000 of 1,000,000 steps", "Best streak 12 of 30").
 - [ ] iPhone  - [ ] Android — **Not sharing:** the list says "Share your steps to earn these", every achievement locked, no progress.
 - [ ] iPhone  - [ ] Android — **Small phone:** the three badges on Profile fit on one line; long progress lines wrap rather than cut off.
+- [ ] iPhone  - [ ] Android — **Player card, friend:** open a friend's card (Friends or the map) who has earned some: their three most recent badges and "N achievements ›" on one row, in their map's colors. Tap it: their list, newest first, names and dates only (no progress); Back returns to the card. A friend with none: no row.
+- [ ] iPhone  - [ ] Android — **Player card, group:** open a group mate who isn't a friend from the group screen: the same row and list. Open someone who is neither from anywhere else: no row.
+- [ ] iPhone  - [ ] Android — **Your own card:** the same row, and the list matches Profile > Achievements' earned ones.
+- [ ] iPhone  - [ ] Android — **Small phone (card):** the badge row fits on one line on the card; a list of all 11 scrolls inside the card with Back and Close still on screen.
 
 ---
 

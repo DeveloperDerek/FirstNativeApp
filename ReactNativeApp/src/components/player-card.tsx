@@ -1,10 +1,25 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
+import {
+  achievementCount,
+  earnedList,
+  formatEarnedOn,
+  type ListEntry,
+} from '@/achievements/achievements';
 import { loadGroupMemberCard, loadPlayerProfile, type PlayerProfile, timeAgo } from '@/api/players';
 import { normalizeAvatar } from '@/avatar/catalog';
 import { useAuth } from '@/auth/AuthProvider';
+import { AchievementBadge } from '@/components/achievement-badge';
 import { personMenu, reportHref } from '@/components/block-actions';
 import { MoreButton } from '@/components/more-button';
 import { ThemedButton } from '@/components/themed-button';
@@ -17,6 +32,7 @@ import { getTheme } from '@/track/themes';
 const AVATAR_SCALE = 3; // whole number keeps the pixels crisp
 const LOADING = '#e9e2d0'; // neutral while loading, so no wrong background flashes
 const INK = '#2a1a1a';
+const CARD_BADGES = 3; // the most recent, on one line even on a small phone
 
 type Loaded = {
   /** Whose card, and from where: a late reply never shows on the wrong card. */
@@ -66,6 +82,9 @@ export function PlayerCard({
   const walkerId = walker?.id;
   const groupId = group?.id;
   const key = `${walkerId}:${groupId ?? ''}:${version}`;
+  // Which card's earned list is open in place of the details, so opening
+  // another card starts on its details again
+  const [listFor, setListFor] = useState<string | null>(null);
 
   // Read the username and chosen background each time a card opens;
   // nothing is cached, so a changed background shows next time.
@@ -130,6 +149,10 @@ export function PlayerCard({
       : profile?.displayName || walker.name;
   // Prefer the freshly loaded character; fall back to the map's copy
   const avatar = profile?.avatar ?? normalizeAvatar(walker.avatar);
+  // Only what the server returned for this card (friends, group mates and
+  // yourself); none at all hides the row
+  const earned = !unavailable && profile?.achievements ? earnedList(profile.achievements) : [];
+  const showList = listFor === key && earned.length > 0;
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -160,55 +183,141 @@ export function PlayerCard({
             />
           )}
 
-          {/* Details, on their ground color */}
-          <View style={styles.details}>
-            <ThemedText type="subtitle" accessibilityRole="header" style={[styles.name, { color: ink }]}>
-              {name}
-            </ThemedText>
-            {profile && <ThemedText style={{ color: ink }}>@{profile.username}</ThemedText>}
-            {unavailable ? (
-              <ThemedText style={{ color: ink }}>This player isn&apos;t available.</ThemedText>
-            ) : (
-              <ThemedText style={{ color: ink }}>
-                {stepsLabel}: {walker.steps.toLocaleString()} steps
+          {showList ? (
+            <EarnedList
+              title={`${name === 'You' ? 'Your' : `${name}'s`} achievements`}
+              entries={earned}
+              ink={ink}
+              theme={theme}
+              onBack={() => setListFor(null)}
+              onClose={onClose}
+            />
+          ) : (
+            /* Details, on their ground color */
+            <View style={styles.details}>
+              <ThemedText
+                type="subtitle"
+                accessibilityRole="header"
+                style={[styles.name, { color: ink }]}>
+                {name}
               </ThemedText>
-            )}
-            {/* Only ever shown to the person who blocked */}
-            {group && profile?.blockedByMe && (
-              <ThemedText type="small" style={{ color: ink }}>
-                You&apos;ve blocked this person. You&apos;re both in {group.name}: leave it, or
-                ask the owner to remove them.
-              </ThemedText>
-            )}
-            {profile?.lastSeen && (
-              <ThemedText style={{ color: ink }}>Last seen {timeAgo(profile.lastSeen)}</ThemedText>
-            )}
-            {!unavailable && profile?.streak ? (
-              <ThemedText style={{ color: ink }}>{profile.streak}-day streak</ThemedText>
-            ) : null}
-            {failed && (
-              <ThemedText type="small" style={{ color: ink }}>
-                Could not load the rest of this profile.
-              </ThemedText>
-            )}
-
-            <View style={styles.buttons}>
-              {walker.isMe && onEditMine && (
-                <ThemedButton
-                  theme={theme}
-                  title="Edit profile"
-                  onPress={() => {
-                    onClose();
-                    onEditMine();
-                  }}
-                />
+              {profile && <ThemedText style={{ color: ink }}>@{profile.username}</ThemedText>}
+              {unavailable ? (
+                <ThemedText style={{ color: ink }}>This player isn&apos;t available.</ThemedText>
+              ) : (
+                <ThemedText style={{ color: ink }}>
+                  {stepsLabel}: {walker.steps.toLocaleString()} steps
+                </ThemedText>
               )}
-              <ThemedButton theme={theme} title="Close" onPress={onClose} />
+              {/* Only ever shown to the person who blocked */}
+              {group && profile?.blockedByMe && (
+                <ThemedText type="small" style={{ color: ink }}>
+                  You&apos;ve blocked this person. You&apos;re both in {group.name}: leave it, or
+                  ask the owner to remove them.
+                </ThemedText>
+              )}
+              {profile?.lastSeen && (
+                <ThemedText style={{ color: ink }}>
+                  Last seen {timeAgo(profile.lastSeen)}
+                </ThemedText>
+              )}
+              {!unavailable && profile?.streak ? (
+                <ThemedText style={{ color: ink }}>{profile.streak}-day streak</ThemedText>
+              ) : null}
+              {earned.length > 0 && (
+                <Pressable
+                  onPress={() => setListFor(key)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${achievementCount(earned.length)}. See them`}
+                  style={styles.badgeRow}>
+                  {earned.slice(0, CARD_BADGES).map((e) => (
+                    <AchievementBadge
+                      key={e.achievement.id}
+                      achievement={e.achievement}
+                      earned
+                      scale={1}
+                      color={ink}
+                    />
+                  ))}
+                  <ThemedText numberOfLines={1} style={[styles.badgeCount, { color: ink }]}>
+                    {achievementCount(earned.length)} ›
+                  </ThemedText>
+                </Pressable>
+              )}
+              {failed && (
+                <ThemedText type="small" style={{ color: ink }}>
+                  Could not load the rest of this profile.
+                </ThemedText>
+              )}
+
+              <View style={styles.buttons}>
+                {walker.isMe && onEditMine && (
+                  <ThemedButton
+                    theme={theme}
+                    title="Edit profile"
+                    onPress={() => {
+                      onClose();
+                      onEditMine();
+                    }}
+                  />
+                )}
+                <ThemedButton theme={theme} title="Close" onPress={onClose} />
+              </View>
             </View>
-          </View>
+          )}
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+/**
+ * Someone's earned achievements, opened from the badge row: names and
+ * dates only (step-tracker-achievements.txt, section 5). Never progress,
+ * which the server only gives the person themselves.
+ */
+function EarnedList({
+  title,
+  entries,
+  ink,
+  theme,
+  onBack,
+  onClose,
+}: {
+  title: string;
+  entries: ListEntry[];
+  ink: string;
+  theme: ReturnType<typeof getTheme>;
+  onBack: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <View style={styles.details}>
+      <ThemedText type="smallBold" accessibilityRole="header" style={{ color: ink }}>
+        {title}
+      </ThemedText>
+      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+        {entries.map(({ achievement: a, earnedOn }) => (
+          <View key={a.id} style={styles.entry}>
+            <AchievementBadge achievement={a} earned scale={1} color={ink} />
+            <View style={styles.entryText}>
+              <ThemedText type="small" style={{ color: ink }}>
+                {a.name}
+              </ThemedText>
+              {earnedOn && (
+                <ThemedText type="small" style={{ color: ink }}>
+                  {formatEarnedOn(earnedOn)}
+                </ThemedText>
+              )}
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+      <View style={styles.buttons}>
+        <ThemedButton theme={theme} title="Back" onPress={onBack} />
+        <ThemedButton theme={theme} title="Close" onPress={onClose} />
+      </View>
+    </View>
   );
 }
 
@@ -243,6 +352,30 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 24,
     lineHeight: 30,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    alignSelf: 'flex-start',
+    paddingVertical: Spacing.one,
+  },
+  badgeCount: {
+    flexShrink: 1,
+  },
+  list: {
+    maxHeight: 260,
+  },
+  listContent: {
+    gap: Spacing.two,
+  },
+  entry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  entryText: {
+    flex: 1,
   },
   buttons: {
     flexDirection: 'row',

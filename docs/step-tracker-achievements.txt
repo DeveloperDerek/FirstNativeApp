@@ -525,4 +525,12 @@ step-tracker-recommendations.txt; step 7 of its suggested order.
      pets.ts. The migration must still be deployed before this build
      ships (RELEASE-GATE.md step 12).
   4. Player card badges (friends and group cards) and the person's
-     earned list.
+     earned list (written): src/components/player-card.tsx shows the
+     three most recent badges and the count on one row, from
+     player_achievements (yourself and friends) or group_member_card's
+     'achievements' (a card opened from a group); a failure or a null
+     hides the row. Tapping it shows that person's earned list in place
+     of the card's details: names and dates only, newest first, with
+     Back to the card. The list and count come from earnedList in
+     src/achievements/achievements.ts, which leaves out ids this app
+     doesn't know.

@@ -1,4 +1,8 @@
-import type { MyAchievements, NewAchievement } from '@/achievements/achievements';
+import type {
+  EarnedAchievement,
+  MyAchievements,
+  NewAchievement,
+} from '@/achievements/achievements';
 import { supabase } from '@/lib/supabase';
 
 // Achievements (step-tracker-achievements.txt). The server decides what's
@@ -23,4 +27,15 @@ export async function getNewAchievements(): Promise<NewAchievement[]> {
 export async function markAchievementsSeen(ids: string[]): Promise<void> {
   const { error } = await supabase.rpc('mark_achievements_seen', { ids });
   if (error) throw error;
+}
+
+/**
+ * Someone's earned ones for their player card: ids and days only. null for
+ * anyone who isn't you or a friend you can see (group mates come through
+ * group_member_card instead).
+ */
+export async function getPlayerAchievements(personId: string): Promise<EarnedAchievement[] | null> {
+  const { data, error } = await supabase.rpc('player_achievements', { person: personId });
+  if (error) throw error;
+  return data;
 }

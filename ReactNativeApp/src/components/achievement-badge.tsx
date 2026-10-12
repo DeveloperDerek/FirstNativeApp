@@ -55,11 +55,14 @@ export function AchievementBadge({
   achievement,
   earned,
   scale = 2,
+  color,
 }: {
   achievement: Achievement;
   earned: boolean;
   /** Whole number, like Avatar. */
   scale?: number;
+  /** The number's color, over the app theme's (the player card's map ink). */
+  color?: string;
 }) {
   const look = earned ? 'earned' : 'locked';
   return (
@@ -75,7 +78,7 @@ export function AchievementBadge({
       <ThemedText
         type="code"
         themeColor={earned ? 'text' : 'textSecondary'}
-        style={styles.number}
+        style={[styles.number, color ? { color } : null]}
         numberOfLines={1}>
         {achievement.short}
       </ThemedText>

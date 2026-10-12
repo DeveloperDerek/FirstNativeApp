@@ -157,6 +157,27 @@ export function achievementList(mine: MyAchievements): ListEntry[] {
   return [...earned, ...locked];
 }
 
+// ---------------------------------------------------------------- the card
+
+/** What player_achievements() and group_member_card's 'achievements' hold. */
+export type EarnedAchievement = { id: string; earned_on: string };
+
+/**
+ * Someone else's earned ones for their player card, newest first: names and
+ * dates only, never progress. Ids this app doesn't know are left out, so the
+ * count on the card matches the list it opens.
+ */
+export function earnedList(earned: EarnedAchievement[]): ListEntry[] {
+  return achievementList({ sharing: false, earned, progress: [] }).filter(
+    (e) => e.earnedOn !== null
+  );
+}
+
+/** "1 achievement", "9 achievements" */
+export function achievementCount(n: number): string {
+  return `${n} ${n === 1 ? 'achievement' : 'achievements'}`;
+}
+
 /** "12 Oct 2026" style, from 'YYYY-MM-DD', without the phone's time zone moving it. */
 export function formatEarnedOn(day: string): string {
   const [y, m, d] = day.split('-').map(Number);
