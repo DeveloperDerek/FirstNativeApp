@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { coinsEach, durationText, groupMultiplier, hourPieces, stepCoins } from './rules.ts';
+import { coinsEach, durationText, groupMultiplier, hourPieces, questGoal, stepCoins } from './rules.ts';
 
 describe('coins (step-tracker-group-quests.txt, sections 3 and 5)', () => {
   test('the table of coins each at exactly the goal', () => {
@@ -38,6 +38,16 @@ describe('coins (step-tracker-group-quests.txt, sections 3 and 5)', () => {
   test('at least 10 each', () => {
     assert.equal(coinsEach(8_000, 8_000, 30), 10);
   });
+});
+
+test('the goal grows 10% for each member after the second, up to 8', () => {
+  assert.equal(questGoal(8_000, 1), 8_000);
+  assert.equal(questGoal(8_000, 2), 8_000);
+  assert.equal(questGoal(8_000, 3), 8_800);
+  assert.equal(questGoal(8_000, 4), 9_600);
+  assert.equal(questGoal(8_000, 8), 12_800);
+  assert.equal(questGoal(8_000, 20), 12_800);
+  assert.equal(questGoal(15_000, 5), 19_500);
 });
 
 describe('hourPieces', () => {

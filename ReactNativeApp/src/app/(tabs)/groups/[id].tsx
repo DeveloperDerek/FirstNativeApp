@@ -13,7 +13,7 @@ import {
   removeMember,
   renameGroup,
 } from '@/api/groups';
-import { getGroupQuest, type GroupQuest, markQuestSeen, voteQuest } from '@/api/quests';
+import { getGroupQuest, type GroupQuest, markQuestSeen } from '@/api/quests';
 import { type LeaderboardRow, type Period } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
 import { checkName } from '@/auth/name-rules';
@@ -44,7 +44,6 @@ export default function GroupDetailScreen() {
   // The member whose profile card is open
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [quest, setQuest] = useState<GroupQuest | null>(null);
-  const [voting, setVoting] = useState(false);
   const { refresh: refreshSteps, refreshQuests, error: stepsError } = useSteps();
   const { refreshBalance } = useWallet();
   const { refreshCounts } = useNotificationCounts();
@@ -63,7 +62,7 @@ export default function GroupDetailScreen() {
       if (mine.coins_paid) refreshBalance().catch(() => {});
     }
     refreshQuests(); // keep the banners in step with the card
-    refreshCounts(); // and the Groups badge (it clears once you vote)
+    refreshCounts(); // and the Groups badge
   }, [id, myId, refreshBalance, refreshQuests, refreshCounts]);
 
   const load = useCallback(async () => {
@@ -88,37 +87,13 @@ export default function GroupDetailScreen() {
     }, [load])
   );
 
-  // While a quest is voting or running, keep the card fresh
+  // While a quest is running, keep the card fresh
   const live = quest?.quest && !quest.quest.settled_at && quest.quest.status !== 'cancelled';
   useEffect(() => {
     if (!live) return;
     const t = setInterval(() => loadQuest().catch(() => {}), 60_000);
     return () => clearInterval(t);
   }, [live, loadQuest]);
-
-  async function vote(accept: boolean) {
-    if (!quest?.quest) return;
-    setVoting(true);
-    setError(null);
-    try {
-      const status = await voteQuest(quest.quest.id, accept);
-      if (status === 'active') {
-        Alert.alert('Everyone accepted!', 'The quest is locked in. Every step in the window counts.');
-      }
-      await loadQuest();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setVoting(false);
-    }
-  }
-
-  function confirmDecline() {
-    Alert.alert('Decline the quest?', 'This cancels it for the whole group.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Decline', style: 'destructive', onPress: () => vote(false) },
-    ]);
-  }
 
   async function sendSteps() {
     await refreshSteps(); // reads and uploads my quest steps
@@ -268,9 +243,7 @@ export default function GroupDetailScreen() {
         <QuestCard
           data={quest}
           myId={myId}
-          busy={voting}
           onPropose={() => router.push({ pathname: '/propose-quest', params: { groupId: id } })}
-          onVote={(accept) => (accept ? vote(true) : confirmDecline())}
           onSendSteps={sendSteps}
         />
       )}

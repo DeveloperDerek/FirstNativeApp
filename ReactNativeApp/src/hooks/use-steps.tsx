@@ -26,7 +26,7 @@ type StepsState = {
   permission: PermissionResult | null;
   loading: boolean;
   error: string | null;
-  /** Group quests that need me (votes, running quests, results), for the banners. */
+  /** Group quests that need me (running quests, results), for the banners. */
   quests: MyQuest[];
   /** Your daily goal (today's, any change waiting, the last 7 days'); null until loaded */
   goal: MyGoal | null;
@@ -38,7 +38,7 @@ type StepsState = {
   refresh: () => Promise<void>;
   /** The same, unless a refresh started in the last 60 seconds (timers). */
   refreshIfStale: () => Promise<void>;
-  /** Reload just the quests (after voting, proposing, or seeing a result). */
+  /** Reload just the quests (after starting one, or seeing a result). */
   refreshQuests: () => Promise<void>;
 };
 
@@ -100,7 +100,7 @@ export function StepsProvider({ children }: { children: ReactNode }) {
       setError(null);
       setPermission(result);
       if (result !== 'granted') {
-        // No steps to send, but they can still vote and follow quests
+        // No steps to send, but they can still follow quests
         if (userId && sharing) {
           const list = await listMyQuests().catch(() => []);
           if (stillMine()) setQuests(list);

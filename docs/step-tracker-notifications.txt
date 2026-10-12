@@ -150,7 +150,12 @@ the app opens and comes back to the foreground.
   - Rule: ask for the counts again every time the live connection
     reconnects, not only when the app comes to the foreground.
 
-  ADD GROUP QUEST VOTES
+  ADD GROUP QUEST VOTES (BUILT, THEN MADE UNUSED IN OCTOBER 2026)
+  - Quests no longer have votes (step-tracker-group-quests.txt), so
+    nothing waits for your vote and this count is always 0: the
+    Groups badge never shows. The count, the deadline timer and the
+    badge are still in the code and can be removed, or reused for
+    something else in groups. The notes below are how it worked.
   - A good moment to give the Groups tab its own badge: quests in
     your groups that are waiting for your vote and that you have not
     voted on yet.

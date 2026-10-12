@@ -9,7 +9,7 @@ import { useSteps } from '@/hooks/use-steps';
 import { bannerText } from '@/quests/banners';
 
 /**
- * A banner for each group quest that needs me: votes, running quests and
+ * A banner for each group quest that needs me: running quests and
  * results I haven't seen. Tapping one opens the group. Stage A has no push
  * notifications, so this is where people find out.
  */

@@ -4,7 +4,7 @@
 -- (Terms-not-accepted accounts: register_terms.test.sql.)
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(83);
+select plan(80);
 
 -- A active, F active, U unfinished, X blocked later
 insert into auth.users (id, email) values
@@ -51,9 +51,10 @@ select user_id, 'hat_cap_red' from public.wallets;
 insert into public.last_seen (user_id)
 select user_id from public.wallets;
 
-insert into public.quests (id, group_id, type_id, start_asap, vote_deadline, goal)
+-- An old quest, cancelled long enough ago that a new one can start
+insert into public.quests (id, group_id, type_id, status, start_asap, goal, cancelled_at)
 values ('000000d1-0000-0000-0000-000000000000', '000000e1-0000-0000-0000-000000000000',
-        'sprint', true, now() + interval '1 day', 8000);
+        'sprint', 'cancelled', true, 8000, now() - interval '2 hours');
 
 -- X is blocked after a birthday correction (6f)
 insert into public.profile_private (user_id, age_blocked_at)
@@ -100,8 +101,6 @@ create function pg_temp.non_active_checks(who text) returns setof text language 
   union all select throws_ok($$ select public.propose_quest(
                     '000000e1-0000-0000-0000-000000000000', 'sprint', null) $$,
                   'ACCOUNT_NOT_ACTIVE', who || ': propose_quest refuses')
-  union all select throws_ok($$ select public.vote_quest('000000d1-0000-0000-0000-000000000000', true) $$,
-                  'ACCOUNT_NOT_ACTIVE', who || ': vote_quest refuses')
   union all select throws_ok($$ select public.upload_quest_steps(
                     '000000d1-0000-0000-0000-000000000000', '[]') $$,
                   'ACCOUNT_NOT_ACTIVE', who || ': upload_quest_steps refuses')
@@ -178,12 +177,6 @@ select is(
    from jsonb_array_elements(public.group_quest('000000e1-0000-0000-0000-000000000000') -> 'members') m),
   array['000000a1-0000-0000-0000-000000000000', '000000f1-0000-0000-0000-000000000000'],
   'quest members leave out X and U');
-select is(
-  (select waiting_for from public.my_quests()
-   where quest_id = '000000d1-0000-0000-0000-000000000000'),
-  -- display names come from the emails: a@ and f@
-  array['a', 'f'],
-  'the quest waits only for active members who have not voted');
 select throws_ok(
   $$ insert into public.friendships (requester_id, addressee_id)
      values (auth.uid(), '000000b1-0000-0000-0000-000000000000') $$,
@@ -192,15 +185,17 @@ select throws_ok(
 -- Active accounts still work as before
 select lives_ok($$ select * from public.daily_shop() $$, 'active: daily_shop works');
 select lives_ok($$ select public.mark_seen() $$, 'active: mark_seen works');
-select is(public.vote_quest('000000d1-0000-0000-0000-000000000000', true), 'voting',
-          'active: voting works (F still has to answer)');
-
-set local request.jwt.claim.sub = '000000f1-0000-0000-0000-000000000000';
-select is(public.vote_quest('000000d1-0000-0000-0000-000000000000', true), 'active',
-          'the quest starts once every ACTIVE member has accepted');
+create temp table started (id uuid);
+grant all on started to authenticated;
+insert into started select public.propose_quest('000000e1-0000-0000-0000-000000000000', 'sprint', null);
+select isnt((select id from started), null, 'active: starting a quest works');
 reset role;
-select is((select party_size from public.quests where id = '000000d1-0000-0000-0000-000000000000'),
+select is((select party_size from public.quests where id = (select id from started)),
           2, 'the party is the active members');
+select results_eq(
+  $$ select user_id from public.quest_party where quest_id = (select id from started) order by 1 $$,
+  $$ values ('000000a1-0000-0000-0000-000000000000'::uuid), ('000000f1-0000-0000-0000-000000000000'::uuid) $$,
+  '...A and F, not X or U');
 
 select * from finish();
 rollback;

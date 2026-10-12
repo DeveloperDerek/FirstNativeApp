@@ -161,7 +161,7 @@ follow-up on a real phone (section 4 of the blueprint).
 
 - [ ] iPhone  - [ ] Android — **Tab badges:** a request sent to you while you are on Today shows a red number on Friends within a few seconds; accepting or declining clears it at once; "9+" above 9.
 - [ ] iPhone  - [ ] Android — **Cancelled live:** the sender cancels; your Friends badge drops without leaving Today.
-- [ ] iPhone  - [ ] Android — **Groups badge:** a quest proposed in your group shows on Groups (after returning to the app); voting clears it; a vote deadline passing while the app is open clears it.
+- [ ] iPhone  - [ ] Android — **Groups badge:** stays hidden when a quest is started in your group (quests have no votes since October 2026, so nothing waits for you).
 - [ ] iPhone  - [ ] Android — **Permission prompt:** not asked on first launch; asked once, right after you send a friend request.
 - [ ] iPhone  - [ ] Android — **Push:** with the app closed, a request sent to you shows "@name wants to be friends", with the total on the app icon. Tapping it opens Friends.
 - [ ] iPhone  - [ ] Android — **Icon number:** after a request is cancelled while the app is closed, the icon keeps the old number until you open the app, then shows the real total.
@@ -238,17 +238,19 @@ Also run `bash supabase/tests/concurrency/group_owner_race.sh` against the local
 - [ ] iPhone — **Cancel:** cancelling the Apple sheet deletes nothing.
 - [ ] iPhone — **No log row:** `select * from public.apple_revocation_failures;` has nothing for that account (a row means Apple wasn't revoked, with the reason).
 
-## 16. Daily goal and streaks (`step-tracker-goals-streaks.txt`)
+## 16. Daily goal, streaks, usernames and quests (`step-tracker-goals-streaks.txt`, `step-tracker-decisions.txt`)
 
+- [ ] iPhone  - [ ] Android — **Range:** Profile > Daily goal stops at 5,000 going down and 20,000 going up.
 - [ ] iPhone  - [ ] Android — **New goal:** Profile > Daily goal, + to 7,500, Save: "Your new goal starts on <tomorrow's date>". Today still shows "% of 10,000 goal" until that date, then "% of 7,500 goal". Profile shows "Changes to 7,500 on …" meanwhile.
-- [ ] iPhone  - [ ] Android — **Coins unchanged:** with a 7,500 goal, a day at 8,000 shows no "+100 coins"; a day at 10,000 does.
+- [ ] iPhone  - [ ] Android — **Coin target:** Today shows "coins at N" (7,000 to 10,000); walking past N shows "+100 coins" and the coins arrive once. Walking past only your own goal (below N) shows no coins. The next day's N can differ; reopening the app the same day never changes it.
 - [ ] iPhone  - [ ] Android — **The track:** with a 7,500 goal, the road's 7.5k tick reads MINE and 10,000 shows "10k" with the flag; with 10,000, it reads GOAL as before.
 - [ ] iPhone  - [ ] Android — **Streak:** walk past your goal: Today's line goes up at once ("6-day streak · best 6"). Before reaching it: "5-day streak. 2,140 steps to keep it going."
-- [ ] iPhone  - [ ] Android — **7th day:** the "Goal reached!" message includes the 200-coin bonus once; reopening the app doesn't pay it again.
+- [ ] iPhone  - [ ] Android — **7th day:** the streak shows 7, and no streak coins are paid (only the day's coin target pays).
 - [ ] iPhone  - [ ] Android — **Friends:** a friend's player card shows your streak; someone who isn't a friend (outside a group) doesn't.
 - [ ] iPhone  - [ ] Android — **Not sharing:** Today says "Share your steps to keep a streak".
-
-Also run `bash supabase/tests/concurrency/streak_race.sh` against the local database (two phones claiming at once).
+- [ ] iPhone  - [ ] Android — **Username once a day:** change your username in Profile: saved. Change it again straight away: "You can change your username once a day. Try again tomorrow."
+- [ ] iPhone  - [ ] Android — **Start a quest (no vote):** a member who isn't the owner taps Start a quest > Sprint > Right now: the card shows it under way at once on every member's phone, with no Accept / Decline. The goal shown matches the party size (8,000 for 2, 9,600 for 4). A member not sharing steps isn't in the party.
+- [ ] iPhone  - [ ] Android — **Quest for later:** start one an hour ahead: it shows "The Sprint starts at …"; another member joining the group meanwhile isn't in it.
 
 ## 17. Longer History (`step-tracker-history-reminders.txt`, Part A)
 

@@ -2,13 +2,17 @@
 // goal history and decides; these are the same rules for the picker and
 // the screens. No imports, so `npm test` can check them.
 
-export const GOAL_MIN = 3_000;
-export const GOAL_MAX = 25_000;
+export const GOAL_MIN = 5_000;
+export const GOAL_MAX = 20_000;
 export const GOAL_STEP = 500;
 /** Everyone's goal until they pick one. */
 export const DEFAULT_GOAL = 10_000;
-/** Daily coins stay at 10,000 steps for everyone (decision 2). */
-export const COIN_STEPS = 10_000;
+/**
+ * Daily coins: each player's target is 7,000 to 10,000 steps, different
+ * each day (decision 2). The server picks it; this is the most it can be,
+ * for before it has answered.
+ */
+export const COIN_STEPS_MAX = 10_000;
 
 /** The picker's next value up (+1) or down (-1), kept in range. */
 export function nudgeGoal(goal: number, direction: 1 | -1): number {

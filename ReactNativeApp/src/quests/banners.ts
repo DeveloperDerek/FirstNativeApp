@@ -15,15 +15,6 @@ export function bannerText(q: MyQuest, now = Date.now()): string | null {
   const name = questType(q.type_id).name;
   const steps = `${q.total_steps.toLocaleString()} / ${q.goal.toLocaleString()}`;
 
-  if (q.status === 'voting') {
-    if (q.my_vote === null) {
-      return `${q.proposer_name || 'Someone'} proposed a ${name}. Everyone must accept.`;
-    }
-    const waiting = q.waiting_for ?? [];
-    return waiting.length
-      ? `Waiting for ${listNames(waiting)} to accept the ${name}.`
-      : `Everyone accepted the ${name}!`;
-  }
   if (!q.in_party || !q.starts_at || !q.ends_at) return null;
 
   if (q.settled_at) {
@@ -38,7 +29,9 @@ export function bannerText(q: MyQuest, now = Date.now()): string | null {
 
   const start = new Date(q.starts_at).getTime();
   const end = new Date(q.ends_at).getTime();
-  if (now < start) return `Everyone accepted! The ${name} starts at ${clock(q.starts_at)}.`;
+  if (now < start) {
+    return `${q.proposer_name || 'Someone'} started a ${name}. It begins at ${clock(q.starts_at)}.`;
+  }
   if (now >= end) {
     return `Time's up! Steps sent in the next ${durationText(end + GRACE_MS - now)} still count.`;
   }
@@ -46,9 +39,4 @@ export function bannerText(q: MyQuest, now = Date.now()): string | null {
     return `Goal reached! Keep walking until ${clock(q.ends_at)} to earn more coins.`;
   }
   return `Your ${name} is on: ${steps} with ${durationText(end - now)} left.`;
-}
-
-function listNames(names: string[]) {
-  if (names.length <= 2) return names.join(' and ');
-  return `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`;
 }

@@ -158,7 +158,7 @@ select is(
   (select array_agg(distinct k order by k)
    from jsonb_array_elements(public.group_quest('0000006a-b10c-0000-0000-000000000000')->'members') m,
         jsonb_object_keys(m) k),
-  array['accepted', 'avatar', 'coins_paid', 'display_name', 'in_group', 'in_party', 'last_seen',
+  array['avatar', 'coins_paid', 'display_name', 'in_group', 'in_party', 'last_seen',
         'sharing', 'steps', 'uploaded_at', 'user_id'],
   'group_quest members have only the approved fields');
 select is(pg_get_function_result('public.group_leaderboard(uuid,text,date)'::regprocedure),

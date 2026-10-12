@@ -10,15 +10,15 @@ import { Screen } from '@/components/ui/screen';
 import { Section } from '@/components/ui/section';
 import { Spacing } from '@/constants/theme';
 import { errorMessage } from '@/lib/error-message';
-import { coinsEach, OVERSHOOT, QUEST_TYPES, type QuestTypeId } from '@/quests/rules';
+import { coinsEach, OVERSHOOT, QUEST_TYPES, questGoal, type QuestTypeId } from '@/quests/rules';
 
 type StartOption = { key: string; label: string; at: Date | null };
 
 const QUARTER = 15 * 60_000;
 
 /**
- * "As soon as everyone accepts", a couple of hours from now, and the next
- * morning, lunch and evening that fall within the 24 hours voting allows.
+ * "Right now", a couple of hours from now, and the next morning, lunch and
+ * evening that fall within the next 24 hours (the latest a quest can start).
  */
 function startOptions(now = new Date()): StartOption[] {
   const fmt = (d: Date) => {
@@ -38,7 +38,7 @@ function startOptions(now = new Date()): StartOption[] {
   later.sort((a, b) => a.getTime() - b.getTime());
 
   return [
-    { key: 'asap', label: 'As soon as everyone accepts', at: null },
+    { key: 'asap', label: 'Right now', at: null },
     ...later
       .filter((d, i) => i === 0 || d.getTime() !== later[i - 1].getTime())
       .map((d) => ({ key: d.toISOString(), label: fmt(d), at: d })),
@@ -76,7 +76,10 @@ function Choice({
   );
 }
 
-/** Proposing a quest (section 7B). Opened from the group page. */
+/**
+ * Starting a quest (section 7B). Opened from the group page. There is no
+ * vote: it is on for everyone sharing steps as soon as it's started.
+ */
 export default function ProposeQuestScreen() {
   const { groupId } = useLocalSearchParams<{ groupId: string }>();
   const router = useRouter();
@@ -93,7 +96,8 @@ export default function ProposeQuestScreen() {
       .catch((e) => setError(errorMessage(e)));
   }, [groupId]);
 
-  const size = members?.length ?? 0;
+  // The party: everyone in the group sharing steps
+  const size = (members ?? []).filter((m) => m.sharing).length;
   const notSharing = (members ?? []).filter((m) => !m.sharing);
 
   async function propose() {
@@ -111,7 +115,7 @@ export default function ProposeQuestScreen() {
   }
 
   return (
-    <Screen title="Propose a quest" inTabs={false}>
+    <Screen title="Start a quest" inTabs={false}>
       {error && (
         <Section>
           <ThemedText type="small" themeColor="danger">
@@ -121,25 +125,29 @@ export default function ProposeQuestScreen() {
       )}
 
       <Section title="Quest">
-        {QUEST_TYPES.map((t) => (
-          <Choice
-            key={t.id}
-            selected={typeId === t.id}
-            onPress={() => setTypeId(t.id)}
-            title={`${t.name}: ${t.goal.toLocaleString()} steps in ${t.hours} hours`}
-            detail={
-              size > 0
-                ? `About ${coinsEach(t.goal, t.goal, size)} coins each, up to ${coinsEach(
-                    t.goal * OVERSHOOT,
-                    t.goal,
-                    size
-                  )} if you walk past the goal`
-                : undefined
-            }
-          />
-        ))}
+        {QUEST_TYPES.map((t) => {
+          const goal = questGoal(t.goal, size);
+          return (
+            <Choice
+              key={t.id}
+              selected={typeId === t.id}
+              onPress={() => setTypeId(t.id)}
+              title={`${t.name}: ${goal.toLocaleString()} steps in ${t.hours} hours`}
+              detail={
+                size > 0
+                  ? `About ${coinsEach(goal, goal, size)} coins each, up to ${coinsEach(
+                      goal * OVERSHOOT,
+                      goal,
+                      size
+                    )} if you walk past the goal`
+                  : undefined
+              }
+            />
+          );
+        })}
         <ThemedText type="small" themeColor="textSecondary">
-          The goal is for the whole group: it does not matter who walks the steps.
+          The goal is for the whole group: it does not matter who walks the steps. Bigger groups
+          get a bigger goal.
         </ThemedText>
       </Section>
 
@@ -157,15 +165,16 @@ export default function ProposeQuestScreen() {
       <Section>
         {members && (
           <ThemedText type="small">
-            Everyone in the group ({size} {size === 1 ? 'person' : 'people'}) must accept.
+            The quest starts for everyone sharing steps ({size} {size === 1 ? 'person' : 'people'}).
+            Nobody has to accept.
           </ThemedText>
         )}
         {notSharing.map((m) => (
           <ThemedText key={m.user_id} type="small" themeColor="textSecondary">
-            {m.display_name || 'Someone'} needs to turn on step sharing to take part.
+            {m.display_name || 'Someone'} isn&apos;t sharing steps, so won&apos;t be in it.
           </ThemedText>
         ))}
-        <Button title="Propose quest" onPress={propose} loading={busy} disabled={!members} />
+        <Button title="Start quest" onPress={propose} loading={busy} disabled={!members} />
         <Button title="Cancel" variant="secondary" onPress={() => router.back()} />
       </Section>
     </Screen>

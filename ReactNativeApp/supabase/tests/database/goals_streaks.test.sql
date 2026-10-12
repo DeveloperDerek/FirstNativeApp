@@ -1,12 +1,12 @@
--- step-tracker-goals-streaks.txt, section 5: goals, streaks, the streak
--- bonuses and their edge cases. (Two phones claiming at once:
--- supabase/tests/concurrency/streak_race.sh.) Run with `supabase test db`.
+-- step-tracker-goals-streaks.txt, section 5: goals, streaks, the daily
+-- coin target, and that your own goal pays no coins. Run with
+-- `supabase test db`.
 --
 -- Days are counted back from the database's date (T = current_date),
 -- which is always "today" somewhere on Earth.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(57);
+select plan(48);
 
 insert into auth.users (id, email)
 select ('000000' || lpad(to_hex(n), 2, '0') || '-90a1-0000-0000-000000000000')::uuid,
@@ -37,16 +37,10 @@ $$;
 create function pg_temp.streak(who integer) returns jsonb language sql as $$
   select public.streak_info(pg_temp.u(who), current_date)
 $$;
-create function pg_temp.bonuses(who integer, which text) returns text[] language sql as $$
+create function pg_temp.daily_coins(who integer) returns text[] language sql as $$
   select coalesce(array_agg(t.ref order by t.ref), '{}') from public.coin_transactions t
-  where t.user_id = pg_temp.u(who) and t.reason = which
+  where t.user_id = pg_temp.u(who) and t.reason = 'daily_goal'
 $$;
--- Milestones reached on or after this day pay (the launch day)
-create function pg_temp.launch(days_ago integer) returns void language sql as $$
-  update public.app_settings set value = to_char(current_date - days_ago, 'YYYYMMDD')::integer
-  where key = 'streak_bonus_from'
-$$;
-select pg_temp.launch(200); -- long ago, until the launch tests
 
 -- ---------------------------------------------------------------------
 -- Goals (U1)
@@ -54,10 +48,10 @@ select pg_temp.launch(200); -- long ago, until the launch tests
 select pg_temp.as_user(1);
 select is(public.goal_on(pg_temp.u(1), current_date - 100), 10000, 'never changed: 10,000 for a past day');
 select is(public.goal_on(pg_temp.u(1), current_date + 100), 10000, '...and a future one');
-select is(public.set_daily_goal(3000, current_date), current_date + 1, '3,000 accepted, starting the day after the phone''s date');
-select is(public.set_daily_goal(25000, current_date), current_date + 1, '25,000 accepted');
-select throws_ok($$ select public.set_daily_goal(2500, current_date) $$, 'BAD_GOAL', 'below 3,000 refused');
-select throws_ok($$ select public.set_daily_goal(25500, current_date) $$, 'BAD_GOAL', 'above 25,000 refused');
+select is(public.set_daily_goal(5000, current_date), current_date + 1, '5,000 accepted, starting the day after the phone''s date');
+select is(public.set_daily_goal(20000, current_date), current_date + 1, '20,000 accepted');
+select throws_ok($$ select public.set_daily_goal(4500, current_date) $$, 'BAD_GOAL', 'below 5,000 refused');
+select throws_ok($$ select public.set_daily_goal(20500, current_date) $$, 'BAD_GOAL', 'above 20,000 refused');
 select throws_ok($$ select public.set_daily_goal(7250, current_date) $$, 'BAD_GOAL', 'not a multiple of 500 refused');
 select throws_ok($$ select public.set_daily_goal(8000, current_date + 5) $$, 'BAD_DAY',
                  'a date that is today nowhere refused');
@@ -105,135 +99,89 @@ select is((pg_temp.streak(2)->>'current')::int, 5, 'raising the goal (from tomor
 -- Not sharing
 select pg_temp.as_user(14);
 select is(public.my_streak(current_date), '{"sharing": false}'::jsonb, 'not sharing: no streak');
-select is(public.claim_daily_rewards(), 0, 'not sharing: no coins, no bonus');
+select is(public.claim_daily_rewards(), 0, 'not sharing: no coins');
 
 -- Late upload: a missing day restores the run
 select pg_temp.walk(2, 6, 6, 12000);
 select is((pg_temp.streak(2)->>'best')::int, 9, 'the missing day uploaded late joins the runs: best becomes 9');
 
 -- ---------------------------------------------------------------------
--- Bonuses
+-- Your own goal pays no coins (GOAL-6): streaks are shown, never paid
 -- ---------------------------------------------------------------------
--- U3: 7 days at 10,000+ ending today: daily coins and the 7-day bonus
+-- U3: 7 days at 12,000 ending today: the daily coins only
 select pg_temp.walk(3, 6, 0, 12000);
 select pg_temp.as_user(3);
-select is(public.claim_daily_rewards(), 700 + 200, '7 days: 7 x 100 daily coins + the 200 bonus');
-select is(pg_temp.bonuses(3, 'streak_7'), array[current_date::text], 'recorded with the day it reached 7');
+select is(public.claim_daily_rewards(), 700, '7 days in a row: 7 x 100 daily coins, no streak bonus');
+select is((pg_temp.streak(3)->>'current')::int, 7, '...and the streak is still 7');
 select is(public.claim_daily_rewards(), 0, 'claiming again pays nothing');
 
--- U4: personal goal 7,500 met for 7 days, never 10,000
+-- U4: personal goal 5,000 met for 7 days, never the coin target (7,000+)
 insert into public.daily_goal_changes (user_id, starts_on, goal)
-values (pg_temp.u(4), current_date - 30, 7500);
-select pg_temp.walk(4, 6, 0, 8000);
+values (pg_temp.u(4), current_date - 30, 5000);
+select pg_temp.walk(4, 6, 0, 6500);
 select pg_temp.as_user(4);
-select is(public.claim_daily_rewards(), 200, 'a 7,500 goal met 7 days: the bonus, and no daily coins');
-select is(pg_temp.bonuses(4, 'daily_goal'), '{}'::text[], 'daily coins still need 10,000');
+select is(public.claim_daily_rewards(), 0, 'a 5,000 goal met 7 days: no coins at all');
+select is((pg_temp.streak(4)->>'current')::int, 7, '...but a 7-day streak');
 
--- U5: 30 days, then 100: 7 and 30 pay, 100 doesn't
+-- U5: 100 days in a row: no bonus at 7, 30 or 100
 select pg_temp.walk(5, 99, 0, 12000);
 select pg_temp.as_user(5);
-select is(public.claim_daily_rewards() - 800, 200 + 1000, '100 days in a row: 200 + 1,000 (plus 8 days of daily coins)');
-select is(pg_temp.bonuses(5, 'streak_7'), array[(current_date - 93)::text], 'the 7-day bonus, once for the run');
-select is(pg_temp.bonuses(5, 'streak_30'), array[(current_date - 70)::text], 'the 30-day bonus, once');
+select is(public.claim_daily_rewards(), 800, '100 days in a row: only the 8 days of daily coins in the window');
 -- (Its achievement reward items are in the coin history too, at 0 coins)
 select is((select count(*)::int from public.coin_transactions where user_id = pg_temp.u(5)
-           and reason not in ('daily_goal', 'streak_7', 'streak_30', 'achievement')), 0, 'nothing at 100 days');
-
--- U6: a run, a break, a new run: each pays its 7
-select pg_temp.walk(6, 20, 14, 12000);
-select pg_temp.walk(6, 6, 0, 12000);
-select pg_temp.as_user(6);
-select public.claim_daily_rewards();
-select is(pg_temp.bonuses(6, 'streak_7'), array[(current_date - 14)::text, current_date::text],
-          'a streak that breaks and builds to 7 again pays again');
+           and reason not in ('daily_goal', 'achievement')), 0, 'no streak coins of any kind');
 
 -- ---------------------------------------------------------------------
--- Late uploads
+-- The daily coin target: 7,000 to 10,000, per player and day (GOAL-2)
 -- ---------------------------------------------------------------------
--- U7: days 10-8, a gap on 7, then 6-0 (paid). Day 7 arrives: no more.
-select pg_temp.walk(7, 10, 8, 12000);
-select pg_temp.walk(7, 6, 0, 12000);
-select pg_temp.as_user(7);
-select public.claim_daily_rewards();
-select is(pg_temp.bonuses(7, 'streak_7'), array[current_date::text], 'the second run paid its 7');
-select pg_temp.walk(7, 7, 7, 12000);
-select is(public.claim_daily_rewards(), 100,
-          'the late day joins them into 11: its daily coins only, no second 7-day bonus');
-
--- U8: two runs both paid (15-9 and 7-1), then day 8 joins them
-select pg_temp.walk(8, 15, 9, 12000);
-select pg_temp.walk(8, 7, 1, 12000);
-select pg_temp.as_user(8);
-select public.claim_daily_rewards();
-select is(array_length(pg_temp.bonuses(8, 'streak_7'), 1), 2, 'both runs paid their 7');
-select pg_temp.walk(8, 8, 8, 12000);
-select is(public.claim_daily_rewards(), 0,
-          'joined by day 8: nothing more (day 8 is outside the daily-coin window)');
-select is(array_length(pg_temp.bonuses(8, 'streak_7'), 1), 2, 'both earlier payments are kept (no claw-back)');
-
--- ---------------------------------------------------------------------
--- The launch cutoff: the day the milestone was reached counts
--- ---------------------------------------------------------------------
-select pg_temp.launch(3);
--- U9: a run already 12 long at launch: shown, not paid
-select pg_temp.walk(9, 11, 0, 12000);
-select is((pg_temp.streak(9)->>'current')::int, 12, 'a 12-day run at launch is shown');
-select pg_temp.as_user(9);
-select is(public.claim_daily_rewards() - 800, 0, '...but its 7 (reached before launch) pays nothing');
-
--- U10: days 12-7 and 5; day 6 arrives late, showing 7 reached on day 6 (before launch)
-select pg_temp.walk(10, 12, 7, 12000);
-select pg_temp.walk(10, 5, 5, 12000);
-select pg_temp.walk(10, 6, 6, 12000);
-select pg_temp.as_user(10);
-select is(pg_temp.bonuses(10, 'streak_7'), '{}'::text[], 'nothing before claiming');
-select public.claim_daily_rewards();
-select is(pg_temp.bonuses(10, 'streak_7'), '{}'::text[], 'a late upload revealing a milestone before launch pays nothing');
-
--- U11: days 6-4 and 2-0; day 3 arrives late: 7 reached today (after launch)
-select pg_temp.walk(11, 6, 4, 12000);
-select pg_temp.walk(11, 2, 0, 12000);
-select pg_temp.as_user(11);
-select public.claim_daily_rewards();
-select is(pg_temp.bonuses(11, 'streak_7'), '{}'::text[], 'no run of 7 yet');
-select pg_temp.walk(11, 3, 3, 12000);
-select public.claim_daily_rewards();
-select is(pg_temp.bonuses(11, 'streak_7'), array[current_date::text], 'a late upload revealing a milestone after launch pays');
-select pg_temp.launch(200);
+select is(array(select distinct public.coin_steps_on(pg_temp.u(n), current_date - d)
+                 from generate_series(1, 20) n, generate_series(0, 60) d order by 1),
+          array[7000, 7500, 8000, 8500, 9000, 9500, 10000],
+          'every target is 7,000 to 10,000 in 500s, and each one comes up');
+select ok((select count(distinct public.coin_steps_on(pg_temp.u(17), current_date - d))
+           from generate_series(0, 30) d) > 1, 'one player''s target changes from day to day');
+select is((public.my_goal(current_date)->>'coin_steps')::int, public.coin_steps_on(pg_temp.u(5), current_date),
+          'my_goal shows today''s target');
+-- U17: exactly the target yesterday, one step short today
+select pg_temp.walk(17, 1, 1, public.coin_steps_on(pg_temp.u(17), current_date - 1));
+select pg_temp.walk(17, 0, 0, public.coin_steps_on(pg_temp.u(17), current_date) - 1);
+select pg_temp.as_user(17);
+select is(public.claim_daily_rewards(), 100, 'the target pays; a step short doesn''t');
+select is(pg_temp.daily_coins(17), array[(current_date - 1)::text], '...for the day that reached it');
 
 -- ---------------------------------------------------------------------
 -- What a tampered phone can do, and its limit (decision 14)
 -- ---------------------------------------------------------------------
 -- At 11:00 UTC on 10 Oct 2026, three dates are "today" somewhere: 9, 10, 11.
 select pg_temp.as_user(12);
-select is(public.set_daily_goal_at(3000, '2026-10-09', '2026-10-10 11:00+00'), '2026-10-10'::date,
+select is(public.set_daily_goal_at(5000, '2026-10-09', '2026-10-10 11:00+00'), '2026-10-10'::date,
           'sending the earliest valid date makes the goal start on 10 Oct: a day under way (UTC''s today, UTC+14''s yesterday)');
-select throws_ok($$ select public.set_daily_goal_at(3000, '2026-10-08', '2026-10-10 11:00+00') $$, 'BAD_DAY',
+select throws_ok($$ select public.set_daily_goal_at(5000, '2026-10-08', '2026-10-10 11:00+00') $$, 'BAD_DAY',
                  'a date before every time zone''s today is refused');
-select throws_ok($$ select public.set_daily_goal_at(3000, '2026-10-12', '2026-10-10 11:00+00') $$, 'BAD_DAY',
+select throws_ok($$ select public.set_daily_goal_at(5000, '2026-10-12', '2026-10-10 11:00+00') $$, 'BAD_DAY',
                  'a date after every time zone''s today is refused');
 
--- U12 (tampered: a lower goal applied on the days it would have missed)
--- vs U13 (honest: 3,000 from the start), same steps
+-- U12 (tampered: a lower goal applied on the day it would have missed)
+-- vs U13 (honest: 5,000 from the start), same steps
 select pg_temp.walk(12, 9, 0, 12000);
 select pg_temp.walk(13, 9, 0, 12000);
-select pg_temp.walk(12, 4, 4, 3500);   -- a weak day
-select pg_temp.walk(13, 4, 4, 3500);
+select pg_temp.walk(12, 4, 4, 5500);   -- a weak day
+select pg_temp.walk(13, 4, 4, 5500);
 delete from public.daily_goal_changes where user_id = pg_temp.u(12);
 insert into public.daily_goal_changes (user_id, starts_on, goal, chosen_at) values
-  (pg_temp.u(12), current_date - 4, 3000, now()),            -- lowered for the weak day
+  (pg_temp.u(12), current_date - 4, 5000, now()),            -- lowered for the weak day
   (pg_temp.u(12), current_date - 3, 10000, now() + interval '1 second');
 insert into public.daily_goal_changes (user_id, starts_on, goal)
-values (pg_temp.u(13), current_date - 100, 3000);
+values (pg_temp.u(13), current_date - 100, 5000);
 select is((pg_temp.streak(12)->>'current')::int, 10, 'the tampered goal rescues the weak day: a 10-day streak');
 select ok((pg_temp.streak(13)->>'current')::int >= (pg_temp.streak(12)->>'current')::int
           and (pg_temp.streak(13)->>'best')::int >= (pg_temp.streak(12)->>'best')::int,
-          'the honest 3,000 player''s streak is at least as long');
+          'the honest 5,000 player''s streak is at least as long');
 select pg_temp.as_user(12);
-create temp table tampered as select public.claim_daily_rewards() - 800 as bonus;
+create temp table tampered as select public.claim_daily_rewards() as coins;
 select pg_temp.as_user(13);
-select ok(public.claim_daily_rewards() - 800 >= (select bonus from tampered),
-          '...and earns at least the same bonuses');
+select is(public.claim_daily_rewards(), (select coins from tampered),
+          '...and the goal makes no difference to coins');
 
 -- ---------------------------------------------------------------------
 -- The player card
@@ -264,7 +212,7 @@ select is(
   array(select p.proname::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'public'
           and p.proname in ('is_today_somewhere', 'goal_on', 'set_daily_goal_at', 'goal_runs',
-                            'streak_info', 'streak_bonus_from')
+                            'streak_info', 'coin_steps_on')
           and (has_function_privilege('anon', p.oid, 'execute')
                or has_function_privilege('authenticated', p.oid, 'execute'))
         order by 1),
