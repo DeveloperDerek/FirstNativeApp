@@ -1,5 +1,5 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, Share } from 'react-native';
 
 import {
@@ -81,19 +81,13 @@ export default function GroupDetailScreen() {
     }
   }, [id, period, loadQuest]);
 
+  // Loads when opened; no timer, even with a quest running: pull to
+  // refresh for newer numbers
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load])
   );
-
-  // While a quest is running, keep the card fresh
-  const live = quest?.quest && !quest.quest.settled_at && quest.quest.status !== 'cancelled';
-  useEffect(() => {
-    if (!live) return;
-    const t = setInterval(() => loadQuest().catch(() => {}), 60_000);
-    return () => clearInterval(t);
-  }, [live, loadQuest]);
 
   async function sendSteps() {
     await refreshSteps(); // reads and uploads my quest steps
