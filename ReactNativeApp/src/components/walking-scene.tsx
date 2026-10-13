@@ -15,7 +15,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { Avatar, Sprite } from '@/avatar/Avatar';
+import { Avatar, PixelSprite } from '@/avatar/Avatar';
 import { usePetEdge } from '@/avatar/pet-spot';
 import { findPet, type Pet, PET_SIZE } from '@/avatar/pets';
 import type { AvatarConfig } from '@/avatar/types';
@@ -166,10 +166,10 @@ function WalkingPet({ pet, scale }: { pet: Pet; scale: number }) {
   return (
     <View style={{ width: size, height: size }} accessible accessibilityLabel={pet.label}>
       <Animated.View style={[StyleSheet.absoluteFill, showA]}>
-        <Sprite source={pet.frames[0]} width={PET_SIZE} height={PET_SIZE} scale={scale} />
+        <PixelSprite source={pet.frames[0]} width={PET_SIZE} height={PET_SIZE} scale={scale} />
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, showB]}>
-        <Sprite source={pet.frames[1]} width={PET_SIZE} height={PET_SIZE} scale={scale} />
+        <PixelSprite source={pet.frames[1]} width={PET_SIZE} height={PET_SIZE} scale={scale} />
       </Animated.View>
     </View>
   );

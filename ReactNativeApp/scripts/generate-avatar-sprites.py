@@ -13,9 +13,8 @@ warm highlight along the top-left and a slightly cool shadow per color.
 Body and hair are grayscale so the app can tint them; hair sits a little
 below white so a shine can show on it.
 
-This is the old pixel art. It is being replaced by smooth MapleStory-style
-art (docs/art-spec.md); once a file has been redrawn, don't run this
-script again or it will overwrite the new art.
+Replace these files with hand-drawn art whenever you like; keep the same
+file names and canvas size.
 
 Usage: python3 scripts/generate-avatar-sprites.py
 """

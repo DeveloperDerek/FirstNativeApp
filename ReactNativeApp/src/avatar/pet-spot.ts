@@ -5,7 +5,7 @@ import { findPet, PET_SIZE } from './pets';
 import { loadAlpha, type SpriteAlpha } from './sprite-alpha';
 import type { AvatarConfig } from './types';
 
-// Sizes in layout units, as in Avatar.tsx
+// Sizes in sprite pixels, as in Avatar.tsx
 const SPRITE_W = 32;
 const SPRITE_H = 56;
 /** The pet stands one row above the bottom of the character's sprite. */
@@ -16,25 +16,18 @@ const PET_BOTTOM_ROW = SPRITE_H - 2;
  */
 export const PET_EDGE = 7;
 
-/**
- * Pixels at least this opaque count as covered. Smooth art fades out over
- * a pixel or two at its edges; that fringe shouldn't push the pet away.
- * Pixel art is fully opaque or fully clear, so it isn't affected.
- */
-const SOLID = 128;
-
-/** First row (in pet units) with a solid pixel, or null for an empty sprite. */
+/** First row with any opaque pixel, or null for an empty sprite. */
 export function topRow(sprite: SpriteAlpha): number | null {
   for (let y = 0; y < sprite.height; y++) {
     for (let x = 0; x < sprite.width; x++) {
-      if (sprite.alpha(x, y) >= SOLID) return Math.floor((y * PET_SIZE) / sprite.height);
+      if (sprite.alpha(x, y) > 0) return Math.floor((y * PET_SIZE) / sprite.height);
     }
   }
   return null;
 }
 
 /**
- * Leftmost column (in sprite units) with a solid pixel between rows
+ * Leftmost column (in sprite pixels) with an opaque pixel between rows
  * `top` and `bottom` inclusive, or null if those rows are empty. Works
  * for sprites stored larger than 32 x 56 too.
  */
@@ -45,7 +38,7 @@ export function leftmostColumn(sprite: SpriteAlpha, top: number, bottom: number)
   const toY = Math.min(sprite.height, Math.ceil((bottom + 1) * sy));
   for (let x = 0; x < sprite.width; x++) {
     for (let y = fromY; y < toY; y++) {
-      if (sprite.alpha(x, y) >= SOLID) return Math.floor(x / sx);
+      if (sprite.alpha(x, y) > 0) return Math.floor(x / sx);
     }
   }
   return null;

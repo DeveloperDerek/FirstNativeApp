@@ -1,12 +1,12 @@
 import { BlendColor, Canvas, Group, Image, type SkImage } from '@shopify/react-native-skia';
 
-import { HEADROOM, samplingFor, SPRITE_H, SPRITE_W, useSprite } from './Avatar';
+import { CRISP, HEADROOM, SPRITE_H, SPRITE_W, useSprite } from './Avatar';
 import { BODY, findItem, type Slot } from './catalog';
 import type { AvatarConfig } from './types';
 
 // One item on its own, as an inventory icon: just its sprite(s), cropped
 // to the pixels it actually covers and scaled up to fill the box. The
-// item sprites share the character's 32 x 56 unit canvas, so without the crop
+// item sprites share the character's 32 x 56 canvas, so without the crop
 // a pair of shoes would be a few pixels at the bottom of an empty box.
 
 type Box = { x: number; y: number; w: number; h: number };
@@ -87,12 +87,9 @@ export function ItemIcon({
       : slot === 'shoes' && worn
         ? { ...worn, w: SPRITE_W / 2 - worn.x }
         : worn;
-  // Pixel art gets a whole-number scale to keep its pixels even, capped
-  // so a tiny item (glasses) doesn't turn into a few giant blocks.
-  // Smooth art just fills the box.
-  const pixelArt = [back, front].some((image) => image && image.width() <= SPRITE_W);
-  const fit = box ? size / Math.max(box.w, box.h) : 1;
-  const scale = pixelArt ? Math.max(1, Math.min(6, Math.floor(fit))) : fit;
+  // Whole-number scale keeps the pixels even; capped so a tiny item
+  // (glasses) doesn't turn into a few giant blocks
+  const scale = box ? Math.max(1, Math.min(6, Math.floor(size / Math.max(box.w, box.h)))) : 1;
   const left = box ? Math.round((size - box.w * scale) / 2 - box.x * scale) : 0;
   const top = box ? Math.round((size - box.h * scale) / 2 - box.y * scale) : 0;
 
@@ -105,7 +102,7 @@ export function ItemIcon({
         width={SPRITE_W * scale}
         height={SPRITE_H * scale}
         fit="fill"
-        sampling={samplingFor(image, SPRITE_W)}>
+        sampling={CRISP}>
         {color ? <BlendColor color={color} mode="modulate" /> : null}
       </Image>
     );
