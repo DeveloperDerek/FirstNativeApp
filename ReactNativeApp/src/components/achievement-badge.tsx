@@ -2,11 +2,11 @@ import { Canvas, Image } from '@shopify/react-native-skia';
 import { StyleSheet, View } from 'react-native';
 
 import type { Achievement, AchievementKind } from '@/achievements/achievements';
-import { CRISP, useSprite } from '@/avatar/Avatar';
+import { samplingFor, useSprite } from '@/avatar/Avatar';
 import { ThemedText } from '@/components/themed-text';
 
 // The badge art (scripts/generate-avatar-sprites.py): one medal frame and
-// a symbol per kind, 22 x 22 each, drawn one on top of the other, with
+// a symbol per kind, 22 x 22 units each (stored at any multiple), drawn one on top of the other, with
 // grey copies for achievements not earned yet. The number goes under it.
 const SIZE = 22;
 
@@ -45,7 +45,7 @@ function Piece({ source, scale }: { source: number; scale: number }) {
       width={SIZE * scale}
       height={SIZE * scale}
       fit="fill"
-      sampling={CRISP}
+      sampling={samplingFor(image, SIZE)}
     />
   );
 }

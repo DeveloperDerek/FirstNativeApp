@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 
-import { Avatar, HEADROOM, PixelSprite } from '@/avatar/Avatar';
+import { Avatar, HEADROOM, Sprite } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
 import { ThemedText } from '@/components/themed-text';
 
@@ -202,7 +202,7 @@ export function StepTrack({
               <View
                 pointerEvents="none"
                 style={[styles.flag, { left: centerFor(GOAL) - FLAG_POLE_X * SCALE }]}>
-                <PixelSprite
+                <Sprite
                   source={FLAG}
                   width={FLAG_W}
                   height={FLAG_H}

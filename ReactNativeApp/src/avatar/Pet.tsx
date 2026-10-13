@@ -1,4 +1,4 @@
-import { PixelSprite } from './Avatar';
+import { Sprite } from './Avatar';
 import { findPet, PET_SIZE } from './pets';
 
 /** A pet standing still (first walk frame). Draws nothing for no pet. */
@@ -15,7 +15,7 @@ export function Pet({
   const pet = findPet(id);
   if (!pet) return null;
   return (
-    <PixelSprite
+    <Sprite
       source={pet.frames[frame]}
       width={PET_SIZE}
       height={PET_SIZE}

@@ -13,12 +13,28 @@ import { useEffect, useState } from 'react';
 import { BODY, findItem } from './catalog';
 import type { AvatarConfig } from './types';
 
+// The character's size in layout units: 32 wide, 48 rows of character
+// plus 8 rows of headroom above it for tall hats. Every layer covers this
+// whole area, but its PNG can be stored at any multiple of it (the old
+// pixel art is 1 pixel per unit, the new art 8: 256 x 448). All layout
+// math stays in units, so it works for both. See docs/art-spec.md.
 export const SPRITE_W = 32;
-// 48 rows of character plus 8 rows of headroom above it for tall hats
 export const SPRITE_H = 56;
 export const HEADROOM = 8;
 // Nearest-neighbor sampling keeps pixel art crisp when scaled up.
 export const CRISP = { filter: FilterMode.Nearest, mipmap: MipmapMode.None };
+// Smooth art is drawn smaller than it is stored; mipmaps keep the
+// outlines clean instead of shimmering.
+export const SMOOTH = { filter: FilterMode.Linear, mipmap: MipmapMode.Linear };
+
+/**
+ * How to scale an image drawn `units` wide: crisp for pixel art (stored
+ * at 1 pixel per unit), smooth for high-resolution art. Lets old and new
+ * art share a screen while the art is being replaced.
+ */
+export function samplingFor(image: SkImage, units: number) {
+  return image.width() > units ? SMOOTH : CRISP;
+}
 
 // Each sprite is decoded once and shared by every character on screen,
 // so a leaderboard of 20 people doesn't decode 160 images.
@@ -64,15 +80,18 @@ function Layer({ source, scale, tint }: { source: number | undefined; scale: num
       width={SPRITE_W * scale}
       height={SPRITE_H * scale}
       fit="fill"
-      sampling={CRISP}>
-      {tint ? <BlendColor color={tint} mode="modulate" /> : null}
+      sampling={samplingFor(image, SPRITE_W)}>
+      {tint ?<BlendColor color={tint} mode="modulate" /> : null}
     </Image>
   );
 }
 
 type AvatarProps = {
   config: AvatarConfig;
-  /** Must be a whole number (1, 2, 3...) or the pixels look uneven. */
+  /**
+   * Points per layout unit. Use a whole number (1, 2, 3...) while any
+   * pixel art is left, or its pixels look uneven.
+   */
   scale?: number;
   /** Read by screen readers, e.g. "Sam's character". */
   accessibilityLabel?: string;
@@ -108,8 +127,8 @@ export function Avatar({ config, scale = 4, accessibilityLabel = 'Character' }: 
   );
 }
 
-/** A single pixel-art image (e.g. the goal flag), scaled crisply. */
-export function PixelSprite({
+/** A single image (e.g. the goal flag): crisp if pixel art, else smooth. */
+export function Sprite({
   source,
   width,
   height,
@@ -117,10 +136,10 @@ export function PixelSprite({
   accessibilityLabel,
 }: {
   source: number;
-  /** Size of the PNG in pixels. */
+  /** Size in layout units (the pixel art's size in pixels). */
   width: number;
   height: number;
-  /** Whole number, like Avatar. */
+  /** Points per unit, like Avatar. */
   scale?: number;
   accessibilityLabel?: string;
 }) {
@@ -138,7 +157,7 @@ export function PixelSprite({
           width={width * scale}
           height={height * scale}
           fit="fill"
-          sampling={CRISP}
+          sampling={samplingFor(image, width)}
         />
       )}
     </Canvas>
