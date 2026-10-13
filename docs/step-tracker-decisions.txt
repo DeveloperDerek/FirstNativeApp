@@ -20,7 +20,8 @@ Contents
   8. History, reminders    (step-tracker-history-reminders.txt, 6)
   9. Achievements          (step-tracker-achievements.txt, section 8)
   10. Builds               (step-tracker-builds.txt, section 6)
-  11. Still open
+  11. Coins and prices     (step-tracker-coins-items.txt, section 5)
+  12. Still open
 
 ======================================================================
 1. REGISTRATION (step-tracker-register.txt, section 9)
@@ -258,8 +259,9 @@ Contents
             (Changed October 2026: was the same for any group size.)
             Change to:
 
-  QUEST-6   Coins: 1 coin per 200 steps walked, counting up to 150%
+  QUEST-6   Coins: 1 coin per 100 steps walked, counting up to 150%
             of the goal.
+            (Changed October 2026: was 1 coin per 200 steps. COIN-3.)
             Change to:
 
   QUEST-7   Group size bonus: x(1 + 0.2 per member after the first),
@@ -274,7 +276,8 @@ Contents
   QUEST-9   Failed quests pay nothing (show "So close! 87%").
             Change to:
 
-  QUEST-10  Daily cap: 600 quest coins per person per day.
+  QUEST-10  Daily cap: 400 quest coins per person per day.
+            (Changed October 2026: was 600. COIN-3.)
             Change to:
 
   QUEST-11  Quests need step sharing to take part; minimum 2 members
@@ -463,8 +466,44 @@ Contents
            Change to:
 
 ======================================================================
-11. STILL OPEN
+11. COINS AND PRICES (step-tracker-coins-items.txt, section 5)
 ======================================================================
+
+  COIN-1   Welcome bonus: 300 coins, once, with a player's first
+           check-in ever (which the app makes as soon as sharing is
+           turned on). Players who had checked in before the change
+           don't get it.
+           Change to:
+
+  COIN-2   Daily step reward: 150 coins (was 100). Shop refresh:
+           10 coins (was 25). Check-in unchanged: 10 every 6 hours.
+           Walking should pay more than opening the app.
+           Change to:
+
+  COIN-3   Quest coins: 1 per 100 steps (was 200); daily cap 400
+           (was 600). See QUEST-6 and QUEST-10.
+           Change to:
+
+  COIN-4   Prices: pets up (snail stays 500, the rest 800-1,500),
+           maps down 500 each (1,500-3,000), plain bottoms 300,
+           every price a round hundred, outfit_knight 2,500.
+           Past purchases are not refunded or charged the difference.
+           Change to:
+
+  COIN-5   New items are priced on a ladder: Common 300, Uncommon
+           500, Rare 800, Epic 1,500, Legendary 2,500. Pets and maps
+           may sit one step higher.
+           Change to:
+
+======================================================================
+12. STILL OPEN
+======================================================================
+
+  COIN-F  Something to spend coins on once a player owns everything
+          (step-tracker-coins-items.txt, 5f). Options: keep adding
+          items, a "buy any item" option at 2x price, or seasonal
+          items.
+          Decision:
 
   REG-F  Existing accounts and the Terms (step-tracker-register.txt,
          section 9). Accounts made before the Terms box have no

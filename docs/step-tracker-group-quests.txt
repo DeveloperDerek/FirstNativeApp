@@ -20,8 +20,13 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, QUEST-1, 2 and 5)
   below describe the rules as they are now; where an older rule was
   replaced, it says so.
 
+CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-3)
+  - Quests pay twice as much: 1 coin per 100 steps (was 200).
+  - The daily cap is 400 quest coins (was 600).
+  Built in 20261115000000_coin_rebalance.sql.
+
 Builds on what the app already has: groups, step sharing, the coin
-wallet, the daily coin reward (100 coins at a target of 7,000 to
+wallet, the daily coin reward (150 coins at a target of 7,000 to
 10,000 steps, step-tracker-goals-streaks.txt), the check-in bonus
 (10 coins every 6 hours), and the shop (items cost 300 to 3,000
 coins).
@@ -130,7 +135,7 @@ coins).
   - A Sprint can be carried by one keen walker in under 2 hours, or
     shared by a few people on a lunch break. Longer quests are
     realistic for a group of 3 to 6 and a real push for 2.
-  - Quest coins come on top of the daily reward (100 coins at the
+  - Quest coins come on top of the daily reward (150 coins at the
     day's coin target); the same steps count for both. A shop item
     (300 to 3,000 coins) should take a few quests, not one; the
     Weekend Journey is the big prize.
@@ -183,21 +188,21 @@ coins).
   When a quest is completed, the coins are worked out in three steps
   once the window and grace period are over:
 
-  1. STEP COINS: the group earns 1 coin for every 200 steps it
+  1. STEP COINS: the group earns 1 coin for every 100 steps it
      walked during the window. Steps past the goal count too, up to
-     150% of the goal.
-       Example: a Sprint group walks 10,000 steps -> 50 step coins.
+     150% of the goal. (Was 1 coin per 200 steps.)
+       Example: a Sprint group walks 10,000 steps -> 100 step coins.
 
   2. GROUP SIZE BONUS: step coins are multiplied by
        1 + 0.2 for every member after the first,
      up to a maximum of x2.5 (reached at 8 members).
        2 members -> x1.2    4 members -> x1.6
        6 members -> x2.0    8+ members -> x2.5
-       Example: the same Sprint group has 4 members -> 50 x 1.6 = 80.
+       Example: the same Sprint group has 4 members -> 100 x 1.6 = 160.
 
   3. SHARE: the result is split equally between every party member,
      rounded to whole coins, with a minimum of 10 coins each.
-       Example: 80 / 4 = 20 coins each.
+       Example: 160 / 4 = 40 coins each.
 
   Why it works this way:
   - More steps, more coins: the group is rewarded for walking past
@@ -211,9 +216,11 @@ coins).
     that lets one person carry an easy quest does not flood everyone
     with coins.
   - Equal shares: every member gets the same coins, whether they
-    walked 20,000 steps or none. The rate (1 coin per 200 steps) is
-    half the daily reward's rate, because the same steps also count
-    toward each walker's daily reward.
+    walked 20,000 steps or none. The rate (1 coin per 100 steps) is
+    a little over half the daily reward's rate (150 coins for about
+    8,500 steps), because the same steps also count toward each
+    walker's daily reward. At 1 per 200 a 2-person Sprint paid 36
+    coins each, too little for two hours of shared effort; now 72.
   - No prize for the top walker. The progress bar already shows who
     carried the party; that recognition is the reward.
 
@@ -228,11 +235,13 @@ coins).
   - The server decides everything: the party, progress, success and
     payment. The phone only shows what the server says.
   - Each member can be paid at most once per quest.
-  - Daily cap: quest coins per person are capped at 600 a day, just
-    above the most one quest can pay (a 2-member Weekend Journey at
-    150%: 540). Because members earn whether or not they walked, the
-    cap stops someone collecting rewards from many groups without
-    moving.
+  - Daily cap: quest coins per person are capped at 400 a day (was
+    600), room for about three quests. Because members earn whether
+    or not they walked, the cap stops someone collecting rewards from
+    many groups without moving. The cap is above anything Sprint or
+    Patrol can pay (at most 135 each). A 2-member Day Trek (450) or
+    Weekend Journey (1,080) would go over it: look at the cap again
+    before turning those quests on.
 
 ======================================================================
 6. COUNTING STEPS DURING THE QUEST WINDOW

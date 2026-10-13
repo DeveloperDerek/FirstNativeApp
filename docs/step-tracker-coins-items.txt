@@ -1,0 +1,383 @@
+STEP TRACKER - COINS AND ITEMS (ECONOMY REVIEW)
+Everything about coins in one place:
+  A. Every way to earn coins
+  B. Every way to spend coins
+  C. Every item and what it costs
+  D. The rebalance: what changed and why
+Last checked: October 2026
+
+This is a reference and a design record only. There is no code in this
+file. Sections 1 to 4 describe the economy as it is built now (the
+numbers come from supabase/migrations). Section 5 records the
+rebalance: each change, the old and new numbers, and the reasoning.
+
+CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-1 to COIN-5)
+  - New: a 300-coin welcome bonus with a player's first check-in.
+  - Daily step reward 100 -> 150. Shop refresh payout 25 -> 10.
+  - Quests: 1 coin per 100 steps (was 200), daily cap 400 (was 600).
+  - Prices: pets up, maps down, plain bottoms down, odd prices rounded.
+  Built in 20261115000000_coin_rebalance.sql. Still open: something to
+  spend coins on once you own everything (5f, COIN-F).
+
+======================================================================
+1. THE BASICS
+======================================================================
+
+  - Coins live on the server (wallets). The app never writes them: it
+    calls a database function and the database decides.
+  - Every coin movement is a row in coin_transactions, with a reason.
+    The unique (user, reason, ref) key stops anything paying twice.
+  - Earning coins needs step sharing turned on (the consent screen).
+    Without it, every earning function pays 0.
+  - New players start with 0 coins, and get 300 with their first
+    check-in, which the app makes as soon as sharing is turned on.
+  - The "shop day" runs on Los Angeles time for everyone.
+
+======================================================================
+2. EVERY WAY TO EARN COINS
+======================================================================
+
+  2a. DAILY STEP REWARD .......................... 150 coins a day
+      - Paid for each day your steps reach that day's coin target.
+      - The target is 7,000 to 10,000 steps (in 500s), different for
+        each player each day, fixed once shown (decision GOAL-2).
+      - It is NOT your personal daily goal. Your goal pays nothing.
+      - Late uploads still pay: any day in the last 7 days counts.
+      - Function: claim_daily_rewards()      reason: 'daily_goal'
+
+  2b. CHECK-IN BONUS ......................... 10 coins every 6 hours
+      - Collected by opening the app. Server clock, so changing the
+        phone's time does nothing.
+      - At most 4 a day (40 coins); 2 or 3 is realistic.
+      - Function: claim_checkin()            reason: 'checkin'
+
+  2c. WELCOME BONUS ................................ 300 coins, once
+      - Paid with a player's first check-in ever, on top of the 10.
+        The app shows "Welcome! +310 coins to start you off".
+      - Players who checked in before the bonus existed don't get it.
+      - Function: claim_checkin()            reason: 'welcome'
+
+  2d. SHOP REFRESH ........................... 10 coins every 12 hours
+      - Swaps today's 6 shop items for 6 new ones AND pays 10 coins.
+      - At most 2 a day (20 coins).
+      - Function: refresh_shop()             reason: 'shop_refresh'
+
+  2e. GROUP QUESTS ............... varies, capped at 400 coins a day
+      - Paid to each party member when a quest is completed.
+      - Formula (decisions QUEST-6 to QUEST-10):
+          party steps, counted up to 150% of the goal
+          / 100                       (1 coin per 100 steps)
+          x size bonus                (x1.2 for 2, +0.2 per member,
+                                       at most x2.5)
+          / party size                (split equally)
+          rounded, at least 10 each
+      - Quest goals grow 10% per member after the second, up to 8.
+      - One quest at a time per group, 1 hour cooldown after each.
+      - Function: quest_advance()            reason: 'quest'
+
+      What a quest actually pays each person (at 150% of the goal,
+      the most it can pay):
+
+        Quest     Hours  Party  Goal     Coins each
+        Sprint      2      2     8,000      72
+        Sprint      2      4     9,600      58
+        Sprint      2      8    12,800      58
+        Patrol      4      2    15,000     135
+        Patrol      4      4    18,000     108
+        Patrol      4      8    24,000     108
+
+      (Expedition, Day Trek and Weekend Journey exist but are turned
+      off. A 2-member Day Trek would pay 450 and a Weekend Journey
+      1,080, both over the 400 cap: look at the cap again before
+      turning them on.)
+
+  2f. ONE-OFF AND ADMIN MOVEMENTS (not something players do)
+      - 'refund'        paid back when an item became a free starter
+                        (hair_long, hair_ponytail, top_sweater_yellow,
+                        bottom_skirt_pink)
+      - 'grandfathered' items people were wearing when they became paid,
+                        recorded at 0 coins
+      - admin grants    admins own every item, recorded at 0 coins
+
+  2g. THINGS THAT USED TO PAY AND DON'T ANY MORE
+      - Streak bonuses: 200 coins at 7 days, 1,000 at 30 days. Removed
+        in October 2026 (GOAL-6). Already paid bonuses stayed paid.
+      - Achievements never paid coins. Some give an item instead
+        (section 4).
+
+  WHAT A DAY IS WORTH
+
+        Player          Daily  Check-ins  Refresh  Quests   Total
+        Casual           150      20         10        0      ~180
+        Regular          150      30         20       72      ~270
+        Very engaged     150      40         20      270      ~480
+        Theoretical max  150      40         20      400       610
+
+  Opening the app (check-ins + refresh) pays at most 60 coins a day,
+  well under the 150 for walking. (Before the rebalance: 90 against
+  100.)
+
+======================================================================
+3. EVERY WAY TO SPEND COINS
+======================================================================
+
+  There is exactly one: buying an item in the daily shop.
+
+  - The shop shows 6 items, picked per player per day. Never-shown
+    items come first, then the ones shown longest ago. Items you own
+    never appear.
+  - You can only buy what is in today's shop (NOT_IN_TODAYS_SHOP).
+  - Buying an item does not bring a replacement until the next refresh
+    or the next shop day.
+  - Items are bought once and kept forever. Nothing is used up.
+  - Function: purchase_item()                reason: 'purchase'
+
+  There is no coin sink after you own everything. See 5f.
+
+======================================================================
+4. EVERY ITEM AND WHAT IT COSTS
+======================================================================
+
+  FREE STARTER ITEMS (no shop row, everyone has them)
+    Faces    face_smile, face_neutral
+    Hair     hair_spiky, hair_short, hair_buzz, hair_long, hair_ponytail
+    Tops     top_hoodie_red, top_tee_white, top_sweater_yellow
+    Bottoms  bottom_shorts_blue, bottom_jeans_blue, bottom_skirt_pink
+    Shoes    shoes_white
+    Hat      none
+    Pet      pet_cat
+    Map      map_village
+
+  ACHIEVEMENT ITEMS (never sold, no price)
+    shoes_winged    1,000,000 total steps          (steps_1m)
+    cape_ember      30-day streak                  (streak_30)
+    hat_laurel      100-day streak                 (streak_100)
+    pet_mimic       first completed quest          (quest_1)
+
+  PAID ITEMS: 96 items, 91,300 coins for the full set
+  Median price: 700. Every price is a round hundred.
+  (*) = price changed in the rebalance; the old price is in brackets.
+
+  FACES (7 items, 2,300 total)
+    face_wink              300      face_sleepy            300
+    face_determined        300      face_cat               400
+    face_joy               300      face_starry            400 (500)*
+    face_surprised         300
+
+  HAIR (6 items, 4,100 total)
+    hair_bob               600      hair_afro              700
+    hair_bun               600      hair_mohawk            700
+    hair_twintails         700      hair_wavy              800
+
+  TOPS (8 items, 4,500 total)
+    top_tank_orange        300      top_jersey_blue        700
+    top_jacket_green       400      top_blazer             700
+    top_stripe_navy        400      top_puffer_purple      700
+    top_aloha              500      top_varsity            800
+
+  BOTTOMS (5 items, 1,700 total)
+    bottom_pants_black     300 (400)*   bottom_track_red    300 (400)*
+    bottom_pants_white     300 (400)*   bottom_skirt_plaid  500
+    bottom_cargo_khaki     300 (400)*
+
+  SHOES (12 items, 8,100 total)
+    shoes_red              300      shoes_hightop_black    600
+    shoes_sandals          300      shoes_slippers_bunny   700
+    shoes_clogs_green      300 (350)*   shoes_cowboy       700
+    shoes_running_blue     500 (450)*   shoes_skates_pink  900
+    shoes_rain_yellow      500      shoes_gold           1,200
+    shoes_boots_brown      600      shoes_rocket         1,500
+
+  HATS (11 items, 9,800 total)
+    hat_beanie_teal        400      hat_cat                900
+    hat_cap_red            500      hat_witch            1,000
+    hat_propeller          600      hat_tophat           1,000
+    hat_flowers            700      hat_crown_gold       1,500
+    hat_headphones         800      hat_halo             1,500
+    hat_bunny              900
+
+  GLASSES (6 items, 3,700 total)
+    glasses_round          400      glasses_star           700
+    glasses_shades         500      glasses_heart          700
+    glasses_eyepatch       500      glasses_mask           900
+
+  CAPES AND WINGS (5 items, 10,500 total)
+    cape_red             1,200      wings_bat            2,500
+    cape_royal           1,800      wings_fairy          2,500
+    wings_angel          2,500
+
+  HELD ITEMS (13 items, 10,600 total)
+    hand_lollipop          400      hand_sword             800
+    hand_balloon           500      hand_wand              900
+    hand_sunflower         500      hand_fishing_rod       900
+    hand_flag              600      hand_shield          1,200
+    hand_umbrella          700      hand_surfboard       1,200
+    hand_lantern           700      hand_guitar          1,500
+    hand_bug_net           700
+
+  OUTFITS (6 items, 10,500 total)
+    outfit_pajamas       1,200      outfit_tuxedo        1,800
+    outfit_sailor        1,500      outfit_wizard        2,000
+    outfit_dress         1,500      outfit_knight        2,500 (2,200)*
+
+  PETS (9 items, 9,000 total)
+    pet_snail              500           pet_dog        1,000 (800)*
+    pet_pig                800 (600)*    pet_octopus    1,200 (850)*
+    pet_mushroom           900 (700)*    pet_stump      1,200 (900)*
+    pet_orange_mushroom    900 (750)*    pet_slime      1,500 (1,200)*
+    pet_fox              1,000 (800)*
+
+  MAPS (8 items, 16,500 total)
+    map_forest           1,500 (2,000)*   map_mountain   2,000 (2,500)*
+    map_beach            1,500 (2,000)*   map_dungeon    2,500 (3,000)*
+    map_ocean            1,500 (2,000)*   map_space      2,500 (3,000)*
+    map_city             2,000 (2,500)*   map_neon       3,000 (3,500)*
+
+  SUMMARY BY SLOT
+
+    Slot       Items   Cheapest  Dearest   Total    Share of all
+    Maps          8     1,500     3,000    16,500      18%
+    Held         13       400     1,500    10,600      12%
+    Outfits       6     1,200     2,500    10,500      11%
+    Capes/wings   5     1,200     2,500    10,500      11%
+    Hats         11       400     1,500     9,800      11%
+    Pets          9       500     1,500     9,000      10%
+    Shoes        12       300     1,500     8,100       9%
+    Tops          8       300       800     4,500       5%
+    Hair          6       600       800     4,100       4%
+    Glasses       6       400       900     3,700       4%
+    Faces         7       300       400     2,300       3%
+    Bottoms       5       300       500     1,700       2%
+    ALL          96       300     3,000    91,300     100%
+
+  HOW LONG THINGS TAKE
+
+    Price     Casual (~180/day)   Regular (~270/day)
+      300           2 days              2 days
+      700           4 days              3 days
+    1,500           9 days              6 days
+    2,500          14 days             10 days
+    3,000          17 days             12 days
+    Everything   ~505 days            ~340 days
+
+======================================================================
+5. THE REBALANCE (OCTOBER 2026)
+======================================================================
+
+  Each item below was a recommendation in the first version of this
+  file. 5a to 5e are built (20261115000000_coin_rebalance.sql); 5f is
+  still open.
+
+  5a. A FIRST PURCHASE ON DAY ONE (COIN-1) .................. BUILT
+      Change:  one-time welcome bonus of 300 coins with the first
+               check-in (reason 'welcome', ref 'once').
+      Why:     a new player started at 0 and couldn't buy anything
+               until day 2 or 3. The shop is the main reason to keep
+               coming back; the first purchase should happen in the
+               first session. 300 buys exactly one cheap item, so it
+               teaches the loop without giving much away. The app
+               checks in as soon as sharing is turned on, so the
+               bonus also rewards the consent step coins need anyway.
+
+  5b. WALKING WORTH MORE THAN OPENING THE APP (COIN-2) ...... BUILT
+      Change:  daily step reward 100 -> 150.
+               Check-in unchanged: 10 every 6 hours.
+               Shop refresh payout 25 -> 10 (the refresh itself stays).
+      Why:     opens paid up to 90 coins a day against 100 for
+               walking. Now it's up to 60 against 150. Walking is the
+               main way to earn, which is the point of a step tracker.
+
+  5c. QUESTS PAY LIKE A REAL EFFORT (COIN-3) ................ BUILT
+      Change:  1 coin per 200 steps -> 1 coin per 100 steps.
+               Daily quest cap 600 -> 400.
+      Why:     a 2-person Sprint was 2 hours of shared effort for at
+               most 36 coins each, about a third of the daily reward.
+                 Sprint, 2 people     36 ->  72 each
+                 Patrol, 2 people     68 -> 135 each
+                 Patrol, 8 people     54 -> 108 each
+               Quests are the social feature; on a day you do one, it
+               should feel like the best way to earn. The old cap of
+               600 was unreachable (9 Patrols); 400 still allows ~3
+               quests a day but stops someone in many groups farming
+               them.
+
+  5d. ITEM PRICES (COIN-4) .................................. BUILT
+      Pets: the most visible thing a player can buy (it walks beside
+      them everywhere) was priced below many hats and held items. The
+      snail stays at 500 as the cheap entry pet; the rest went up.
+      Maps: the most expensive slot, but only you see yours, and
+      3,500 was ~25 days for a casual player. All down 500.
+      Bottoms: plain colour swaps, now 300 impulse buys.
+      Round prices: 350, 450, 750 and 850 are gone; face_starry 400
+      so faces are 300 or 400; outfit_knight 2,500 so the big-prize
+      tier is one price.
+      Past purchases were not refunded or charged the difference.
+      (When items became free starters, buyers were refunded, because
+      the item became free for everyone. A price change is different.)
+      The full list of changes is marked (*) in section 4.
+
+  5e. A PRICE LADDER FOR NEW ITEMS (COIN-5) .............. DECIDED
+      Use these five steps for every new item instead of picking a
+      number each time:
+
+        Common       300    colour swaps, plain faces and basics
+        Uncommon     500    patterned or styled basics
+        Rare         800    stand-out pieces (hats with ears, props)
+        Epic       1,500    gold items, crowns, halos, big props
+        Legendary  2,500    wings, the best outfits, rare maps
+
+      Pets and maps can sit a step higher than clothes of the same
+      feel, since each is one slot that's always on show. Existing
+      items between steps (400, 600, 700, 900...) stay as they are.
+
+  5f. A COIN SINK FOR WHEN THERE'S NOTHING LEFT TO BUY (COIN-F) . OPEN
+      Problem: items are bought once and kept forever. With the new
+               payouts a regular player owns everything in about 11
+               months, a very engaged one in about 6, and then coins
+               pile up with nothing to spend them on. The shop also
+               gets thin near the end, because owned items never
+               appear. The rebalance makes this sooner than before
+               (it was ~14 and ~10 months).
+      Options, cheapest to build first:
+        - Keep adding items. At ~10 new items a month the catalog
+          stays ahead of a regular player.
+        - A "buy any item" option at a premium (e.g. 2x price) for an
+          item not in today's shop, so long-time players aren't
+          waiting on the rotation for the last few.
+        - Seasonal items that are only in the shop for a few weeks.
+      None of these need a new kind of coin movement: they're all
+      'purchase' rows.
+
+  5g. LEFT ALONE ON PURPOSE
+      - The 7,000 to 10,000 random coin target (GOAL-2). It keeps the
+        daily reward reachable for most people without being the same
+        every day.
+      - The 7-day back-pay window for late uploads.
+      - The check-in amount and cooldown.
+      - Streaks paying nothing (GOAL-6). Achievements and their items
+        do that job without making streak loss feel like losing money.
+      - Free starter items. Both starter looks need to stay free.
+
+======================================================================
+6. WHERE IT LIVES
+======================================================================
+
+  Server (20261115000000_coin_rebalance.sql)
+    claim_daily_rewards()   reward 150
+    claim_checkin()         welcome bonus; returns a new welcome column
+                            (older app builds ignore it)
+    refresh_shop()          bonus 10
+    quest_step_coins()      / 100
+    quest_advance()         daily_cap 400
+    shop_items              the new prices
+  App
+    src/quests/rules.ts     stepCoins() / 100, kept in step with the
+                            server
+    src/api/coins.ts and src/hooks/use-wallet.tsx
+                            the welcome message on first check-in
+    src/app/shop.tsx, src/app/(tabs)/index.tsx,
+    src/components/quest-card.tsx
+                            the numbers shown (150, +10, 400 cap)
+  Tests
+    supabase/tests/database/coin_rebalance.test.sql
+    the amounts in sync_day, goals_streaks and src/quests/rules.test.ts

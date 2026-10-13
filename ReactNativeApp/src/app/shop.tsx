@@ -185,7 +185,7 @@ export default function ShopScreen() {
     return (
       <Screen title="Shop" inTabs={false}>
         <GroundText>
-          Earn 100 coins for every day you reach your coin target (7,000 to 10,000 steps, different
+          Earn 150 coins for every day you reach your coin target (7,000 to 10,000 steps, different
           each day), then spend them on clothes for your character.
         </GroundText>
         <SharingRequired />
@@ -205,7 +205,7 @@ export default function ShopScreen() {
       </View>
       <GroundText type="small">
         Your shop is unique to you and changes every day at midnight Pacific time. Refresh it every
-        12 hours for new items and 25 coins. Earn 100 coins for each day you reach your coin target
+        12 hours for new items and 10 coins. Earn 150 coins for each day you reach your coin target
         (shown on Today).
       </GroundText>
 
@@ -220,7 +220,7 @@ export default function ShopScreen() {
 
       <Button
         title={
-          refreshMsLeft > 0 ? `Refresh in ${hoursMinutes(refreshMsLeft)}` : 'Refresh shop (+25 coins)'
+          refreshMsLeft > 0 ? `Refresh in ${hoursMinutes(refreshMsLeft)}` : 'Refresh shop (+10 coins)'
         }
         variant="secondary"
         loading={refreshing}

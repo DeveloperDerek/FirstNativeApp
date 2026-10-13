@@ -300,7 +300,7 @@ function Progress({
   );
 }
 
-/** "10,000 steps -> 50 coins, x1.6 for 4 members -> 80, shared: +20 coins each" */
+/** "10,000 steps -> 100 coins, x1.6 for 4 members -> 160, shared: +40 coins each" */
 function Payout({
   quest,
   me,
@@ -334,7 +334,7 @@ function Payout({
       )}
       {me && me.coins_paid !== null && me.coins_paid !== quest.coins_each && (
         <ThemedText type="small" themeColor="textSecondary">
-          You got +{me.coins_paid}: quest coins are capped at 600 a day.
+          You got +{me.coins_paid}: quest coins are capped at 400 a day.
         </ThemedText>
       )}
       {me && me.coins_paid === null && (

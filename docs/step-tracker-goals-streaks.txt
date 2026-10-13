@@ -71,14 +71,15 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, GOAL-1, 2 and 6)
     difference to it.
 
   COINS (DECIDED: A DAILY COIN TARGET, NOTHING FOR YOUR OWN GOAL)
-  - 100 coins for each day you reach that day's coin target. The
+  - 150 coins for each day you reach that day's coin target (was
+    100 until the coin rebalance, COIN-2). The
     target is 7,000 to 10,000 steps, in 500s, picked at random for
     each player for each day. It has nothing to do with your goal: a
     5,000 goal and a 20,000 goal get the same kind of target.
   - Random but fixed: the server works it out from the player and the
     day, so it is the same every time it's asked, on every phone, and
     can't be rerolled. my_goal() returns it as coin_steps, and Today
-    shows it ("coins at 8,500") until it's reached ("+100 coins").
+    shows it ("coins at 8,500") until it's reached ("+150 coins").
   - Why random: everyone has the same chances over time, so the shop
     stays fair between people, and a target that moves keeps the day
     a little less predictable than a fixed 10,000.
@@ -220,7 +221,7 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, GOAL-1, 2 and 6)
   - Today: the streak under the progress ("5-day streak · best 12"),
     and on the day it's at risk, how many steps keep it going. The
     progress line also shows the day's coin target ("coins at 8,500")
-    or "+100 coins" once it's reached.
+    or "+150 coins" once it's reached.
   - Profile: Daily goal (the picker, and "Your new goal starts on
     <date>"), a note that coins have their own target each day, and
     your best streak.

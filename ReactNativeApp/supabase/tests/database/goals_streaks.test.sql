@@ -111,7 +111,7 @@ select is((pg_temp.streak(2)->>'best')::int, 9, 'the missing day uploaded late j
 -- U3: 7 days at 12,000 ending today: the daily coins only
 select pg_temp.walk(3, 6, 0, 12000);
 select pg_temp.as_user(3);
-select is(public.claim_daily_rewards(), 700, '7 days in a row: 7 x 100 daily coins, no streak bonus');
+select is(public.claim_daily_rewards(), 1050, '7 days in a row: 7 x 150 daily coins, no streak bonus');
 select is((pg_temp.streak(3)->>'current')::int, 7, '...and the streak is still 7');
 select is(public.claim_daily_rewards(), 0, 'claiming again pays nothing');
 
@@ -126,7 +126,7 @@ select is((pg_temp.streak(4)->>'current')::int, 7, '...but a 7-day streak');
 -- U5: 100 days in a row: no bonus at 7, 30 or 100
 select pg_temp.walk(5, 99, 0, 12000);
 select pg_temp.as_user(5);
-select is(public.claim_daily_rewards(), 800, '100 days in a row: only the 8 days of daily coins in the window');
+select is(public.claim_daily_rewards(), 1200, '100 days in a row: only the 8 days of daily coins in the window');
 -- (Its achievement reward items are in the coin history too, at 0 coins)
 select is((select count(*)::int from public.coin_transactions where user_id = pg_temp.u(5)
            and reason not in ('daily_goal', 'achievement')), 0, 'no streak coins of any kind');
@@ -146,7 +146,7 @@ select is((public.my_goal(current_date)->>'coin_steps')::int, public.coin_steps_
 select pg_temp.walk(17, 1, 1, public.coin_steps_on(pg_temp.u(17), current_date - 1));
 select pg_temp.walk(17, 0, 0, public.coin_steps_on(pg_temp.u(17), current_date) - 1);
 select pg_temp.as_user(17);
-select is(public.claim_daily_rewards(), 100, 'the target pays; a step short doesn''t');
+select is(public.claim_daily_rewards(), 150, 'the target pays; a step short doesn''t');
 select is(pg_temp.daily_coins(17), array[(current_date - 1)::text], '...for the day that reached it');
 
 -- ---------------------------------------------------------------------

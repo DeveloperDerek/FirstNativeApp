@@ -41,9 +41,9 @@ export const MIN_COINS_EACH = 10;
 /** A quest needs at least this many members sharing steps. */
 export const MIN_PARTY = 2;
 
-/** 1 coin per 200 steps, counting up to 150% of the goal. */
+/** 1 coin per 100 steps, counting up to 150% of the goal. */
 export function stepCoins(steps: number, goal: number): number {
-  return Math.floor(Math.min(steps, Math.floor((goal * 3) / 2)) / 200);
+  return Math.floor(Math.min(steps, Math.floor((goal * 3) / 2)) / 100);
 }
 
 /** x1.2 for 2 members, x1.6 for 4, ... at most x2.5. */

@@ -54,10 +54,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [userId, update]);
 
   const applyCheckin = useCallback(
-    async (result: { granted: number; nextAt: Date | null }) => {
+    async (result: { granted: number; nextAt: Date | null; welcome: number }) => {
       if (!userId) return;
       if (result.granted > 0) {
-        Alert.alert('Welcome back!', `+${result.granted} coins for checking in.`);
+        if (result.welcome > 0) {
+          Alert.alert(
+            'Welcome!',
+            `+${result.granted} coins to start you off. Spend them on something in the Shop.`
+          );
+        } else {
+          Alert.alert('Welcome back!', `+${result.granted} coins for checking in.`);
+        }
         update({ nextCheckin: result.nextAt, balance: await getBalance(userId) });
       } else {
         update({ nextCheckin: result.nextAt });

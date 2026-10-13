@@ -173,7 +173,7 @@ export default function TodayScreen() {
             <ThemedText type="small" style={{ color: theme.skyInk }}>
               {Math.round(progress * 100)}% of {dailyGoal.toLocaleString()} goal
               {sharing &&
-                (earnedCoins ? ' · +100 coins' : ` · coins at ${coinSteps.toLocaleString()}`)}
+                (earnedCoins ? ' · +150 coins' : ` · coins at ${coinSteps.toLocaleString()}`)}
             </ThemedText>
             <StreakLine streak={streak} steps={today ?? 0} color={theme.skyInk} />
             <CheckinCountdown nextAt={nextCheckin} color={theme.skyInk} />
