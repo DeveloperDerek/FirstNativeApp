@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Image,
+  Pressable,
   ScrollView,
   type ScrollViewInstance,
   StyleSheet,
@@ -67,7 +68,17 @@ function landmarksFor(theme: MapTheme, max: number) {
   return [...base, ...extra];
 }
 
-function WalkerSprite({ walker, x, lane }: { walker: Walker; x: number; lane: number }) {
+function WalkerSprite({
+  walker,
+  x,
+  lane,
+  onSelect,
+}: {
+  walker: Walker;
+  x: number;
+  lane: number;
+  onSelect?: (walker: Walker) => void;
+}) {
   // Stop on whole points: 0.1 point per step would leave the pixel art
   // between screen pixels, where it is drawn blurry
   const snapped = Math.round(x);
@@ -80,8 +91,6 @@ function WalkerSprite({ walker, x, lane }: { walker: Walker; x: number; lane: nu
   const name = walker.isMe ? 'You' : walker.name;
   return (
     <Animated.View
-      accessible
-      accessibilityLabel={`${name}: ${walker.steps.toLocaleString()} steps`}
       style={[
         styles.walker,
         {
@@ -90,14 +99,23 @@ function WalkerSprite({ walker, x, lane }: { walker: Walker; x: number; lane: nu
           transform: [{ translateX: anim }],
         },
       ]}>
-      {/* Light backing keeps names readable over buildings */}
-      <ThemedText
-        numberOfLines={1}
-        type={walker.isMe ? 'smallBold' : 'small'}
-        style={styles.walkerLabel}>
-        {name}
-      </ThemedText>
-      <Avatar config={normalizeAvatar(walker.avatar)} scale={SCALE} accessibilityLabel={name} />
+      {/* Tapping a character opens their profile card */}
+      <Pressable
+        disabled={!onSelect}
+        onPress={() => onSelect?.(walker)}
+        accessibilityRole={onSelect ? 'button' : undefined}
+        accessibilityLabel={`${name}: ${walker.steps.toLocaleString()} steps`}
+        accessibilityHint={onSelect ? 'Opens their profile' : undefined}
+        style={({ pressed }) => [styles.walkerInner, pressed && styles.walkerPressed]}>
+        {/* Light backing keeps names readable over buildings */}
+        <ThemedText
+          numberOfLines={1}
+          type={walker.isMe ? 'smallBold' : 'small'}
+          style={styles.walkerLabel}>
+          {name}
+        </ThemedText>
+        <Avatar config={normalizeAvatar(walker.avatar)} scale={SCALE} accessibilityLabel={name} />
+      </Pressable>
     </Animated.View>
   );
 }
@@ -115,11 +133,14 @@ export function StepTrack({
   walkers,
   theme,
   myGoal,
+  onSelect,
 }: {
   walkers: Walker[];
   theme: MapTheme;
   /** Your own daily goal, marked on the road on your phone only (the flag stays at 10,000) */
   myGoal?: number;
+  /** Called when a character on the road is tapped */
+  onSelect?: (walker: Walker) => void;
 }) {
   const scrollRef = useRef<ScrollViewInstance>(null);
   const [viewport, setViewport] = useState(0);
@@ -212,7 +233,13 @@ export function StepTrack({
               </View>
 
               {walkers.map((w, i) => (
-                <WalkerSprite key={w.id} walker={w} x={xs[i]} lane={lanes[i]} />
+                <WalkerSprite
+                  key={w.id}
+                  walker={w}
+                  x={xs[i]}
+                  lane={lanes[i]}
+                  onSelect={onSelect}
+                />
               ))}
             </View>
 
@@ -274,6 +301,12 @@ const styles = StyleSheet.create({
     left: 0,
     width: SPRITE_W,
     alignItems: 'center',
+  },
+  walkerInner: {
+    alignItems: 'center',
+  },
+  walkerPressed: {
+    opacity: 0.7,
   },
   walkerLabel: {
     // Over the sprite's empty headroom, so the name sits just above the

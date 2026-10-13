@@ -183,7 +183,12 @@ export default function TodayScreen() {
 
       {/* Edge to edge: no padding around the map. It stays put while the list scrolls. */}
       {mode.kind !== 'solo' && !sharing ? null : (
-        <StepTrack walkers={pickShown(walkers, MAX_ON_TRACK)} theme={theme} myGoal={dailyGoal} />
+        <StepTrack
+          walkers={pickShown(walkers, MAX_ON_TRACK)}
+          theme={theme}
+          myGoal={dailyGoal}
+          onSelect={(w) => setSelectedId(w.id)}
+        />
       )}
 
       <ScrollView
@@ -250,7 +255,7 @@ export default function TodayScreen() {
                 </ThemedText>
               )}
               <ThemedText type="small" style={ink}>
-                Tap a name to see their profile.
+                Tap someone on the road or a name below to see their profile.
               </ThemedText>
               <Leaderboard rows={ranked} myId={myId} onSelect={(r) => setSelectedId(r.user_id)} />
               <ThemedText type="small" style={ink}>
@@ -296,7 +301,7 @@ export default function TodayScreen() {
         </View>
       </ScrollView>
 
-      {/* Opens over the page (and the tab bar) when a ranking row is tapped */}
+      {/* Opens over the page (and the tab bar) when a character or ranking row is tapped */}
       <PlayerCard
         walker={selected}
         group={mode.kind === 'group' ? { id: mode.id, name: mode.name } : undefined}
