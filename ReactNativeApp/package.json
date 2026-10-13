@@ -57,7 +57,8 @@
     "lint": "expo lint",
     "test": "node --test \"src/**/*.test.ts\" \"supabase/functions/**/*.test.ts\"",
     "gen:name-tests": "node scripts/gen-name-tests.ts",
-    "check:art": "python3 scripts/check-art.py"
+    "check:art": "python3 scripts/check-art.py",
+    "preview:avatar": "node scripts/preview-avatar.mjs"
   },
   "private": true
 }

@@ -170,7 +170,9 @@ as in MapleStory, need a code change. Ask before drawing for them.)
 1. **Lock the base first.** Generate the bare body, one face and one
    hairstyle. Clean them up, put them in the app, and check on a phone.
    Everything else is drawn on this body, so don't continue until it's
-   approved.
+   approved. A stand-in base drawn in code is already in the app
+   (`scripts/draw-base-art.mjs`: `body_base`, `face_smile`,
+   `hair_spiky`); render it big and use it as the pose reference.
 2. **Generate big, on the template pose.** Give the tool the approved
    base character as the reference image, generate at 2x or 4x
    (512 x 896 or 1024 x 1792), and scale down to 256 x 448 at the end.
@@ -186,8 +188,10 @@ as in MapleStory, need a code change. Ask before drawing for them.)
    background removal.
 5. **Check on the app's tint.** For body and hair, convert to grayscale
    and try a few skin and hair colors in the app.
-6. **Run `npm run check:art`.** Then try the item on a couple of outfits
-   in Customize before committing.
+6. **Run `npm run check:art`**, then `npm run preview:avatar -- out.png`
+   to see the starter looks in several skin and hair colors, drawn the
+   way the app draws them. Then try the item on a couple of outfits in
+   Customize before committing.
 
 A prompt to start from (keep it the same for every item, change only the
 last sentence):
