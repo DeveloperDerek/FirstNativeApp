@@ -279,8 +279,10 @@ table.
     the old friendship does NOT come back (a new request is needed).
 
   SHARED GROUPS (DECIDED: BLOCKING DOESN'T CHANGE GROUPS)
-  - Groups are joined by invite code, and a quest needs every member's
-    vote, so hiding people inside a shared group would break voting.
+  - Groups are joined by invite code, and a quest's party is every
+    member sharing steps, so hiding people inside a shared group would
+    break quests. (Written when quests needed every member's vote;
+    voting was removed in October 2026 and the decision stands.)
   - In a shared group they see each other as any members do, through
     the group functions only (section 2).
   - The person who BLOCKED sees a note on the player card opened from
@@ -304,7 +306,8 @@ table.
   - Badges: the Friends badge counts only pending requests, and blocking
     ends them, so it drops on the next count.
   - Group activity: carries on as for any member. The Groups badge
-    counts quests waiting for YOUR vote, not anything a person did.
+    counted quests waiting for YOUR vote, not anything a person did
+    (quests have no votes since October 2026, so it no longer shows).
     There are no group pushes yet; when they are built (quest proposed,
     started, won), they are about the group, and go to every member
     the same way.

@@ -219,3 +219,14 @@ needs them set by hand.
    that day on pay a bonus. Daily coins are unchanged (10,000). Then a
    new build: older builds keep 10,000 everywhere, show no streak, and
    still say "+100 coins" at 10,000 (which stays true).
+12. Achievements (`step-tracker-achievements.txt`): push
+   `20261110000000_achievements.sql` BEFORE the new build reaches anyone.
+   The build lists the four reward items (Winged sneakers, Ember cape,
+   Laurel wreath, Mimic); the server lets anyone wear an item with no
+   `shop_items` row, so without the migration they'd be free to wear
+   through an old or modified app. (This build itself keeps them locked
+   unless owned either way.) The migration gives everyone who shares
+   what they'd already earned; the first open of the new build shows it
+   as one summary. Older builds show no achievements and never offer the
+   items. Then the checks in `DEVICE-TESTS.md` §19, and
+   `bash supabase/tests/concurrency/achievement_race.sh` locally.

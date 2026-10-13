@@ -49,3 +49,6 @@ example
 *.apk
 *.aab
 *.ipa
+
+# Database dumps (supabase db dump): real users' emails and data, never commit
+backups/

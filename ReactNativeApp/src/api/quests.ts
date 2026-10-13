@@ -1,10 +1,10 @@
 import { supabase } from '@/lib/supabase';
 
 // Group quests. The app only calls the database functions in
-// supabase/migrations/*_group_quests.sql; the database decides votes,
-// progress, success and payment.
+// supabase/migrations/*_group_quests.sql and *_quests_without_voting.sql;
+// the database decides the party, progress, success and payment.
 
-export type QuestStatus = 'voting' | 'active' | 'completed' | 'failed' | 'cancelled';
+export type QuestStatus = 'active' | 'completed' | 'failed' | 'cancelled';
 
 export type QuestMember = {
   user_id: string;
@@ -12,8 +12,6 @@ export type QuestMember = {
   /** Raw JSON from the database; run it through normalizeAvatar() before drawing. */
   avatar: unknown;
   sharing: boolean;
-  /** null = has not answered */
-  accepted: boolean | null;
   in_party: boolean;
   /** false = left the group (their steps still count) */
   in_group: boolean;
@@ -28,8 +26,8 @@ export type Quest = {
   type_id: string;
   proposer_id: string | null;
   status: QuestStatus;
+  /** Started straight away rather than at a set time */
   start_asap: boolean;
-  vote_deadline: string;
   starts_at: string | null;
   ends_at: string | null;
   grace_ends_at: string | null;
@@ -38,7 +36,6 @@ export type Quest = {
   total_steps: number;
   completed_at: string | null;
   cancelled_at: string | null;
-  declined_by: string | null;
   settled_at: string | null;
   step_coins: number | null;
   multiplier: number | null;
@@ -53,7 +50,7 @@ export type GroupQuest = {
    * Most steps first. Without a quest, just the group.
    */
   members: QuestMember[];
-  /** When the group may propose again (cooldown), if it has had a quest. */
+  /** When the group may start another (cooldown), if it has had a quest. */
   nextQuestAt: Date | null;
   /** Server clock minus phone clock, so countdowns follow the server. */
   clockOffset: number;
@@ -77,7 +74,10 @@ export async function getGroupQuest(groupId: string): Promise<GroupQuest> {
   };
 }
 
-/** startsAt = null means "as soon as everyone accepts". */
+/**
+ * Starts a quest for the group: no vote, it is locked in at once for
+ * every member sharing steps. startsAt = null means right now.
+ */
 export async function proposeQuest(groupId: string, typeId: string, startsAt: Date | null) {
   const { data, error } = await supabase.rpc('propose_quest', {
     gid: groupId,
@@ -86,13 +86,6 @@ export async function proposeQuest(groupId: string, typeId: string, startsAt: Da
   });
   if (error) throw new Error(questErrorMessage(error));
   return data as string;
-}
-
-/** Returns the quest's status afterwards ('active' if this was the last accept). */
-export async function voteQuest(questId: string, accept: boolean): Promise<QuestStatus> {
-  const { data, error } = await supabase.rpc('vote_quest', { qid: questId, p_accept: accept });
-  if (error) throw new Error(questErrorMessage(error));
-  return data as QuestStatus;
 }
 
 /** Replaces this member's hourly steps for the quest. Returns the group total. */
@@ -109,11 +102,7 @@ export type MyQuest = {
   type_id: string;
   status: QuestStatus;
   proposer_name: string | null;
-  my_vote: boolean | null;
   in_party: boolean;
-  /** Voting only: who has not answered yet */
-  waiting_for: string[] | null;
-  vote_deadline: string;
   starts_at: string | null;
   ends_at: string | null;
   goal: number;
@@ -123,7 +112,7 @@ export type MyQuest = {
   result_seen: boolean;
 };
 
-/** Quests across all my groups that need me: votes, running quests, unseen results. */
+/** Quests across all my groups that need me: running quests and unseen results. */
 export async function listMyQuests(): Promise<MyQuest[]> {
   const { data, error } = await supabase.rpc('my_quests');
   if (error) throw new Error(questErrorMessage(error));
@@ -137,13 +126,12 @@ export async function markQuestSeen(questId: string) {
 }
 
 const MESSAGES: Record<string, string> = {
-  GROUP_TOO_SMALL: 'Quests need at least 2 people in the group.',
+  GROUP_TOO_SMALL: 'Quests need at least 2 people in the group with step sharing on.',
   QUEST_IN_PROGRESS: 'This group already has a quest going.',
   QUEST_COOLDOWN: 'The group is resting after its last quest. Try again soon.',
   BAD_START_TIME: 'Pick a start time within the next 24 hours.',
   UNKNOWN_QUEST: 'That quest is not available.',
   SHARING_REQUIRED: 'Turn on step sharing to take part in quests.',
-  VOTING_CLOSED: 'Voting on this quest has closed.',
   NOT_A_MEMBER: 'You are not in this group.',
   NOT_IN_PARTY: 'You are not in this quest.',
   QUEST_NOT_OPEN: 'This quest is not taking steps right now.',

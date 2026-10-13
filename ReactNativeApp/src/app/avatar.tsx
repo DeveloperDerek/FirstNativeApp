@@ -1,10 +1,11 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { lockText, unlockedBy } from '@/achievements/achievements';
 import { saveAvatar } from '@/api/avatar';
-import { coinErrorMessage, listOwnedItemsInOrder, listShopPrices } from '@/api/coins';
+import { coinErrorMessage, listOwnedItemsInOrder, listShopItemIds } from '@/api/coins';
 import { getItemOrder, saveItemOrder } from '@/api/itemOrder';
 import { useAuth } from '@/auth/AuthProvider';
 import { ItemIcon } from '@/avatar/ItemIcon';
@@ -33,6 +34,11 @@ type Arrange = {
   onDragChange: (dragging: boolean) => void;
   onReorder: (ids: string[]) => void;
 };
+
+/** What a locked reward item says when tapped: how to earn it. */
+function explainLock(label: string, id: string) {
+  Alert.alert(label, `${lockText(id)}. Achievements are in Profile.`);
+}
 
 /** A sideways-scrolling row of tiles the user can drag into any order. */
 function ItemRow<T extends { id: string }>({
@@ -114,11 +120,14 @@ function Tile({
   label,
   selected,
   onPress,
+  locked = false,
 }: {
   children: ReactNode;
   label: string;
   selected: boolean;
   onPress: () => void;
+  /** A reward item not earned yet: shown faded, with a lock */
+  locked?: boolean;
 }) {
   const theme = useTheme();
   return (
@@ -135,7 +144,12 @@ function Tile({
       <ThemedView
         type={selected ? 'backgroundSelected' : 'backgroundElement'}
         style={[styles.tile, { borderColor: selected ? theme.accent : 'transparent' }]}>
-        {children}
+        <View style={locked && styles.lockedItem}>{children}</View>
+        {locked && (
+          <ThemedText type="small" style={styles.lock}>
+            🔒
+          </ThemedText>
+        )}
       </ThemedView>
     </Pressable>
   );
@@ -183,24 +197,25 @@ export default function AvatarEditorScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<{
-    prices: Record<string, number>;
+    inShop: Set<string>;
     owned: string[];
     order: string[];
   } | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  // Load prices and owned items: only what the user can wear is shown.
-  // Reloads when returning from the Shop so new purchases appear.
+  // Load which items need owning, and the owned ones: only what the user
+  // can wear is shown (and reward items, locked). Reloads when returning
+  // from the Shop so new purchases appear.
   useFocusEffect(
     useCallback(() => {
       if (!session) return;
       Promise.all([
-        listShopPrices(),
+        listShopItemIds(),
         listOwnedItemsInOrder(),
         // Only the arrangement: without it items show in their default order
         getItemOrder(session.user.id).catch(() => []),
       ])
-        .then(([prices, owned, order]) => setItems({ prices, owned, order }))
+        .then(([inShop, owned, order]) => setItems({ inShop, owned, order }))
         .catch(() => setError("Couldn't load your items. Try again."));
     }, [session])
   );
@@ -209,12 +224,19 @@ export default function AvatarEditorScreen() {
   // catalog order, then owned items in the order they were bought; any
   // the user has dragged into place go before both, in that order. Even
   // if this had a bug, the database trigger would reject the save.
+  // A reward item is never free here, even if its shop_items row is
+  // missing: the app's own list says it must be earned.
   const mine: Collection = (list) => {
     if (!items) return [];
-    const free = list.filter((x) => items.prices[x.id] === undefined);
+    const free = list.filter((x) => !items.inShop.has(x.id) && !unlockedBy(x.id));
     const bought = items.owned.flatMap((id) => list.filter((x) => x.id === id));
     return applyItemOrder([...free, ...bought], items.order);
   };
+
+  // Reward items not earned yet, shown after the rest with a lock, so
+  // people know the achievements exist. Tapping one says how to earn it.
+  const isLocked = (id: string) => Boolean(items && unlockedBy(id) && !items.owned.includes(id));
+  const withLocked: Collection = (list) => [...mine(list), ...list.filter((x) => isLocked(x.id))];
 
   // A dropped tile: show the new order straight away, then save it
   const reorder = (rowIds: string[]) => {
@@ -317,7 +339,7 @@ export default function AvatarEditorScreen() {
                 </ThemedText>
               </ThemedText>
               <ItemRow
-                items={mine(CATALOG[slot])}
+                items={withLocked(CATALOG[slot])}
                 arrange={arrange}
                 leading={
                   OPTIONAL_SLOTS.has(slot) && (
@@ -335,9 +357,14 @@ export default function AvatarEditorScreen() {
                 }
                 renderItem={(item) => (
                   <Tile
-                    label={item.label}
+                    label={isLocked(item.id) ? `${item.label}, locked` : item.label}
+                    locked={isLocked(item.id)}
                     selected={avatar[slot] === item.id}
-                    onPress={() => set(wear(slot, item.id))}>
+                    onPress={() =>
+                      isLocked(item.id)
+                        ? explainLock(item.label, item.id)
+                        : set(wear(slot, item.id))
+                    }>
                     {/* Just the item; tapping it puts it on the character above */}
                     <ItemIcon
                       slot={slot}
@@ -360,7 +387,7 @@ export default function AvatarEditorScreen() {
               </ThemedText>
             </ThemedText>
             <ItemRow
-              items={mine(PETS)}
+              items={withLocked(PETS)}
               arrange={arrange}
               leading={
                 <Tile
@@ -372,9 +399,10 @@ export default function AvatarEditorScreen() {
               }
               renderItem={(p) => (
                 <Tile
-                  label={p.label}
+                  label={isLocked(p.id) ? `${p.label}, locked` : p.label}
+                  locked={isLocked(p.id)}
                   selected={avatar.pet === p.id}
-                  onPress={() => set({ pet: p.id })}>
+                  onPress={() => (isLocked(p.id) ? explainLock(p.label, p.id) : set({ pet: p.id }))}>
                   <View style={styles.iconBox}>
                     <Pet id={p.id} scale={4} />
                   </View>
@@ -390,6 +418,7 @@ export default function AvatarEditorScreen() {
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
             Get more items with coins in the Shop. Each day it offers a different selection.
+            Items with a lock can&apos;t be bought: they come with an achievement.
           </ThemedText>
           <Button title="Open the Shop" variant="secondary" onPress={() => router.push('/shop')} />
 
@@ -468,6 +497,14 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  lockedItem: {
+    opacity: 0.35,
+  },
+  lock: {
+    position: 'absolute',
+    top: Spacing.one,
+    right: Spacing.one,
   },
   buttons: {
     gap: Spacing.three,

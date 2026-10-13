@@ -1,3 +1,5 @@
+import type { EarnedAchievement } from '@/achievements/achievements';
+import { getPlayerAchievements } from '@/api/achievements';
 import { getPlayerStreak } from '@/api/goals';
 import { myToday } from '@/api/steps';
 import { normalizeAvatar } from '@/avatar/catalog';
@@ -15,6 +17,8 @@ export type PlayerProfile = {
   blockedByMe: boolean;
   /** Their current streak; null when they don't share steps (or aren't a friend) */
   streak: number | null;
+  /** Their earned achievements, newest first; null when the server won't say */
+  achievements: EarnedAchievement[] | null;
 };
 
 /**
@@ -25,7 +29,7 @@ export type PlayerProfile = {
  * reason to see.
  */
 export async function loadPlayerProfile(userId: string): Promise<PlayerProfile | null> {
-  const [{ data, error }, lastSeen, streak] = await Promise.all([
+  const [{ data, error }, lastSeen, streak, achievements] = await Promise.all([
     supabase
       .from('profiles')
       .select('username, display_name, avatar, map_theme')
@@ -34,6 +38,8 @@ export async function loadPlayerProfile(userId: string): Promise<PlayerProfile |
     loadLastSeen(userId),
     // Friends only (the server says null otherwise); a failure hides the line
     getPlayerStreak(userId).catch(() => null),
+    // The same: friends only, and a failure hides the badges
+    getPlayerAchievements(userId).catch(() => null),
   ]);
   if (error) throw error;
   if (!data) return null;
@@ -45,6 +51,7 @@ export async function loadPlayerProfile(userId: string): Promise<PlayerProfile |
     lastSeen,
     blockedByMe: false,
     streak,
+    achievements,
   };
 }
 
@@ -68,6 +75,8 @@ export async function loadGroupMemberCard(groupId: string, userId: string): Prom
     lastSeen: data.last_seen ? new Date(data.last_seen) : null,
     blockedByMe: Boolean(data.blocked_by_me),
     streak: typeof data.streak === 'number' ? data.streak : null,
+    // Missing until the achievements migration is deployed
+    achievements: Array.isArray(data.achievements) ? data.achievements : null,
   };
 }
 

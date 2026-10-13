@@ -906,10 +906,18 @@ on the Profile tab, if they ever do.
 
   B. Email confirmation: ON. Stops fake and mistyped emails.
 
-  C. Username changes: UNLIMITED, as today on Profile. Nothing
-     breaks when a username changes, because friendships, groups,
-     steps and coins all point at the account id, not the name.
-     One safeguard is still worth adding:
+  C. Username changes: ONE A DAY (changed October 2026, was
+     unlimited; step-tracker-decisions.txt, REG-C). A day is 24 hours
+     from the last change. Picking a new name after an admin reset
+     (step-tracker-safety.txt, Part D) is always allowed, and counts
+     as that day's change. A second change too soon is refused with
+     USERNAME_CHANGE_LIMIT ("You can change your username once a day.
+     Try again tomorrow."). The time of the last change is kept in
+     profile_private.username_changed_at
+     (20261113000000_username_daily_limit.sql).
+     Nothing breaks when a username changes, because friendships,
+     groups, steps and coins all point at the account id, not the
+     name. One more safeguard:
        - A released username is held for 30 days. Only its old
          owner can take it back in that time. Without this, when
          @derek renames to @derek_walks, someone else can grab
@@ -984,6 +992,11 @@ on the Profile tab, if they ever do.
         stored name always matches the a-z0-9_ rule.
     DB  A name released by change_username() is refused for anyone
         else for 30 days and allowed for its old owner.
+    DB  A second change_username() within 24 hours is refused
+        (USERNAME_CHANGE_LIMIT), still refused at 23 hours, allowed at
+        25; keeping the same name is never refused; after an admin
+        reset a new name is allowed at once and counts as the day's
+        change (username_daily_limit.test.sql).
     DB  A blocked name (admin, support, ...) is refused.
     DB  A signed-in user can't change username or onboarded_at with
         a direct update on profiles; display_name still works.

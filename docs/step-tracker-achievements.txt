@@ -1,0 +1,541 @@
+STEP TRACKER - ACHIEVEMENTS (BLUEPRINT)
+One-time awards for milestones (first 10,000-step day, a million steps,
+a 30-day streak, a first quest won), shown on your profile and on your
+player card, and a few clothing items you can only get by earning them.
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. It
+describes what changes, what the database, phone and screens need, and
+the choices made before building (section 8). Item 2f of
+step-tracker-recommendations.txt; step 7 of its suggested order.
+
+======================================================================
+1. HOW IT WORKS TODAY
+======================================================================
+
+  - Rewards are coins only: 100 a day at 10,000 steps, a check-in
+    bonus, quest coins, and streak bonuses at 7 and 30 days. (Since
+    October 2026 the daily coins follow a target of 7,000 to 10,000
+    steps, random per player per day, and streaks pay no coins:
+    step-tracker-goals-streaks.txt.)
+    (claim_daily_rewards, run by the phone right after each upload,
+    one at a time per person under a lock).
+  - What the server keeps, for people who share steps:
+      - every uploaded day (daily_steps), with its date. People can
+        delete their own days. The phone uploads only the last 7 days,
+        so a day can arrive late, but never more than 7 days late.
+      - each day's goal (daily_goal_changes). A new goal starts the day
+        after it's chosen, so a past day's goal, and so a past streak,
+        never changes.
+      - quests (with completed_at) and who was in each party
+        (quest_party).
+    People who don't share have no uploaded days, coins or streaks.
+  - Clothing, pets and maps: an item listed in shop_items must be owned
+    (user_items) to be worn, enforced on the server
+    (check_avatar_items, check_map_theme). An item with active = false
+    is never offered in the daily shop and purchase_item refuses it.
+    Admins are given every shop_items row automatically.
+  - The player card shows a person's character, map, streak and last
+    seen, to friends and group mates, through can_see and the group
+    rules (which already cover blocked, paused, hidden, under-age and
+    unfinished accounts on either side).
+
+======================================================================
+2. THE ACHIEVEMENTS (CHOICE 1: DECIDED)
+======================================================================
+
+  The first set: 11, all worked out on the server from data it already
+  has. Each is earned once and kept for good. (First friend and Joined
+  a group were dropped: see section 8.)
+
+    STEPS IN A DAY
+      first_10k        First 10K          a day of 10,000 or more
+      big_day          Big day            a day of 20,000 or more
+      huge_day         Huge day           a day of 30,000 or more
+
+    STEPS ALL TOGETHER
+      steps_100k       100,000 steps
+      steps_1m         A million steps    (reward item: Winged sneakers)
+      steps_5m         Five million steps
+
+    STREAKS
+      streak_7         A week in a row
+      streak_30        A month in a row   (reward item: Ember cape)
+      streak_100       100 days in a row  (reward item: Laurel wreath)
+
+    QUESTS
+      quest_1          First quest won    (reward item: Mimic pet)
+      quest_10         Ten quests won
+
+  - Coins: none for achievements. The streak bonuses already pay at 7
+    and 30 days, and paying again for the same thing would make the
+    coin economy easier without anyone choosing it. (The streak
+    bonuses were removed in October 2026; achievements still pay no
+    coins, so streaks now earn reward items only.)
+  - The names and descriptions live in the app (like the item names in
+    src/avatar/catalog.ts); the server knows only the ids, kinds and
+    thresholds.
+
+  EXACTLY WHAT COUNTS
+  Each kind has one measure. It is worked out from the records that
+  exist now; an achievement is earned the first time the measure
+  reaches its threshold, and is never taken away afterwards.
+
+    Kind          Measure                                Earned on
+    ------------  -------------------------------------  ---------------
+    Day steps     the highest uploaded day               the first day
+                                                         at or over it
+    Total steps   all uploaded days added up, each date  the day the
+                  once (one row per date already)        running total
+                                                         first reached it
+    Streak        the longest run, under the existing    the day the run
+                  streak rules (each day by its own      first reached it
+                  goal; goal_runs)
+    Quests        quests with status 'completed' that    the completed_at
+                  you were in the party of, each quest   date (shop time
+                  once                                   zone, like the
+                                                         quest coin cap)
+                                                         of the quest
+                                                         that reached it
+
+  - Total steps is added up in date order, oldest first, each date
+    once; its earned date is the first date whose running total
+    reaches the threshold. (Two runs over the same days always give
+    the same date, whatever order they were uploaded in.)
+  - "The day" for steps and streaks is the uploaded day itself (the
+    phone's calendar day), not when the server noticed. So a day
+    uploaded late still records the day it was walked.
+  - Each quest counts once per person: quest_party has one row per
+    person and quest, and a quest is completed only once.
+  - Every earned date is exact: each kind has a dated record behind
+    it, so there are no approximate dates.
+
+  WHEN RECORDS CHANGE (KEEP, DON'T RECOUNT)
+  - Earned stays earned: deleting step days or losing a quest record
+    never takes an achievement away, and its earned date stays as it
+    was.
+  - Progress follows what exists now. A locked achievement's progress
+    ("640,000 of 1,000,000") is worked out from today's records, so
+    deleting days lowers it, and uploading or restoring days raises
+    it. Progress toward an achievement already earned isn't shown.
+  - Late and restored days count: the next check after an upload
+    (claim_daily_rewards) sees them and can award an achievement,
+    with the date the measure first reached it in the history as it
+    now stands.
+  - Goal changes can't change history (section 1), so they never
+    change a streak achievement or its progress.
+
+======================================================================
+3. HOW THEY ARE EARNED
+======================================================================
+
+  WHO (CHOICE 2: DECIDED)
+  - Every achievement needs step sharing, like coins and streaks: there
+    is nothing on the server to count otherwise, and quests already
+    need sharing. (With the friend and group achievements dropped,
+    none are left that work without sharing.)
+
+  WHEN
+  - Checked on the server, never decided by the phone:
+      - steps and streaks: inside claim_daily_rewards, after the coins,
+        under the same per-person lock, so they're counted from the
+        days just uploaded
+      - quests: the moment a quest is won (a trigger on its status
+        becoming 'completed'), for everyone in its party, rather than
+        after the grace period when the coins are paid
+  - Both call one internal function, award_achievements (section 6),
+    which is safe to run any number of times, including at the same
+    moment from two places.
+
+  EARNED BEFORE LAUNCH (CHOICE 3: DECIDED)
+  - Yes. The launch migration runs the same check for everyone once,
+    so long-time users start with what they have earned. No coins are
+    involved, so nothing in the economy changes. Reward items come with
+    it (section 4), at 0 coins.
+  - The earned date is the real one, worked out from the records, never
+    the launch day pretending to be it:
+      - steps and streaks: the exact day, from the uploaded days
+      - quests: the completed_at of the quest that reached it
+  - When there is no record at all (days deleted before launch), the
+    achievement isn't given. Nothing is ever dated "launch day" as if
+    it were the day it was earned.
+  - Safe to stop and start again: the launch check is part of its
+    migration, which runs as one transaction, so a failure part way
+    leaves nothing behind. It runs without the per-person lock, so a
+    big launch doesn't hold one lock per person until the end; the
+    skip-what's-there inserts alone keep a claim at the same moment
+    from adding anything twice (tested in achievement_race.sh). And because award_achievements only adds
+    what's missing, running the check again after any partial run (for
+    example by hand, person by person) ends with exactly what one full
+    run gives.
+  - The first time someone opens the new app, the achievements from
+    the launch check come as one summary ("You've earned 6
+    achievements") instead of six messages.
+
+  SEEING A NEW ONE (DELIVERY)
+  - The earned row is the record; the message is only a notice of it.
+    An achievement shows on Profile and the player card from the moment
+    it's earned, whether or not the message was ever seen.
+  - Each earned row has a "seen" time, empty until acknowledged. The
+    app:
+      1. asks for the unseen ones (new_achievements) after each refresh
+         and on app open
+      2. shows the message
+      3. only once it has been shown (the person closed it, or it was
+         on screen), acknowledges those ids (mark_achievements_seen)
+    If the app closes or loses its connection before step 3, nothing is
+    acknowledged and the message comes again next time. Acknowledging
+    is safe to repeat.
+  - No duplicates on one phone: while a message is on screen, the app
+    doesn't show the same ids again from a second fetch (it keeps the
+    ids it is showing).
+  - Two phones on the same account (CHOICE 6: DECIDED): whichever shows
+    it first and acknowledges it stops it on the other from then on.
+    If both are open at the same moment, both may show it once; that's
+    accepted, since the alternative, a claim step, can lose a message
+    when a phone dies mid-way.
+  - Shown as an in-app message ("Achievement unlocked: A million steps.
+    You can now wear the Winged sneakers."), with the character
+    celebration of item 4d later. No push notifications (push isn't
+    set up).
+
+======================================================================
+4. REWARD ITEMS (CHOICES 4, 5 AND 7: DECIDED)
+======================================================================
+
+  - Four achievements unlock one item each, which can't be bought:
+    steps_1m, streak_30, streak_100 and quest_1 (shoes, a cape, a hat
+    and a pet; the art is in "THE ART" below).
+  - They launch together with the badges (CHOICE 7), not after the
+    server-side anti-cheat, and the art is made now (CHOICE 5), so
+    there is no badges-only period.
+  - How: each is a shop_items row with active = false (so the shop
+    never offers it and purchase_item refuses it) and a new column,
+    unlocked_by, naming the achievement. Earning the achievement adds
+    the item to user_items, recorded in the coin history at 0 coins
+    ('achievement', the item id). Wearing it then works through the
+    existing ownership checks; nothing about the avatar changes.
+  - Exactly once, even at the same moment: the achievement row and its
+    item are written in the same transaction by award_achievements,
+    every insert is "on conflict do nothing" against a unique key
+    (user_achievements per person and achievement; user_items per
+    person and item; coin_transactions per person, reason and ref),
+    and the per-person lock makes two calls run one after the other.
+  - Items follow achievements, not the moment of earning: each run
+    gives every reward item whose achievement the person HAS (earned
+    now or long ago) and doesn't own yet. So a run that inserts nothing
+    new still tops up a missing item, and an item added later (a fifth
+    one, say) reaches everyone who already earned its achievement the
+    next time award_achievements runs for them. The conflict-safe
+    inserts make that once only: a second run, or two at once, add
+    nothing. An achievement is never left without its item once the
+    item exists, and an item is never given without its achievement.
+  - Admins: they already get every shop_items row, so they get these
+    too; it's how they test items.
+  - In the Customize screen, a locked reward item shows with a lock and
+    "Earn A million steps to unlock", which tells people the
+    achievements exist.
+
+  THE CHEATING RISK (ACCEPTED WITH CHOICE 7)
+  - Steps are counted by the phone and uploaded; the server's checks
+    (at most 100,000 a day, typed-in steps left out on the phone) keep
+    numbers believable but are not proof the steps were walked. A
+    modified app can upload a 30,000-step day.
+  - Items no one can buy are a prize, and a prize is a reason to fake
+    steps. Launching them before the server-side anti-cheat
+    (recommendations 3e) means someone with a modified app could earn
+    them. Accepted for now: they are cosmetic, cost nobody coins, and
+    the quest item needs a whole party to win a quest.
+  - When 3e is built, it doesn't take items back (earned stays earned);
+    it only stops new faked days from counting.
+
+  THE ART (CHOICE 5: MADE, OCTOBER 2026)
+  - Four new sprites, drawn in scripts/generate-avatar-sprites.py like
+    the rest, under its rules: 32 x 56 for clothing (a back layer too
+    where it shows behind), 16 x 16 two-frame walk for the pet, a
+    1-pixel dark outline, no anti-aliasing, light from the top-left.
+  - They look unlike anything the shop sells (it already has Gold
+    sneakers, Rocket boots, Red and Royal capes, Gold crown and Halo),
+    so wearing one says "earned":
+      - steps_1m, shoes_winged, Winged sneakers: white high-tops with a
+        gold stripe above the sole and a small gold wing at each heel.
+      - streak_30, cape_ember, Ember cape: deep red at the shoulders to
+        orange at a hem of flames, with sparks; matches the flame on
+        the streak badges.
+      - streak_100, hat_laurel, Laurel wreath: green and gold leaves
+        around the head, the old prize for endurance.
+      - quest_1, pet_mimic, Mimic: a treasure chest that walks beside
+        you; closed in one frame (an ordinary chest), mid-hop in the
+        other with the lid up, teeth, eyes and a tongue.
+
+  ADDING A REWARD ITEM (THE MIGRATION)
+  - At launch, the achievements migration inserts the four items; any
+    later item gets its own migration. Either way it:
+      1. inserts the shop_items row with active = false and
+         unlocked_by set, in one statement: the item never exists in a
+         state where it could be sold or offered
+      2. runs the award for everyone who has that achievement (and
+         only them), giving the item at 0 coins
+  - A check constraint on shop_items keeps it that way for good:
+    unlocked_by set means active must be false. Turning one into a
+    shop item, by mistake or on purpose, needs a migration that drops
+    unlocked_by first.
+  - purchase_item and daily_shop already refuse or skip inactive items;
+    check_avatar_items already refuses wearing an item not owned.
+    Nothing about them changes.
+  - Nobody else gets it: the award gives an item only for an earned
+    achievement row; admins get it through their existing grant.
+
+======================================================================
+5. SCREENS
+======================================================================
+
+  PROFILE > ACHIEVEMENTS
+  - A section on Profile with the earned count and the three most
+    recent, and a row to the full list on its own screen.
+  - The full list: earned ones first, newest first, with their date;
+    then the locked ones, closest first, with progress where it's a
+    number ("640,000 of 1,000,000 steps", "best streak 12 of 30", "3 of
+    10 quests"), and the reward item each one unlocks.
+  - Not sharing: the list shows "Share your steps to earn these", like
+    the streak line, with each achievement locked and no progress.
+
+  THE PLAYER CARD
+  - The three most recently earned badges and the total ("9
+    achievements"), on one compact row that fits small phones. Tapping
+    it opens that person's earned list: names and dates only.
+  - Only for anyone who can already open their card: friends, and
+    group mates on a card opened from the group. The database decides
+    (section 6); the app hiding the row isn't the protection.
+  - Never shown to anyone else: progress numbers, lifetime totals and
+    best streaks are only ever returned to the person themselves.
+  - Privacy: badges say roughly how much someone walks. Friends and
+    group mates already see their steps on the leaderboards, so this
+    reveals nothing new to them.
+
+  BADGE ART (CHOICE 6: DECIDED)
+  - One pixel-style badge frame in the app's look, with a simple symbol
+    per kind (a shoe for day steps, footprints for total steps, a
+    flame for streaks, a flag for quests) and the number. 11 badges
+    from 4 symbols, no art per badge. Locked ones grey.
+
+======================================================================
+6. DATABASE
+======================================================================
+
+  TABLES
+  - achievements: id, kind (day_steps, total_steps, streak, quests),
+    threshold, sort order. Readable by the app, never writable.
+  - user_achievements: user, achievement, earned_on (date), earned_at,
+    seen_at, at_launch (given by the launch check, for the one
+    summary). Primary key (user, achievement). Row level security with
+    NO policies at all: the app reads it only through the functions
+    below, so the read rules can't be bypassed by querying the table.
+  - shop_items gets unlocked_by (an achievement id, or null), and the
+    four reward items. price may now be null: the check constraint
+    shop_items_sold_or_earned allows either a sold item (no
+    unlocked_by, a price over 0) or an earned one (unlocked_by, no
+    price, never active).
+
+  FUNCTIONS
+  - achievement_measures(person): INTERNAL. Each achievement's measure
+    from the records as they are now (the progress), and the day it
+    first reached the threshold (or null).
+  - award_achievements(person, at_launch default false): INTERNAL, not
+    callable by the app.
+    Works out the measures, inserts the newly reached achievements with
+    their dates, and gives any reward item the person is owed (section
+    4): one transaction, conflict-safe inserts. Does nothing for
+    someone who doesn't share steps.
+    Takes the per-person lock claim_daily_rewards already uses, so two
+    calls for one person run one after the other. Called from
+    claim_daily_rewards, the quest-won trigger, and the launch
+    migration.
+  - my_achievements(): yours only (the caller from the sign-in):
+    'sharing', 'earned' (ids and dates, newest first) and, while you
+    share, 'progress' (value and threshold of each one not earned).
+    Nothing depends on the phone's date, so no my_today.
+  - new_achievements(): your unseen ones, oldest first, each with
+    at_launch and the reward item it unlocked (or null).
+  - mark_achievements_seen(ids): sets seen on YOUR rows with those ids
+    and nothing else; ids that aren't yours, or are already seen, are
+    ignored. Safe to repeat.
+  - player_achievements(person): a person's earned ids and
+    dates, nothing else (no progress, no seen). The same rules as
+    player_streak: yourself, or a friend now (is_friend) whom you can
+    see (can_see); null for anyone else, without saying why.
+  - group_member_card gains an 'achievements' field (ids and dates),
+    under its existing rules (both in the group, the caller active, the
+    person active).
+  - Every reading function first checks the caller is signed in and
+    active (is_active_account), as the existing ones do.
+
+  PERMISSIONS ON FUNCTIONS
+  - Postgres lets PUBLIC (everyone) execute a new function unless told
+    otherwise, and Supabase adds anon and authenticated. So, as in the
+    existing migrations, every function here is followed by
+    "revoke all ... from public, anon, authenticated":
+      - internal ones (award_achievements and any helper): nothing is
+        granted back, so no signed-in user can call them, by RPC or
+        any other way
+      - app-facing ones (my_achievements, new_achievements,
+        mark_achievements_seen, player_achievements): execute granted
+        back to authenticated only, never anon
+  - All are security definer with "set search_path = ''" and fully
+    qualified names (public.…), owned by the migration's role
+    (postgres), like the existing functions; the tables they touch have
+    no write policies for the app.
+  - claim_daily_rewards keeps returning the coins as now, so older app
+    builds keep working; new achievements come from new_achievements().
+  - Cost: lifetime steps is one sum over a person's days and the best
+    streak is goal_runs, already run on each claim; both small.
+
+======================================================================
+7. TESTS
+======================================================================
+
+  DATABASE (supabase/tests/database)
+  Earning
+  - Each kind is earned exactly at its threshold and not one step
+    below, with the right earned date (the day, or the quest's date).
+  - Once only, even when checked again.
+  - At the same moment: two sessions call award_achievements for the
+    same person at once (supabase/tests/concurrency/
+    achievement_race.sh): one achievement row,
+    one item, one coin-history row; never an achievement without its
+    item.
+  - A reward item added later: earn an achievement that has no item,
+    add an item for it (a migration like section 4's), run the award
+    again: the person gets it exactly once; running it again, or two
+    at once, adds nothing; someone without the achievement doesn't get
+    it.
+  - Reward items: one with unlocked_by can't be made active (the check
+    constraint), isn't in the daily shop and can't be bought.
+  - Total steps counted in date order: the same earned date whatever
+    order the days were uploaded in.
+  - Each quest counts once, even if checked again; failed quests
+    and group members who weren't in the party don't count.
+  - Not sharing: no achievements and no reward items.
+
+  History changes
+  - Earn A million steps, delete a qualifying day: still earned, same
+    date, still owns the Winged sneakers; progress toward Five million
+    goes down. Upload the day again: progress back up.
+  - A missing day uploaded late completes a 7-day streak and earns it,
+    dated the day the run reached 7.
+  - A goal change doesn't change any past streak or its achievement.
+
+  The launch check
+  - The right achievements with the real dates, and the reward items
+    for the four that have them; nothing dated launch day; running it
+    twice adds nothing.
+  - Stopped part way: run it for some people only (or a run that
+    errors part way and rolls back), then the full check: the same
+    result as one full run, nothing twice.
+
+  Who can read what
+  - player_achievements and group_member_card's achievements: none for
+    a stranger; blocked in either direction; a former friend; a paused
+    (hidden) account, an under-age or unfinished account, on either
+    side (the caller, or the person); signed out.
+  - No reader ever gets progress numbers or seen times except for
+    yourself.
+  - The table itself can't be read directly by the app (no policies).
+
+  What the app can't do
+  - Call award_achievements (or any internal function) directly, as a
+    signed-in user by RPC: refused. Checked from the catalog too: no
+    EXECUTE for public, anon or authenticated on any internal function;
+    authenticated only (not anon) on the app-facing ones; each is
+    security definer with an empty search_path.
+  - Insert, update or delete user_achievements, or mark someone else's
+    as seen (their ids are ignored).
+  - Give itself a reward item: no insert into user_items; buying it is
+    refused (ITEM_NOT_FOR_SALE) even when called directly; it's never
+    in the daily shop; it can't be worn until owned
+    (ITEM_NOT_OWNED); unlocked_by can't be changed.
+
+  APP (npm test)
+  - Progress text for each kind, and the order (earned first, newest
+    first; then locked by closeness).
+  - The unlock message: one, several, the first-time summary, the
+    reward item line; ids being shown aren't shown again by a second
+    fetch; acknowledged only after being shown.
+  - The four new items are in the catalog (and pets list) with their
+    sprites, and the lock text names the right achievement.
+
+  ON A PHONE (DEVICE-TESTS.md)
+  - Walk past 10,000 (or use a test account): the message comes once,
+    the badge shows on Profile and on your card for a friend.
+  - Close the app while the message is showing (before tapping it):
+    it comes again on the next open.
+  - Two phones on one account: dismiss on one; the other doesn't show
+    it after its next refresh.
+  - A quest won while the app was closed: the message on next open,
+    and the Mimic walking beside the character once chosen.
+  - A reward item: locked in Customize before, wearable after; each of
+    the four looks right on the character and the player card.
+  - Not sharing: the "Share your steps" note on the list.
+  - A small phone: the card's badge row fits on one line.
+
+======================================================================
+8. CHOICES (DECIDED OCTOBER 2026)
+======================================================================
+
+  1. The set: the suggested 13 minus First friend and Joined a group,
+     so 11 (steps in a day, steps all together, streaks, quests).
+  2. Who: all of them need sharing (as suggested for steps, streaks
+     and quests; with the social ones gone, nothing is left without).
+  3. Earned before launch: yes, as suggested, with real dates from the
+     records, nothing given without a record, and one summary message.
+  4. Reward items: as suggested, four achievements unlock one item each
+     that can't be bought; no coins for achievements.
+  5. Item art: made now, before launch, rather than launching badges
+     first. The suggested four were chosen and drawn (section 4, "THE
+     ART"), with the badge pieces.
+  6. Badge look: as suggested, one pixel frame with four symbols. The
+     unlock message is in the app only, no push. On two phones at once
+     the message may show on both.
+  7. Reward items launch together with the badges, not after the
+     server-side anti-cheat (3e). The risk is in section 4.
+
+======================================================================
+9. BUILDING ORDER
+======================================================================
+
+  1. Art (done): the four item sprites (shoes_winged, cape_ember,
+     hat_laurel, mimic_a/b in assets/pets) and the badge frame and
+     symbols, each with a grey _locked copy (assets/badges), all drawn
+     in scripts/generate-avatar-sprites.py. Badges are 22 x 22 layers:
+     the frame, then the kind's symbol; the app writes the number under
+     them.
+  2. Database (written, passing locally, not yet deployed):
+     supabase/migrations/20261110000000_achievements.sql, tests in
+     supabase/tests/database/achievements.test.sql and
+     supabase/tests/concurrency/achievement_race.sh.
+     The items' catalog.ts and pets.ts entries ship in the same release
+     as this migration, never before it: an item with no shop_items
+     row is free to wear, so listing them early would give them to
+     everyone.
+  3. Profile > Achievements and the full list with progress, the
+     unlock message (acknowledged after showing; one summary the first
+     time), and the lock on reward items in Customize (written): the
+     names, badge numbers and reward items in
+     src/achievements/achievements.ts (tested against the migration's
+     ids, thresholds and reward rows), src/app/achievements.tsx, the
+     Profile section, src/hooks/use-achievement-notices.ts. Customize
+     now counts any shop_items row (active or not) as not free, and
+     keeps an item from that list locked unless owned even if its row
+     is missing; only then were the four items added to catalog.ts and
+     pets.ts. The migration must still be deployed before this build
+     ships (RELEASE-GATE.md step 12).
+  4. Player card badges (friends and group cards) and the person's
+     earned list (written): src/components/player-card.tsx shows the
+     three most recent badges and the count on one row, from
+     player_achievements (yourself and friends) or group_member_card's
+     'achievements' (a card opened from a group); a failure or a null
+     hides the row. Tapping it shows that person's earned list in place
+     of the card's details: names and dates only, newest first, with
+     Back to the card. The list and count come from earnedList in
+     src/achievements/achievements.ts, which leaves out ids this app
+     doesn't know.

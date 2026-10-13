@@ -1,0 +1,479 @@
+STEP TRACKER - ALL DECISIONS (ONE PLACE)
+Every decision recorded in the blueprints in docs/, gathered so they
+can be reviewed and changed. Each one has an id (e.g. GOAL-6), points
+back to its blueprint, and has a "Change to:" line. Leave it empty to
+keep the decision; write the new choice there to change it.
+Last checked: October 2026
+
+This file is a summary. The blueprint named in each section has the
+full reasoning, the options not chosen and the tests. If the two ever
+disagree, the blueprint wins until it is updated.
+
+Contents
+  1. Registration          (step-tracker-register.txt, section 9)
+  2. Safety                (step-tracker-safety.txt, section 11)
+  3. Goals and streaks     (step-tracker-goals-streaks.txt, section 6)
+  4. Group quests          (step-tracker-group-quests.txt, 2-5 and 8)
+  5. Notifications         (step-tracker-notifications.txt, section 5)
+  6. Group owners, Apple   (step-tracker-group-owners.txt, section 6)
+  7. Step refresh          (step-tracker-step-refresh.txt, section 6)
+  8. History, reminders    (step-tracker-history-reminders.txt, 6)
+  9. Achievements          (step-tracker-achievements.txt, section 8)
+  10. Builds               (step-tracker-builds.txt, section 6)
+  11. Still open
+
+======================================================================
+1. REGISTRATION (step-tracker-register.txt, section 9)
+======================================================================
+
+  REG-A  Birthday: the full birth date is required at sign-up.
+         Under-13 accounts are blocked, then deleted.
+         Change to:
+
+  REG-B  Email confirmation: on.
+         Change to:
+
+  REG-C  Username changes: one a day (24 hours from the last change;
+         picking a new one after an admin reset is always allowed and
+         counts as that day's change). A released username is held for
+         30 days; only its old owner can take it back then.
+         (Changed October 2026: was unlimited.)
+         Change to:
+
+  REG-D  Launch: US only at first; testing and marketing start in
+         Southern California. Minimum age 13, as a server setting.
+         Subject to the legal and store checklist and the release
+         gate (a qualified person reviews before public release).
+         Change to:
+
+  REG-E  Birthday privacy: only the owner and server-side operations
+         can read it; not editable on Profile; corrections go through
+         support (with an age re-check); a refused under-age birth
+         date is never stored.
+         Change to:
+
+======================================================================
+2. SAFETY (step-tracker-safety.txt, section 11)
+======================================================================
+
+  SAFE-1   Blocking doesn't change shared groups: blocked people still
+           see each other in a group they share (via group functions
+           only).
+           Change to:
+
+  SAFE-2   Admins hear about reports by push (new report, and any
+           open over 20 hours); email later, once there's a sender.
+           Change to:
+
+  SAFE-3   "Also block" on the report screen: off by default.
+           Change to:
+
+  SAFE-4   Staff words (admin, official, steptracker...): banned in
+           usernames only; allowed in display names and group names.
+           Change to:
+
+  SAFE-5   Group names: 1-15 characters.
+           Change to:
+
+  SAFE-6   Friend requests: no daily limit, no wait after declines.
+           Change to:
+
+  SAFE-7   Admin actions: dismiss, rename, hide while reviewing
+           (always ends in unhide or delete), delete.
+           Change to:
+
+  SAFE-8   Joining a group after a block: allowed, no warning to the
+           blocked person; the blocker sees a note on the card.
+           Change to:
+
+  SAFE-9   Group activity (and future pushes) carries on for blocked
+           pairs as for any member.
+           Change to:
+
+  SAFE-10  Reviewer: you, at least daily and on each push. Reports
+           are turned off when nobody can review.
+           Change to:
+
+  SAFE-11  Reporting ships hidden (reports_enabled off) until the
+           admin side works end to end.
+           Change to:
+
+  SAFE-12  Reports and their action log are kept one year after
+           closing (through account deletion), then deleted.
+           Change to:
+
+  SAFE-13  Group functions run with extra rights; the only rule they
+           skip is the block between the caller and a group mate.
+           Change to:
+
+  SAFE-14  Leaderboards take a period ('today' or 'week'), never
+           dates.
+           Change to:
+
+  SAFE-15  Hiding is its own field; unhide never lifts another
+           restriction.
+           Change to:
+
+  SAFE-16  You can report someone you've blocked, from the Blocked
+           people list.
+           Change to:
+
+  SAFE-17  Hidden characters in names: refused, except the joiner,
+           emoji style and skin tones inside emoji. The zero-width
+           non-joiner is refused.
+           Change to:
+
+  SAFE-18  A blocked person in a shared group can work out the block
+           from search. Accepted; the app never says it.
+           Change to:
+
+  SAFE-19  Group mates' step access is limited to an 8-day window
+           (9 for about 2 hours a day) so every local week is right.
+           Accepted friends keep their own access to step history.
+           Change to:
+
+  SAFE-20  Deleting an account or group closes its open reports
+           automatically, with a log row saying why.
+           Change to:
+
+  SAFE-21  Spaces in names: trimmed at the ends, collapsed to one
+           inside, same in app and database; names need visible
+           content.
+           Change to:
+
+  SAFE-22  can_see runs with extra rights, signed-in users only, and
+           requires the caller to be active.
+           Change to:
+
+  SAFE-23  Requests and blocks between the same two people take a
+           pair lock so they can't race.
+           Change to:
+
+  SAFE-24  Line breaks and control characters are refused, never
+           turned into spaces.
+           Change to:
+
+  SAFE-25  The action log is append-only, except emptying ids on
+           deletion and the one-year cleanup. Automatic closures are
+           logged as auto_close.
+           Change to:
+
+======================================================================
+3. GOALS AND STREAKS (step-tracker-goals-streaks.txt, section 6)
+======================================================================
+
+  GOAL-1   Goal range: 5,000 to 20,000 in steps of 500; default
+           10,000. Goals outside it moved to the nearest end.
+           (Changed October 2026: was 3,000 to 25,000.)
+           Change to:
+
+  GOAL-2   Daily coins: each player's target is 7,000 to 10,000 steps
+           (in 500s), random for each player each day, whatever their
+           goal; shown on Today. The step track still runs 0 to 10,000.
+           (Changed October 2026: was 10,000 for everyone.)
+           Change to:
+
+  GOAL-3   Your goal shows as a small marker on your own step track.
+           Change to:
+
+  GOAL-4   Your streak shows on your player card to friends and group
+           mates.
+           Change to:
+
+  GOAL-5   No rest days or streak freezes for now.
+           Change to:
+
+  GOAL-6   Your own goal pays no coins: no streak bonuses. Streaks
+           follow the personal goal and are only shown. Bonuses
+           already paid are kept.
+           (Changed October 2026: was 200 coins at 7 days, 1,000 at
+           30 days.)
+           Change to:
+
+  GOAL-7   Several goal changes in one day: the last one wins; all
+           are kept. Never changed means 10,000.
+           Change to:
+
+  GOAL-8   Launch: streaks shown from existing history.
+           (The bonus launch cutoff went with GOAL-6.)
+           Change to:
+
+  GOAL-9   Late uploads (within 8 days) update the streak.
+           Change to:
+
+  GOAL-10  Removed with GOAL-6 (joined runs and bonus payments).
+
+  GOAL-11  Removed with GOAL-6 (the bonus launch cutoff).
+
+  GOAL-12  Claiming is one at a time per person (a lock), with the
+           coin history's once-only rule as a second layer.
+           Change to:
+
+  GOAL-13  The suspicious-steps checks are unchanged by personal
+           goals.
+           Change to:
+
+  GOAL-14  A new goal starts the next day. A tampered phone could
+           lower today's goal to rescue a streak, but never earn coins
+           by it, nor beat the streak of an honest player with a 5,000
+           goal. Accepted.
+           Change to:
+
+======================================================================
+4. GROUP QUESTS (step-tracker-group-quests.txt, sections 2-5 and 8)
+======================================================================
+
+  This blueprint has no numbered decisions list; these are the rules
+  it settles.
+
+  QUEST-1   Any member of the group can start a quest. Nobody has to
+            accept and nobody can decline: it is on at once for every
+            member sharing steps.
+            (Changed October 2026: every member had to accept.)
+            Change to:
+
+  QUEST-2   No voting. One quest under way per group (started now, or
+            at a set time within 24 hours); 1-hour wait after a quest
+            ends before the next one.
+            (Changed October 2026: quests were voted on first.)
+            Change to:
+
+  QUEST-3   1-hour grace period after the window for late uploads.
+            Only steps taken inside the window count.
+            Change to:
+
+  QUEST-4   Quest types (goals for 2 people; see QUEST-5):
+              Sprint            2 hours      8,000 steps
+              Patrol            4 hours     15,000 steps
+              Expedition        8 hours     30,000 steps
+              Day Trek         12 hours     50,000 steps
+              Weekend Journey  48 hours    120,000 steps
+            Change to:
+
+  QUEST-5   The goal is one number for the group, and one person can
+            carry the party. It grows a bit with the party: the type's
+            goal (for 2) plus 10% for each member after the second, up
+            to 8 members (x1.6), rounded to 100. A Sprint for 4 is
+            9,600 steps.
+            (Changed October 2026: was the same for any group size.)
+            Change to:
+
+  QUEST-6   Coins: 1 coin per 200 steps walked, counting up to 150%
+            of the goal.
+            Change to:
+
+  QUEST-7   Group size bonus: x(1 + 0.2 per member after the first),
+            max x2.5 at 8 members.
+            Change to:
+
+  QUEST-8   Shared equally, rounded, minimum 10 coins each; members
+            who didn't walk are paid too. No prize for the top
+            walker.
+            Change to:
+
+  QUEST-9   Failed quests pay nothing (show "So close! 87%").
+            Change to:
+
+  QUEST-10  Daily cap: 600 quest coins per person per day.
+            Change to:
+
+  QUEST-11  Quests need step sharing to take part; minimum 2 members
+            sharing steps.
+            Change to:
+
+  QUEST-12  Joining after a quest is started (even one set for later):
+            not in it.
+            Change to: 
+
+  QUEST-13  Leaving, or turning sharing off, mid-quest: steps so far
+            count, but no share of the coins. The size bonus and the
+            goal use the party size when the quest was started.
+            Change to:
+
+  QUEST-14  Missing Health permission: can still accept; steps don't
+            count until access is allowed.
+            Change to:
+
+  QUEST-15  Quests in two groups at once are allowed; the same steps
+            count for both (the daily cap keeps it in check).
+            Change to:
+
+  Later, not decided: difficulty levels (Easy x0.75, Normal, Hard
+  x1.5) and a "Quest of the Week".
+
+======================================================================
+5. NOTIFICATIONS (step-tracker-notifications.txt, section 5)
+======================================================================
+
+  NOTIF-1  The friend-request badge clears by acting on the request
+           (accept or decline), not by opening the tab.
+           Change to:
+
+  NOTIF-2  Ignored requests never expire; they stay pending until
+           accepted, declined or cancelled.
+           Change to:
+
+  NOTIF-3  The badge shows a number, "9+" above 9 (not a dot).
+           Change to:
+
+  NOTIF-4  No activity feed ("Sam accepted your request") yet.
+           Change to:
+
+======================================================================
+6. GROUP OWNERS AND APPLE (step-tracker-group-owners.txt, section 6)
+======================================================================
+
+  OWNER-1  Next owner when the owner leaves: the longest-standing
+           active member, else the longest-standing member; the group
+           is deleted only when nobody is left.
+           Change to:
+
+  OWNER-2  "Make owner": an owner can hand the group over on purpose.
+           Change to:
+
+  OWNER-3  The new owner gets a push ("You're now the owner of
+           <group>") if they have push on.
+           Change to:
+
+  OWNER-4  Sign in with Apple: asked for again at account deletion;
+           nothing is stored.
+           Change to:
+
+  OWNER-5  Apple unreachable at deletion: the account is deleted
+           anyway after two tries, failure logged with the account
+           id only.
+           Change to:
+
+======================================================================
+7. STEP REFRESH (step-tracker-step-refresh.txt, section 6)
+======================================================================
+
+  REFRESH-1  Quiet time: 60 seconds from the last refresh's start,
+             for returning to the app. Never for the first refresh,
+             pull to refresh or the button.
+             Change to:
+
+  REFRESH-2  Phone cache: only the 7 days History shows.
+             Change to:
+
+  REFRESH-3  No Today timer: Today loads the board when it opens and
+             on pull to refresh, never by itself while open.
+             (Changed October 2026: was a refresh every 60 seconds.)
+             Change to:
+
+======================================================================
+8. HISTORY AND REMINDERS (step-tracker-history-reminders.txt, 6)
+======================================================================
+
+  HIST-1   History comes from the server for sharers and the phone
+           for non-sharers; the last 7 days always from the phone;
+           missing days shown as "not synced".
+           Change to:
+
+  HIST-2   Views: Week, Month and Year.
+           Change to:
+
+  HIST-3   Month view: bars, matching Week (not a calendar).
+           Change to:
+
+  HIST-4   Reminders are scheduled on the phone (local
+           notifications), not server pushes.
+           Change to:
+
+  HIST-5   Non-sharers on Android: measure a year's read first; only
+           if still slow (about 2 seconds), limit Year to 90 days and
+           say so on screen.
+           Change to:
+
+  HIST-6   Reminders: off until turned on; at most one a day at a
+           time you pick (default 7pm); none once the goal is
+           reached; streak wording from 2 days; stop after a week
+           without opening the app.
+           Change to:
+
+  HIST-7   Quest pushes: not in this step; they come with push.
+           Change to:
+
+  HIST-8   Periods: Week is the last 7 days; Month and Year are
+           calendar months and years.
+           Change to:
+
+  HIST-9   No streaks for non-sharers (as with coins).
+           Change to:
+
+  HIST-10  A known 0 counts in averages and "days at goal"; a missing
+           day is left out and shown as missing.
+           Change to:
+
+  HIST-11  "Not synced" days for sharers stay empty this release,
+           with an explanation on screen.
+           Change to:
+
+======================================================================
+9. ACHIEVEMENTS (step-tracker-achievements.txt, section 8)
+======================================================================
+
+  ACH-1  The set: 11 achievements (steps in a day, steps all
+         together, streaks, quests). First friend and Joined a group
+         were dropped.
+         Change to:
+
+  ACH-2  All achievements need step sharing.
+         Change to:
+
+  ACH-3  Earned before launch: yes, with real dates from the records,
+         nothing without a record, and one summary message.
+         Change to:
+
+  ACH-4  Reward items: four achievements unlock one item each that
+         can't be bought; no coins for achievements.
+         Change to:
+
+  ACH-5  Item art made before launch (done, October 2026).
+         Change to:
+
+  ACH-6  Badge look: one pixel frame, four symbols. Unlock message in
+         the app only, no push; may show on both of two phones.
+         Change to:
+
+  ACH-7  Reward items launch with the badges, before the server-side
+         anti-cheat. The cheating risk is accepted.
+         Change to:
+
+======================================================================
+10. BUILDS (step-tracker-builds.txt, section 6)
+======================================================================
+
+  BUILD-1  Order: CI first, then EAS, then Sentry.
+           Change to:
+
+  BUILD-2  Crash reporting: Sentry, free plan.
+           Change to:
+
+  BUILD-3  Crash reports carry no user id.
+           Change to:
+
+  BUILD-4  No over-the-air updates for now.
+           Change to:
+
+  BUILD-5  Pull requests into main must pass CI before merging.
+           Change to:
+
+  BUILD-6  A development profile with expo-dev-client.
+           Change to:
+
+======================================================================
+11. STILL OPEN
+======================================================================
+
+  REG-F  Existing accounts and the Terms (step-tracker-register.txt,
+         section 9). Accounts made before the Terms box have no
+         acceptance record. Recommended: show them the "Updated
+         Terms" screen once on their next open. Alternative: treat
+         them as accepted and record nothing.
+         Decision:
+
+  REG-D  The legal and store checklist and the release gate (section
+         1 above) still need a qualified person's answers before
+         public release.
+         Answers recorded:

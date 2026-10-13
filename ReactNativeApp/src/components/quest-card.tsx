@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { timeAgo } from '@/api/players';
 import type { GroupQuest, Quest, QuestMember } from '@/api/quests';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -41,10 +40,6 @@ function when(iso: string, now: number) {
   return today ? clock(iso) : `tomorrow ${clock(iso)}`;
 }
 
-function names(list: QuestMember[], myId: string) {
-  return list.map((m) => (m.user_id === myId ? 'You' : nameOf(m))).join(', ');
-}
-
 function Bar({ value, max, highlight }: { value: number; max: number; highlight?: boolean }) {
   const theme = useTheme();
   const share = max > 0 ? Math.min(1, value / max) : 0;
@@ -67,37 +62,27 @@ function Bar({ value, max, highlight }: { value: number; max: number; highlight?
 type Props = {
   data: GroupQuest;
   myId: string;
-  busy: boolean;
   onPropose: () => void;
-  onVote: (accept: boolean) => void;
   /** Read and send my steps now, then reload */
   onSendSteps: () => void;
 };
 
 /**
  * The quest card at the top of the group page (section 7A and 7C): the
- * proposal button, voting, the shared progress bar with per-member bars,
- * and the result.
+ * start button, the shared progress bar with per-member bars, and the
+ * result. Quests have no vote: any member starts one and it is on.
  */
-export function QuestCard({ data, myId, busy, onPropose, onVote, onSendSteps }: Props) {
+export function QuestCard({ data, myId, onPropose, onSendSteps }: Props) {
   const now = useNow(data.clockOffset);
   const { quest } = data;
 
   if (!quest) {
     return <NoQuest data={data} now={now} onPropose={onPropose} />;
   }
-  if (quest.status === 'voting') {
-    return <Voting quest={quest} data={data} myId={myId} now={now} busy={busy} onVote={onVote} />;
-  }
   if (quest.status === 'cancelled') {
-    const decliner = data.members.find((m) => m.user_id === quest.declined_by);
     return (
       <Section title="Quest">
-        <ThemedText type="small">
-          {quest.declined_by
-            ? `${quest.declined_by === myId ? 'You' : nameOf(decliner)} declined the ${questType(quest.type_id).name}. The quest is cancelled.`
-            : `Not everyone answered in time, so the ${questType(quest.type_id).name} is cancelled.`}
-        </ThemedText>
+        <ThemedText type="small">The {questType(quest.type_id).name} was cancelled.</ThemedText>
         <CooldownLine data={data} now={now} />
       </Section>
     );
@@ -124,105 +109,26 @@ function NoQuest({
   onPropose: () => void;
 }) {
   const members = data.members.filter((m) => m.in_group);
+  const sharing = members.filter((m) => m.sharing);
   const resting = data.nextQuestAt !== null && data.nextQuestAt.getTime() > now;
   return (
     <Section title="Quest">
       <ThemedText type="small">
-        Walk toward one goal together. Everyone in the group has to accept, and if the group makes
-        it, everyone earns coins.
+        Walk toward one goal together. Anyone in the group can start a quest, and everyone who
+        shares their steps is in it. If the group makes it, everyone earns coins.
       </ThemedText>
       {members.length < MIN_PARTY ? (
         <ThemedText type="small" themeColor="textSecondary">
           Quests need at least {MIN_PARTY} people. Share the invite code below.
         </ThemedText>
+      ) : sharing.length < MIN_PARTY ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          Quests need at least {MIN_PARTY} people with step sharing on.
+        </ThemedText>
       ) : (
         <>
           <CooldownLine data={data} now={now} />
-          <Button title="Propose a quest" onPress={onPropose} disabled={resting} />
-        </>
-      )}
-    </Section>
-  );
-}
-
-function Voting({
-  quest,
-  data,
-  myId,
-  now,
-  busy,
-  onVote,
-}: {
-  quest: Quest;
-  data: GroupQuest;
-  myId: string;
-  now: number;
-  busy: boolean;
-  onVote: (accept: boolean) => void;
-}) {
-  const type = questType(quest.type_id);
-  const group = data.members.filter((m) => m.in_group);
-  const proposer = data.members.find((m) => m.user_id === quest.proposer_id);
-  const accepted = group.filter((m) => m.accepted);
-  const waiting = group.filter((m) => !m.accepted);
-  const me = group.find((m) => m.user_id === myId);
-  const each = coinsEach(quest.goal, quest.goal, group.length);
-
-  return (
-    <Section title="Quest vote">
-      <View style={styles.block}>
-        <ThemedText type="smallBold">
-          {quest.proposer_id === myId ? 'You' : nameOf(proposer)} proposed a{' '}
-          {type.name.toUpperCase()}
-        </ThemedText>
-        <ThemedText type="small">
-          {quest.goal.toLocaleString()} steps together in {type.hours} hours
-        </ThemedText>
-        <ThemedText type="small">
-          Starts:{' '}
-          {quest.start_asap ? 'as soon as everyone accepts' : when(quest.starts_at!, now)}
-        </ThemedText>
-        <ThemedText type="small">
-          About {each} coins each ({group.length} of us), more if we walk past the goal
-        </ThemedText>
-      </View>
-
-      <View style={styles.block}>
-        <ThemedText type="small">Accepted: {names(accepted, myId) || 'nobody yet'}</ThemedText>
-        {waiting.length > 0 && (
-          <ThemedText type="small">Waiting: {names(waiting, myId)}</ThemedText>
-        )}
-        {/* So members can nudge each other (section 8) */}
-        {waiting
-          .filter((m) => m.user_id !== myId && (!m.sharing || m.last_seen))
-          .map((m) => (
-            <ThemedText key={m.user_id} type="small" themeColor="textSecondary">
-              {m.sharing
-                ? `${nameOf(m)} was last seen ${timeAgo(new Date(m.last_seen!), new Date(now))}.`
-                : `${nameOf(m)} needs to turn on step sharing to take part.`}
-            </ThemedText>
-          ))}
-        <ThemedText type="small" themeColor="textSecondary">
-          Voting closes in {durationText(new Date(quest.vote_deadline).getTime() - now)}
-        </ThemedText>
-      </View>
-
-      {me && !me.accepted && (
-        <View style={styles.buttons}>
-          <View style={styles.flex}>
-            <Button title="Accept" onPress={() => onVote(true)} loading={busy} />
-          </View>
-          <View style={styles.flex}>
-            <Button title="Decline" variant="secondary" onPress={() => onVote(false)} />
-          </View>
-        </View>
-      )}
-      {me?.accepted && (
-        <>
-          <ThemedText type="small" themeColor="textSecondary">
-            You accepted. Changed your mind? Declining cancels the quest for everyone.
-          </ThemedText>
-          <Button title="Decline" variant="secondary" size="small" onPress={() => onVote(false)} />
+          <Button title="Start a quest" onPress={onPropose} disabled={resting} />
         </>
       )}
     </Section>
@@ -268,7 +174,7 @@ function Running({
 
       {now < start && !settled ? (
         <ThemedText type="small">
-          Everyone accepted! The {type.name} starts at {when(quest.starts_at!, now)}:{' '}
+          The {type.name} starts at {when(quest.starts_at!, now)}:{' '}
           {quest.goal.toLocaleString()} steps together in {type.hours} hours.
         </ThemedText>
       ) : (
@@ -448,10 +354,6 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: Spacing.two,
-  },
-  buttons: {
-    flexDirection: 'row',
     gap: Spacing.two,
   },
   flex: {

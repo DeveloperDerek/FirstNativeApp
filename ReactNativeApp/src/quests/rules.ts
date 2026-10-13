@@ -24,10 +24,21 @@ export function questType(id: string): QuestType {
   return ALL_TYPES.find((t) => t.id === id) ?? { id: 'sprint', name: 'Quest', hours: 2, goal: 8_000 };
 }
 
+/**
+ * The goal for a party: the type's goal for 2 people, plus 10% for each
+ * member after the second, up to 8 members, rounded to 100 steps
+ * (step-tracker-decisions.txt, QUEST-5).
+ */
+export function questGoal(base: number, party: number): number {
+  const extra = Math.min(Math.max(party, 2), 8) - 2;
+  // Tenths, so 8,000 x 1.3 is exactly 10,400
+  return Math.round((base * (10 + extra)) / 10 / 100) * 100;
+}
+
 /** Steps past the goal pay too, up to this share of the goal. */
 export const OVERSHOOT = 1.5;
 export const MIN_COINS_EACH = 10;
-/** Taking part needs at least this many members. */
+/** A quest needs at least this many members sharing steps. */
 export const MIN_PARTY = 2;
 
 /** 1 coin per 200 steps, counting up to 150% of the goal. */

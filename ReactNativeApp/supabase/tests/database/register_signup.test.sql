@@ -182,6 +182,9 @@ select ok((select held_until between now() + interval '29 days' and now() + inte
            from public.username_holds where username = 'derek'),
           'the hold lasts 30 days');
 
+-- A day later (one change a day, REG-C)
+update public.profile_private set username_changed_at = now() - interval '25 hours'
+where user_id = '0000000a-0000-0000-0000-000000000000';
 set local request.jwt.claim.sub = '0000000a-0000-0000-0000-000000000000';
 set local role authenticated;
 select is(public.change_username('derek'), 'derek', 'the old owner can take it back');

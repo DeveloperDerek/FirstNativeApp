@@ -120,6 +120,8 @@ export function registerErrorMessage(code: string): string | null {
       return 'That username is taken.';
     case 'USERNAME_NOT_ALLOWED':
       return "That username isn't allowed. Try another.";
+    case 'USERNAME_CHANGE_LIMIT':
+      return 'You can change your username once a day. Try again tomorrow.';
     case 'BAD_DISPLAY_NAME':
       return 'Use 1 to 30 characters for your name.';
     case 'BAD_GROUP_NAME':

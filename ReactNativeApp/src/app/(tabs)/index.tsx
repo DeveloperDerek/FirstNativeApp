@@ -31,7 +31,7 @@ import { useMapTheme } from '@/hooks/use-map-theme';
 import { useSteps } from '@/hooks/use-steps';
 import { useWallet } from '@/hooks/use-wallet';
 import { errorMessage } from '@/lib/error-message';
-import { COIN_STEPS, DEFAULT_GOAL, goalProgress } from '@/lib/goal';
+import { COIN_STEPS_MAX, DEFAULT_GOAL, goalProgress } from '@/lib/goal';
 import { pickShown } from '@/track/scale';
 import { StepTrack, type Walker } from '@/track/StepTrack';
 
@@ -46,7 +46,7 @@ const MAX_ON_TRACK = 30;
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { today, permission, loading, error, refresh, refreshIfStale, goal, streak } = useSteps();
+  const { today, permission, loading, error, refresh, goal, streak } = useSteps();
   const { session, profile } = useAuth();
   const { balance, nextCheckin, checkIn } = useWallet();
   const myId = session?.user.id ?? '';
@@ -67,11 +67,13 @@ export default function TodayScreen() {
   // chosen on the Profile page.
   const { theme } = useMapTheme();
 
-  // Your goal for today (10,000 until you pick one); daily coins stay at
-  // 10,000 for everyone (step-tracker-goals-streaks.txt)
+  // Your goal for today (10,000 until you pick one); daily coins have
+  // their own target, 7,000 to 10,000 and different each day
+  // (step-tracker-decisions.txt, GOAL-2)
   const dailyGoal = goal?.today ?? DEFAULT_GOAL;
   const progress = goalProgress(today ?? 0, dailyGoal);
-  const earnedCoins = (today ?? 0) >= COIN_STEPS && sharing;
+  const coinSteps = goal?.coin_steps ?? COIN_STEPS_MAX;
+  const earnedCoins = (today ?? 0) >= coinSteps && sharing;
   const blocked = permission === 'denied' || permission === 'unavailable';
   // iOS hides denied read access, so zero steps may really mean "no permission".
   const showIosZeroHint = Platform.OS === 'ios' && permission === 'granted' && today === 0;
@@ -97,22 +99,15 @@ export default function TodayScreen() {
     }
   }, [mode, sharing]);
 
-  // On open: status bar text that reads on this map's sky, load the
-  // board, then poll lightly every 60 seconds while visible. Other people
-  // only move when their own app syncs.
+  // On open: status bar text that reads on this map's sky, and load the
+  // board. No timer: pull to refresh for newer numbers. Other people only
+  // move when their own app syncs.
   useFocusEffect(
     useCallback(() => {
       setStatusBarStyle(theme.statusBar);
       loadBoard();
-      const timer = setInterval(() => {
-        refreshIfStale();
-        loadBoard();
-      }, 60_000);
-      return () => {
-        clearInterval(timer);
-        setStatusBarStyle('auto');
-      };
-    }, [loadBoard, refreshIfStale, theme.statusBar])
+      return () => setStatusBarStyle('auto');
+    }, [loadBoard, theme.statusBar])
   );
 
   async function pullToRefresh() {
@@ -177,7 +172,8 @@ export default function TodayScreen() {
             </ThemedText>
             <ThemedText type="small" style={{ color: theme.skyInk }}>
               {Math.round(progress * 100)}% of {dailyGoal.toLocaleString()} goal
-              {earnedCoins ? ' · +100 coins' : ''}
+              {sharing &&
+                (earnedCoins ? ' · +100 coins' : ` · coins at ${coinSteps.toLocaleString()}`)}
             </ThemedText>
             <StreakLine streak={streak} steps={today ?? 0} color={theme.skyInk} />
             <CheckinCountdown nextAt={nextCheckin} color={theme.skyInk} />

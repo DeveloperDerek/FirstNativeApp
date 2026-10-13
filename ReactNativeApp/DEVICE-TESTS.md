@@ -161,7 +161,7 @@ follow-up on a real phone (section 4 of the blueprint).
 
 - [ ] iPhone  - [ ] Android — **Tab badges:** a request sent to you while you are on Today shows a red number on Friends within a few seconds; accepting or declining clears it at once; "9+" above 9.
 - [ ] iPhone  - [ ] Android — **Cancelled live:** the sender cancels; your Friends badge drops without leaving Today.
-- [ ] iPhone  - [ ] Android — **Groups badge:** a quest proposed in your group shows on Groups (after returning to the app); voting clears it; a vote deadline passing while the app is open clears it.
+- [ ] iPhone  - [ ] Android — **Groups badge:** stays hidden when a quest is started in your group (quests have no votes since October 2026, so nothing waits for you).
 - [ ] iPhone  - [ ] Android — **Permission prompt:** not asked on first launch; asked once, right after you send a friend request.
 - [ ] iPhone  - [ ] Android — **Push:** with the app closed, a request sent to you shows "@name wants to be friends", with the total on the app icon. Tapping it opens Friends.
 - [ ] iPhone  - [ ] Android — **Icon number:** after a request is cancelled while the app is closed, the icon keeps the old number until you open the app, then shows the real total.
@@ -238,17 +238,19 @@ Also run `bash supabase/tests/concurrency/group_owner_race.sh` against the local
 - [ ] iPhone — **Cancel:** cancelling the Apple sheet deletes nothing.
 - [ ] iPhone — **No log row:** `select * from public.apple_revocation_failures;` has nothing for that account (a row means Apple wasn't revoked, with the reason).
 
-## 16. Daily goal and streaks (`step-tracker-goals-streaks.txt`)
+## 16. Daily goal, streaks, usernames and quests (`step-tracker-goals-streaks.txt`, `step-tracker-decisions.txt`)
 
+- [ ] iPhone  - [ ] Android — **Range:** Profile > Daily goal stops at 5,000 going down and 20,000 going up.
 - [ ] iPhone  - [ ] Android — **New goal:** Profile > Daily goal, + to 7,500, Save: "Your new goal starts on <tomorrow's date>". Today still shows "% of 10,000 goal" until that date, then "% of 7,500 goal". Profile shows "Changes to 7,500 on …" meanwhile.
-- [ ] iPhone  - [ ] Android — **Coins unchanged:** with a 7,500 goal, a day at 8,000 shows no "+100 coins"; a day at 10,000 does.
+- [ ] iPhone  - [ ] Android — **Coin target:** Today shows "coins at N" (7,000 to 10,000); walking past N shows "+100 coins" and the coins arrive once. Walking past only your own goal (below N) shows no coins. The next day's N can differ; reopening the app the same day never changes it.
 - [ ] iPhone  - [ ] Android — **The track:** with a 7,500 goal, the road's 7.5k tick reads MINE and 10,000 shows "10k" with the flag; with 10,000, it reads GOAL as before.
 - [ ] iPhone  - [ ] Android — **Streak:** walk past your goal: Today's line goes up at once ("6-day streak · best 6"). Before reaching it: "5-day streak. 2,140 steps to keep it going."
-- [ ] iPhone  - [ ] Android — **7th day:** the "Goal reached!" message includes the 200-coin bonus once; reopening the app doesn't pay it again.
+- [ ] iPhone  - [ ] Android — **7th day:** the streak shows 7, and no streak coins are paid (only the day's coin target pays).
 - [ ] iPhone  - [ ] Android — **Friends:** a friend's player card shows your streak; someone who isn't a friend (outside a group) doesn't.
 - [ ] iPhone  - [ ] Android — **Not sharing:** Today says "Share your steps to keep a streak".
-
-Also run `bash supabase/tests/concurrency/streak_race.sh` against the local database (two phones claiming at once).
+- [ ] iPhone  - [ ] Android — **Username once a day:** change your username in Profile: saved. Change it again straight away: "You can change your username once a day. Try again tomorrow."
+- [ ] iPhone  - [ ] Android — **Start a quest (no vote):** a member who isn't the owner taps Start a quest > Sprint > Right now: the card shows it under way at once on every member's phone, with no Accept / Decline. The goal shown matches the party size (8,000 for 2, 9,600 for 4). A member not sharing steps isn't in the party.
+- [ ] iPhone  - [ ] Android — **Quest for later:** start one an hour ahead: it shows "The Sprint starts at …"; another member joining the group meanwhile isn't in it.
 
 ## 17. Longer History (`step-tracker-history-reminders.txt`, Part A)
 
@@ -277,6 +279,24 @@ Local notifications: these work without push being set up. To see what's schedul
 - [ ] iPhone  - [ ] Android — **Time zone:** change the phone's time zone and open the app: the reminder comes at the picked time in the new zone.
 - [ ] iPhone  - [ ] Android — **Timing:** open the app a minute before the reminder time without reaching the goal: it still comes. Open it just before and just after midnight: the next day's reminder is there.
 - [ ] iPhone  - [ ] Android — **Ids (scheduled list):** change the time: exactly one `goal-reminder:` per date, at the new time. Open the app five times quickly: still at most one per date. Turn reminders off: none left. Schedule a test notification with another id first: it's still there after each of these. Schedule the same id twice directly and note whether this phone replaces it (cancelling first covers it either way): ______
+
+## 19. Achievements (`step-tracker-achievements.txt`)
+
+Needs the `achievements` migration on the Supabase project the build uses (RELEASE-GATE step 12).
+
+- [ ] iPhone  - [ ] Android — **First open:** an account that already had 10,000-step days and a streak before the migration: one "Achievements unlocked · You've earned N achievements" message, not one per achievement. Profile > Achievements shows them with their real dates, not today's.
+- [ ] iPhone  - [ ] Android — **Earning one:** walk past 10,000 (or use a test account): "Achievement unlocked · First 10K." comes once; the badge shows on Profile straight away. Reopen the app: it doesn't come again.
+- [ ] iPhone  - [ ] Android — **Closed while showing:** with the message on screen, close the app before tapping it: it comes again on the next open.
+- [ ] iPhone  - [ ] Android — **Two phones:** one account on two phones; tap the message on one: the other doesn't show it after its next refresh.
+- [ ] iPhone  - [ ] Android — **Quest won while closed:** the message on the next open ("The Mimic can now walk beside you."), and the Mimic walking beside the character once chosen in Customize.
+- [ ] iPhone  - [ ] Android — **Reward items:** before earning, each of the four shows faded with a lock at the end of its row in Customize; tapping says "Earn A million steps to unlock…" and doesn't put it on. After earning, it's wearable, and looks right on the character and the player card.
+- [ ] iPhone  - [ ] Android — **The list:** Profile > Achievements > See all: earned ones first, newest first, with dates; then the rest closest first, with progress ("640,000 of 1,000,000 steps", "Best streak 12 of 30").
+- [ ] iPhone  - [ ] Android — **Not sharing:** the list says "Share your steps to earn these", every achievement locked, no progress.
+- [ ] iPhone  - [ ] Android — **Small phone:** the three badges on Profile fit on one line; long progress lines wrap rather than cut off.
+- [ ] iPhone  - [ ] Android — **Player card, friend:** open a friend's card (Friends or the map) who has earned some: their three most recent badges and "N achievements ›" on one row, in their map's colors. Tap it: their list, newest first, names and dates only (no progress); Back returns to the card. A friend with none: no row.
+- [ ] iPhone  - [ ] Android — **Player card, group:** open a group mate who isn't a friend from the group screen: the same row and list. Open someone who is neither from anywhere else: no row.
+- [ ] iPhone  - [ ] Android — **Your own card:** the same row, and the list matches Profile > Achievements' earned ones.
+- [ ] iPhone  - [ ] Android — **Small phone (card):** the badge row fits on one line on the card; a list of all 11 scrolls inside the card with Back and Close still on screen.
 
 ---
 

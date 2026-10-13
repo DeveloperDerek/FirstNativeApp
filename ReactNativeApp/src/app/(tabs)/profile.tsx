@@ -2,7 +2,9 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 
+import { ACHIEVEMENTS, achievementList, type MyAchievements } from '@/achievements/achievements';
 import { deleteAccount } from '@/api/account';
+import { getMyAchievements } from '@/api/achievements';
 import { setDailyGoal } from '@/api/goals';
 import { withdrawConsent } from '@/api/consent';
 import { type Profile, updateDisplayName } from '@/api/profile';
@@ -18,6 +20,7 @@ import {
 } from '@/auth/register';
 import { appleCodeForDeletion, appleSignInEnabled, signOut } from '@/auth/signIn';
 import { Avatar } from '@/avatar/Avatar';
+import { AchievementBadge } from '@/components/achievement-badge';
 import { formatDay } from '@/components/birthday-field';
 import { RemindersSection } from '@/components/reminders-section';
 import { ThemedText } from '@/components/themed-text';
@@ -140,6 +143,8 @@ export default function ProfileScreen() {
         </Section>
       )}
 
+      {profile && <AchievementsSection />}
+
       {profile && <DetailsForm key={profile.id} profile={profile} onSaved={reloadProfile} />}
 
       {profile && <GoalSection />}
@@ -209,6 +214,59 @@ export default function ProfileScreen() {
 }
 
 /**
+ * Profile > Achievements (step-tracker-achievements.txt, section 5): how
+ * many are earned and the three most recent, with the full list on its
+ * own screen.
+ */
+function AchievementsSection() {
+  const router = useRouter();
+  const [mine, setMine] = useState<MyAchievements | null>(null);
+
+  // Again on every visit, so one just earned shows straight away
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      getMyAchievements()
+        .then((m) => alive && setMine(m))
+        .catch(() => {});
+      return () => {
+        alive = false;
+      };
+    }, [])
+  );
+
+  if (!mine) return null;
+  const earned = achievementList(mine).filter((e) => e.earnedOn !== null);
+  const recent = earned.slice(0, 3);
+  return (
+    <Section title="Achievements">
+      <Row
+        title={`${earned.length} of ${ACHIEVEMENTS.length} earned`}
+        detail={recent.length ? 'Most recent' : undefined}>
+        <Button
+          title="See all"
+          size="small"
+          variant="secondary"
+          onPress={() => router.push('/achievements')}
+        />
+      </Row>
+      {recent.length > 0 && (
+        <View style={styles.badges}>
+          {recent.map((e) => (
+            <AchievementBadge key={e.achievement.id} achievement={e.achievement} earned />
+          ))}
+        </View>
+      )}
+      {!mine.sharing && (
+        <ThemedText type="small" themeColor="textSecondary">
+          Share your steps to earn these
+        </ThemedText>
+      )}
+    </Section>
+  );
+}
+
+/**
  * Your birthday, to you only and read-only (step-tracker-register.txt,
  * 6g): corrections go to support. Hidden for accounts made before
  * birthdays were asked.
@@ -271,7 +329,7 @@ function NotificationsSection({ userId }: { userId: string }) {
 }
 
 /**
- * Profile > Daily goal (step-tracker-goals-streaks.txt): 3,000 to 25,000 in
+ * Profile > Daily goal (step-tracker-goals-streaks.txt): 5,000 to 20,000 in
  * 500s. A new goal starts on the date the server returns (the day after
  * your phone's date); today keeps its goal.
  */
@@ -320,8 +378,8 @@ function GoalSection() {
         </ThemedText>
       )}
       <ThemedText type="small" themeColor="textSecondary">
-        Today, History and your streak follow your goal. Coins are still earned at 10,000 steps
-        a day.
+        Today, History and your streak follow your goal. Coins have their own target each day,
+        between 7,000 and 10,000 steps (shown on Today).
       </ThemedText>
       {streak?.sharing && streak.best > 0 && (
         <ThemedText type="small" themeColor="textSecondary">
@@ -406,7 +464,8 @@ function DetailsForm({ profile, onSaved }: { profile: Profile; onSaved: () => Pr
     setMessage(null);
     try {
       // The username only changes through the server, which holds the old
-      // one for 30 days (step-tracker-register.txt, 9C)
+      // one for 30 days (step-tracker-register.txt, 9C) and allows one
+      // change a day (step-tracker-decisions.txt, REG-C)
       if (usernameChanged) await changeUsername(username);
       if (nameChanged && nameCheck.ok) await updateDisplayName(profile.id, nameCheck.name);
       await onSaved();
@@ -451,6 +510,10 @@ function DetailsForm({ profile, onSaved }: { profile: Profile; onSaved: () => Pr
 }
 
 const styles = StyleSheet.create({
+  badges: {
+    flexDirection: 'row',
+    gap: Spacing.three,
+  },
   character: {
     flexDirection: 'row',
     alignItems: 'center',

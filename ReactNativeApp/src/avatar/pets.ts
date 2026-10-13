@@ -2,7 +2,8 @@
 // have their own small sprites: 16 x 16, facing right (the way the
 // character walks on the player card), with two frames for the walk.
 // To add a pet: drop name_a.png and name_b.png in assets/pets/ and add a
-// line. A paid pet also needs a row in shop_items.
+// line. A paid pet also needs a row in shop_items, deployed first; a reward
+// pet is also listed in src/achievements/achievements.ts.
 
 export const PET_SIZE = 16;
 
@@ -66,6 +67,13 @@ export const PETS: Pet[] = [
     id: 'pet_octopus',
     label: 'Octopus',
     frames: [require('@/assets/pets/octopus_a.png'), require('@/assets/pets/octopus_b.png')],
+  },
+  {
+    // A treasure chest: closed, then mid-hop with the lid up, teeth and a
+    // tongue. Earned, never sold (src/achievements/achievements.ts)
+    id: 'pet_mimic',
+    label: 'Mimic',
+    frames: [require('@/assets/pets/mimic_a.png'), require('@/assets/pets/mimic_b.png')],
   },
 ];
 

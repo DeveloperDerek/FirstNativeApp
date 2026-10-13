@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase';
 export type MyGoal = {
   /** Today's goal (10,000 until one is picked) */
   today: number;
+  /** Steps needed today for the daily coins: 7,000 to 10,000, different each day */
+  coin_steps: number;
   /** A change waiting to start, if any */
   upcoming: { goal: number; starts_on: string } | null;
   /** The goal for each of the last 7 days, oldest first */
