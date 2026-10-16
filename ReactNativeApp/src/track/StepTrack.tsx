@@ -8,7 +8,12 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import Reanimated, { type SharedValue, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import Reanimated, {
+  type SharedValue,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+} from 'react-native-reanimated';
 
 import { Avatar, HEADROOM, PixelSprite } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
@@ -25,6 +30,9 @@ import {
 } from './ambient';
 import type { Scenery } from './lighting';
 import { AMBIENT_SPRITES } from './lighting.generated';
+import { Minimap } from './Minimap';
+import { scrollFor } from './minimap-math';
+import { PixelGlyph, STAR } from './pixel-glyph';
 import {
   assignLanes,
   centerFor,
@@ -212,12 +220,18 @@ export function StepTrack({
   theme,
   onSelect,
   header,
+  myGoal,
+  myPlace,
 }: {
   walkers: Walker[];
   theme: MapTheme;
   /** Called when a character on the road is tapped */
   onSelect?: (walker: Walker) => void;
   header?: ReactNode;
+  /** Your daily goal: a star on the road and on the minimap */
+  myGoal?: number;
+  /** Your place in the whole ranking (the road may show only the top) */
+  myPlace?: { place: number; of: number };
 }) {
   const scrollRef = useRef<ScrollViewInstance>(null);
   const [viewport, setViewport] = useState(0);
@@ -229,6 +243,7 @@ export function StepTrack({
   const scenery = theme.scenery;
   const clock = useAmbientClock();
   const scrollX = useSharedValue(0);
+  const reducedMotion = useReducedMotion();
 
   const highest = walkers.reduce((m, w) => Math.max(m, w.steps), 0);
   const max = scaleMax(highest);
@@ -250,6 +265,13 @@ export function StepTrack({
       animated: false,
     });
   }, [mySteps, viewport]);
+
+  // The minimap moves the road: animated for a tap, at once for a drag.
+  // Either way the road stops following your count.
+  function scrollRoadTo(steps: number, animated: boolean) {
+    userScrolled.current = true;
+    scrollRef.current?.scrollTo({ x: scrollFor(steps, max, viewport), animated: animated && !reducedMotion });
+  }
 
   // Lit maps keep open ground at both ends of every tile, so each tile
   // starts at a landmark and the landmark stands in that clearing (tiles
@@ -291,14 +313,11 @@ export function StepTrack({
           onScrollBeginDrag={() => {
             userScrolled.current = true;
           }}
-          // The hills behind slide along at their own speed
-          onScroll={
-            scenery
-              ? (e) => {
-                  scrollX.value = e.nativeEvent.contentOffset.x;
-                }
-              : undefined
-          }
+          // The hills behind slide along at their own speed, and the
+          // minimap's bracket follows
+          onScroll={(e) => {
+            scrollX.value = e.nativeEvent.contentOffset.x;
+          }}
           scrollEventThrottle={16}
           accessibilityLabel="Step road. Swipe left or right to scroll.">
           <View style={{ width }}>
@@ -428,15 +447,32 @@ export function StepTrack({
               {ticksFor(max).map((v) => {
                 const isFlag = v === GOAL;
                 const color = theme.ink;
+                // Your goal's star takes the place of a tick it lands on,
+                // and the labels of ticks too close to it give way
+                if (v === myGoal) return null;
+                const crowded = myGoal !== undefined && Math.abs(v - myGoal) < 700;
                 return (
                   <View key={v} style={[styles.tick, { left: centerFor(v) - 24 }]}>
                     <View style={[styles.tickMark, { backgroundColor: color }]} />
-                    <ThemedText type={isFlag ? 'smallBold' : 'small'} style={[styles.tickLabel, { color }]}>
-                      {formatSteps(v)}
-                    </ThemedText>
+                    {!crowded && (
+                      <ThemedText type={isFlag ? 'smallBold' : 'small'} style={[styles.tickLabel, { color }]}>
+                        {formatSteps(v)}
+                      </ThemedText>
+                    )}
                   </View>
                 );
               })}
+              {myGoal !== undefined && myGoal <= max && (
+                <View
+                  style={[styles.goalMark, { left: centerFor(myGoal) - GOAL_MARK_W / 2 }]}
+                  accessible
+                  accessibilityLabel={`Your goal, ${myGoal.toLocaleString()} steps`}>
+                  <PixelGlyph rows={STAR} outline={theme.ink} fill={(me?.steps ?? 0) >= myGoal ? '#f2c94c' : theme.ground} />
+                  <ThemedText type="smallBold" style={[styles.tickLabel, { color: theme.ink }]}>
+                    {formatSteps(myGoal)} goal
+                  </ThemedText>
+                </View>
+              )}
             </View>
           </View>
         </ScrollView>
@@ -444,9 +480,29 @@ export function StepTrack({
           <FrontLayer scenery={scenery} clock={clock} viewport={viewport} above={above} />
         )}
       </View>
+      {/* The whole road at a glance, on the ground under it */}
+      {viewport > 0 && (
+        <View style={[styles.minimap, { backgroundColor: theme.ground }]}>
+          <Minimap
+            walkers={walkers}
+            max={max}
+            theme={theme}
+            myGoal={myGoal}
+            place={myPlace}
+            scrollX={scrollX}
+            width={viewport}
+            viewport={viewport}
+            onJump={(steps) => scrollRoadTo(steps, true)}
+            onScrub={(steps) => scrollRoadTo(steps, false)}
+            viewCenter={() => (scrollX.get() + viewport / 2 - ROAD_PAD) / PX_PER_STEP}
+          />
+        </View>
+      )}
     </View>
   );
 }
+
+const GOAL_MARK_W = 64;
 
 const styles = StyleSheet.create({
   tiles: {
@@ -498,6 +554,14 @@ const styles = StyleSheet.create({
   },
   markers: {
     height: 34,
+  },
+  goalMark: {
+    position: 'absolute',
+    width: GOAL_MARK_W,
+    alignItems: 'center',
+  },
+  minimap: {
+    paddingBottom: 4,
   },
   tick: {
     position: 'absolute',

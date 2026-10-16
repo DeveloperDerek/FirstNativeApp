@@ -4,14 +4,19 @@ road at once: a minimap of the track, with milestone markers and a
 small avatar icon for each person on it.
 Last checked: October 2026
 
-Status: proposed, waiting for approval. There is no code in this file.
-It describes what gets built, where, and how to check it. Decisions
-that are yours to make are collected in section 8.
+Status: built (October 2026). There is no code in this file. It
+describes what was built, where, and how to check it. The decisions
+are recorded in section 8.
+
+One change from the first draft: everyone's icons stand ABOVE the bar
+(yours higher, with a pointer), not others below it. Icons above and
+below would have made the strip about 90 points tall; this way it is
+68.
 
 Everything here lives in these files:
   src/track/Minimap.tsx      NEW: the bar, markers, icons, viewport
-  src/track/minimap.ts       NEW: the math (no UI, unit tested)
-  src/track/minimap.test.ts  NEW: tests for the math (npm test)
+  src/track/minimap-math.ts  NEW: the math (no UI, unit tested)
+  src/track/minimap-math.test.ts  NEW: tests for the math (npm test)
   src/track/StepTrack.tsx    shows the minimap and wires it to the road
   src/avatar/Avatar.tsx      a head-only crop of the character (HeadIcon)
 
@@ -73,10 +78,10 @@ One strip, the full width of the screen, that never scrolls:
          is long (20k+), only every 5k gets a label, so they never crowd
 
   d. AVATAR ICONS. A head-only crop of each person's character (hair,
-     hat, face; their real outfit colors) at their spot on the bar:
-       - you: above the bar, a little larger, with a 1-pixel ring in
-         the theme's ink color, always drawn on top
-       - everyone else: below the bar
+     hat, face; their real colors) standing on their spot on the bar:
+       - you: a little higher than everyone else, with a pixel pointer
+         down to your spot, always drawn on top
+       - everyone else: just above the bar
        - icons that would overlap gather into one icon with a count
          badge ("+2"): the leader of the group shows, the rest count
        - solo ("Just me"): only you
@@ -105,22 +110,21 @@ One strip, the full width of the screen, that never scrolls:
     [ header on the sky: coins, Today, count, goal % ]
     [ the road (scrolls sideways) ]
     [ the road's distance markers ]
-    [ THE MINIMAP ]                      <- new, about 56 points tall
+    [ THE MINIMAP ]                      <- new, 68 points tall
     [ Who: Just me / Friends / groups ... the list scrolls ]
 
   It belongs to StepTrack, so it shows exactly when the road does: not
   when Friends or a group is picked without sharing on (the road is
   hidden then too).
 
-  56 points is tall enough for your icon above the bar, the bar, the
-  tick labels, and the other icons below. The road itself does not
-  get any shorter.
+  68 points: the icons (34), your pointer, the bar and the labels.
+  The road itself does not get any shorter.
 
 ======================================================================
 4. HOW IT WORKS (the code)
 ======================================================================
 
-  4a. minimap.ts (pure functions, no UI)
+  4a. minimap-math.ts (pure functions, no UI)
       - barX(steps, max, barWidth): where a step count sits on the bar.
         Linear from 0 to max, rounded to whole points, inset so an
         icon at 0 or at the end isn't cut off.
@@ -156,8 +160,7 @@ One strip, the full width of the screen, that never scrolls:
   4c. HeadIcon (in Avatar.tsx)
       - The same layers Avatar draws, in a Canvas that shows only the
         top of the sprite (the 8 rows of headroom and rows 0 to 25:
-        hats, hair, face). Scale 1 (32 x 34 points) for others,
-        scale 1 with the ring for you.
+        hats, hair, face), at scale 1: 32 x 34 points.
       - Each layer image is already decoded once and shared
         (loadSprite), so 30 icons cost no more decoding than the
         leaderboard does today.
@@ -192,7 +195,7 @@ One strip, the full width of the screen, that never scrolls:
 6. BUILD ORDER
 ======================================================================
 
-  1. minimap.ts and its tests: positions, the reverse for taps, the
+  1. minimap-math.ts and its tests: positions, the reverse for taps, the
      viewport bracket, grouping and labels.
   2. HeadIcon in Avatar.tsx.
   3. Minimap.tsx: bar, fill, markers, labels, icons (no touch yet).
@@ -226,16 +229,12 @@ One strip, the full width of the screen, that never scrolls:
 8. DECISIONS FOR YOU
 ======================================================================
 
-  1. Place: under the road, on the ground (recommended, section 3),
-     or on the sky between the header and the road?
-  2. Milestone style: the pixel diamonds, flag and star (recommended),
-     or tiny versions of each map's landmarks (bakery, town hall...)?
-     The landmarks are 128 x 144 drawings; shrunk to about 16 points
-     they'd blur together, so they would need new small pixel icons
-     drawn for all 9 maps (36 icons).
-  3. Tapping an icon: scroll the road to them (recommended), or open
-     their profile straight away?
-  4. Your daily goal on the bar as a star (recommended), or leave it
-     to the header's percentage?
-  5. Should the road itself also get a marker at your daily goal,
-     now that the minimap will have one?
+  Decided October 2026:
+  1. Place: under the road, on the ground.
+  2. Milestones: the pixel diamonds, flag and star (not tiny landmarks).
+  3. Tapping an icon scrolls the road to them; profiles open from the
+     road as before.
+  4. Your daily goal is a star on the bar.
+  5. The road gets the goal star too: on its distance markers, with a
+     "8k goal" label. It replaces a tick it lands on, and the labels
+     of ticks within 700 steps of it give way so they don't overlap.

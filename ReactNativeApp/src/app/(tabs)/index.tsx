@@ -189,6 +189,12 @@ export default function TodayScreen() {
           theme={theme}
           onSelect={(w) => setSelectedId(w.id)}
           header={header}
+          myGoal={dailyGoal}
+          myPlace={
+            ranked.length > 1
+              ? { place: ranked.findIndex((r) => r.user_id === myId) + 1, of: ranked.length }
+              : undefined
+          }
         />
       )}
 
