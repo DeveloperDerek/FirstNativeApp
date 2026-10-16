@@ -1,10 +1,13 @@
 import {
   BlendColor,
   Canvas,
+  ColorMatrix,
   FilterMode,
+  Group,
   Image,
   loadData,
   MipmapMode,
+  Paint,
   Skia,
   type SkImage,
 } from '@shopify/react-native-skia';
@@ -76,9 +79,11 @@ type AvatarProps = {
   scale?: number;
   /** Read by screen readers, e.g. "Sam's character". */
   accessibilityLabel?: string;
+  /** A color matrix that puts the character in the map's light (see track/lighting) */
+  light?: number[];
 };
 
-export function Avatar({ config, scale = 4, accessibilityLabel = 'Character' }: AvatarProps) {
+export function Avatar({ config, scale = 4, accessibilityLabel = 'Character', light }: AvatarProps) {
   const hair = findItem('hair', config.hair);
   const cape = findItem('cape', config.cape);
   // A one-piece outfit is drawn instead of the top and bottom
@@ -90,20 +95,31 @@ export function Avatar({ config, scale = 4, accessibilityLabel = 'Character' }: 
       accessible
       accessibilityRole="image"
       accessibilityLabel={accessibilityLabel}>
-      {/* Back to front */}
-      <Layer source={cape?.back} scale={scale} />
-      <Layer source={hair?.back} scale={scale} tint={config.hairColor} />
-      <Layer source={hand?.back} scale={scale} />
-      <Layer source={BODY} scale={scale} tint={config.skin} />
-      {!outfit && <Layer source={findItem('bottom', config.bottom)?.image} scale={scale} />}
-      <Layer source={findItem('shoes', config.shoes)?.image} scale={scale} />
-      <Layer source={outfit ? outfit.image : findItem('top', config.top)?.image} scale={scale} />
-      <Layer source={findItem('face', config.face)?.image} scale={scale} />
-      <Layer source={findItem('glasses', config.glasses)?.image} scale={scale} />
-      <Layer source={hair?.image} scale={scale} tint={config.hairColor} />
-      <Layer source={findItem('hat', config.hat)?.image} scale={scale} />
-      <Layer source={cape?.image} scale={scale} />
-      <Layer source={hand?.image} scale={scale} />
+      {/* The whole character goes through the light together, so the tints
+          and layers stay as they are relative to each other */}
+      <Group
+        layer={
+          light ? (
+            <Paint>
+              <ColorMatrix matrix={light} />
+            </Paint>
+          ) : undefined
+        }>
+        {/* Back to front */}
+        <Layer source={cape?.back} scale={scale} />
+        <Layer source={hair?.back} scale={scale} tint={config.hairColor} />
+        <Layer source={hand?.back} scale={scale} />
+        <Layer source={BODY} scale={scale} tint={config.skin} />
+        {!outfit && <Layer source={findItem('bottom', config.bottom)?.image} scale={scale} />}
+        <Layer source={findItem('shoes', config.shoes)?.image} scale={scale} />
+        <Layer source={outfit ? outfit.image : findItem('top', config.top)?.image} scale={scale} />
+        <Layer source={findItem('face', config.face)?.image} scale={scale} />
+        <Layer source={findItem('glasses', config.glasses)?.image} scale={scale} />
+        <Layer source={hair?.image} scale={scale} tint={config.hairColor} />
+        <Layer source={findItem('hat', config.hat)?.image} scale={scale} />
+        <Layer source={cape?.image} scale={scale} />
+        <Layer source={hand?.image} scale={scale} />
+      </Group>
     </Canvas>
   );
 }

@@ -1664,32 +1664,33 @@ def street_base():
     )
 
 
+# The village keeps a clearing of open street at both ends of each tile
+# (36 pixels), so a landmark standing on the seam between two tiles never
+# lands on a house. The lit road (generate-map-lighting.py) lines its
+# tiles up that way.
 def village_tile_a():
     layer = street_base()
-    tree(layer, 10)
-    house(layer, 22, 30, 24, V['red'], chimney=True)
-    lamp(layer, 60)
-    house(layer, 68, 34, 20, V['blue'], warm=True, shop=V['blue'])
-    fence(layer, 108, 132)
-    tree(layer, 146, h=26, r=9)
-    house(layer, 162, 28, 26, V['green'])
-    well(layer, 206)
-    tree(layer, 232, h=20, r=7)
-    lamp(layer, 248)
+    tree(layer, 46)
+    house(layer, 58, 30, 24, V['red'], chimney=True)
+    lamp(layer, 94)
+    house(layer, 100, 34, 20, V['blue'], warm=True, shop=V['blue'])
+    fence(layer, 140, 156)
+    tree(layer, 170, h=26, r=9)
+    house(layer, 184, 28, 26, V['green'])
+    lamp(layer, 218)
     return layer
 
 
 def village_tile_b():
     layer = street_base()
-    lamp(layer, 6)
-    house(layer, 16, 32, 22, V['slate'], warm=True, chimney=True)
-    stall(layer, 56, V['red'])
-    tree(layer, 92, h=24, r=8)
-    house(layer, 108, 26, 28, V['red'])
-    fence(layer, 140, 156)
-    house(layer, 166, 36, 20, V['brown'], shop=V['green'])
-    tree(layer, 216, h=22, r=8)
-    stall(layer, 228, V['blue'])
+    lamp(layer, 38)
+    house(layer, 44, 32, 22, V['slate'], warm=True, chimney=True)
+    stall(layer, 82, V['red'])
+    tree(layer, 112, h=24, r=8)
+    house(layer, 124, 26, 28, V['red'])
+    well(layer, 162)
+    house(layer, 174, 30, 20, V['brown'], shop=V['green'])
+    tree(layer, 212, h=22, r=6)
     return layer
 
 

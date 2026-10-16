@@ -5,6 +5,11 @@
 // scripts/generate-avatar-sprites.py) or a line shows where they meet.
 //
 // Metro needs every require() written out, so each image is listed.
+//
+// These are the plain (unlit) maps. lightTheme() in ./lighting swaps in
+// the art and colors for the time of day where a map has them.
+
+import type { Scenery } from './lighting';
 
 export type MapTheme = {
   id: string; // also the shop item id
@@ -18,6 +23,8 @@ export type MapTheme = {
   buttonText: string;
   tiles: number[];
   landmarks: { steps: number; label: string; image: number }[];
+  /** Sky, hills, shadows and moving things; set by lightTheme() */
+  scenery?: Scenery;
 };
 
 export const DEFAULT_THEME_ID = 'map_village';
