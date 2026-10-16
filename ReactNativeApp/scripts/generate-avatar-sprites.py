@@ -18,6 +18,7 @@ file names and canvas size.
 
 Usage: python3 scripts/generate-avatar-sprites.py
 """
+import math
 import os
 import struct
 import zlib
@@ -2890,7 +2891,11 @@ NE = {
     'shutter': hexc('#8a8a98'), 'tank': hexc('#8a6a4a'), 'hoop': hexc('#5a4a3a'),
     'can': hexc('#5f7a6a'), 'cone': hexc('#f08a3d'), 'white': hexc('#f3ebe0'),
     'beam': hexc('#e0a83d'), 'red': hexc('#e0584f'),
+    # Neon caught on the wet road, and windows lit by a TV
+    'ref_pink': hexc('#a8507e'), 'ref_cyan': hexc('#3f9aa4'), 'ref_lime': hexc('#79a04a'),
+    'tv': hexc('#9fb8ff'),
 }
+REFLECTS = {'pink': 'ref_pink', 'cyan': 'ref_cyan', 'lime': 'ref_lime'}
 NEON_GROUND = 49  # buildings stand behind a 6-row sidewalk, as in the city
 
 
@@ -2921,7 +2926,7 @@ def neon_base(seed):
     return layer
 
 
-def tenement(layer, x0, w, h, color, lit_seed=0, shutter=False, escape=False, tank=False):
+def tenement(layer, x0, w, h, color, lit_seed=0, shutter=False, escape=False, tank=False, trim=None):
     top = NEON_GROUND - h + 1
     vpart(layer, rect(x0, top, x0 + w - 1, NEON_GROUND), color)
     vpart(layer, rect(x0 - 1, top - 2, x0 + w, top), darker(color, 0.8))  # parapet
@@ -2931,7 +2936,8 @@ def tenement(layer, x0, w, h, color, lit_seed=0, shutter=False, escape=False, ta
     for j, y in enumerate(range(top + 3, NEON_GROUND - 12, 6)):
         for i, x in enumerate(range(x0 + 3, x0 + w - 4, 6)):
             lit = (i * 3 + j * 5 + lit_seed) % 4 != 0
-            vpart(layer, rect(x, y, x + 2, y + 3), NE['lit'] if lit else NE['unlit'], 0.85)
+            tv = lit and (i * 5 + j * 3 + lit_seed) % 9 == 0
+            vpart(layer, rect(x, y, x + 2, y + 3), NE['tv'] if tv else NE['lit'] if lit else NE['unlit'], 0.85)
     if escape:  # fire escape: landings with a ladder zig-zag between them
         fx = x0 + w - 12
         for y in range(top + 8, NEON_GROUND - 12, 6):
@@ -2954,6 +2960,40 @@ def tenement(layer, x0, w, h, color, lit_seed=0, shutter=False, escape=False, ta
     else:
         vpart(layer, rect(x0 + 2, NEON_GROUND - 7, x0 + w - 9, NEON_GROUND - 2), NE['lit'], 0.9)
         vpart(layer, rect(x0 + w - 7, NEON_GROUND - 8, x0 + w - 3, NEON_GROUND), NE['iron'])
+    if trim:  # a neon tube along the top of the shopfront
+        layer.dots(NE[trim], [(x, NEON_GROUND - 10) for x in range(x0 + 1, x0 + w - 1)])
+        reflection(layer, x0 + 1, w - 2, trim)
+
+
+def reflection(layer, x0, w, color):
+    """A neon light caught on the wet road under it: thin vertical
+    streaks of different lengths, broken up, fading toward the near side."""
+    ref = NE[REFLECTS[color]]
+
+    def noise(n):  # repeatable, in [0, 1)
+        return (math.sin(n * 12.9898) * 43758.5453) % 1
+
+    for x in range(x0, x0 + w):
+        if x % 2 or noise(x * 3.1) > 0.7:  # every other column at most
+            continue
+        length = 4 + int(noise(x * 7.7) * 12)
+        for y in range(57, 57 + length):
+            if y in (66, 67) or noise(x * 1.3 + y * 5.9) < (y - 57) / 16:  # the lane line stays
+                continue
+            layer.dots(ref, [(x, y)])
+
+
+def billboard(layer, x0, y0, w, h, frame, text):
+    """A rooftop sign on two legs: dark board, a neon frame, bars of 'text'."""
+    for lx in (x0 + 3, x0 + w - 4):
+        layer.dots(NE['iron'], [(lx, y) for y in range(y0 + h, y0 + h + 3)])
+    vpart(layer, rect(x0, y0, x0 + w - 1, y0 + h - 1), NE['unlit'], 0.9)
+    layer.dots(NE[frame], [(x, y) for x, y in rect(x0 + 1, y0 + 1, x0 + w - 2, y0 + h - 2)
+                           if x in (x0 + 1, x0 + w - 2) or y in (y0 + 1, y0 + h - 2)])
+    for k, x in enumerate(range(x0 + 3, x0 + w - 3, 4)):
+        tall = k % 3 != 1
+        layer.dots(NE[text], [(xx, y) for xx in (x, x + 1) for y in range(y0 + 3, y0 + h - 3)
+                              if tall or y == y0 + h - 4])
 
 
 def graffiti(layer, x0, y0, colors):
@@ -2964,8 +3004,10 @@ def graffiti(layer, x0, y0, colors):
                        (bx + 2, y0 + 2), (bx + 3, y0 + 3), (bx + 1, y0 + 3)])
 
 
-def neon_sign(layer, x, y, h, color):
+def neon_sign(layer, x, y, h, color, reflect=True):
     """Vertical sign on a bracket: dark board, glowing border and bars."""
+    if reflect:
+        reflection(layer, x - 1, 7, next(k for k, v in NE.items() if v == color))
     layer.dots(NE['iron'], [(x - 2, y + 1), (x - 1, y + 1), (x - 2, y + h - 2), (x - 1, y + h - 2)])
     vpart(layer, rect(x, y, x + 4, y + h - 1), NE['unlit'], 0.9)
     layer.dots(color, [(x + 1, yy) for yy in range(y + 1, y + h - 1)])
@@ -2997,10 +3039,11 @@ def neon_tile_a():
     tenement(layer, 40, 38, 40, NE['brick'], 1, shutter=True, escape=True)
     graffiti(layer, 45, NEON_GROUND - 12, (NE['pink'], NE['cyan'], NE['lime']))
     street_light(layer, 82)
-    tenement(layer, 92, 34, 32, NE['concrete'], 2, tank=True)
+    tenement(layer, 92, 34, 32, NE['concrete'], 2, tank=True, trim='cyan')
+    billboard(layer, 106, 5, 18, 10, 'pink', 'cyan')
     neon_sign(layer, 128, 22, 16, NE['pink'])
     trash_can(layer, 140)
-    tenement(layer, 150, 44, 46, NE['plum'], 3, escape=True)
+    tenement(layer, 150, 44, 46, NE['plum'], 3, escape=True, trim='pink')
     cone(layer, 200)
     street_light(layer, 208)
     return layer
@@ -3009,13 +3052,14 @@ def neon_tile_a():
 def neon_tile_b():
     layer = neon_base(1)
     set_outline('#1c1828')
-    tenement(layer, 40, 34, 34, NE['teal'], 2, tank=True)
+    tenement(layer, 40, 34, 34, NE['teal'], 2, tank=True, trim='lime')
     trash_can(layer, 80)
     tenement(layer, 90, 42, 46, NE['brick'], 0, escape=True, shutter=True)
     graffiti(layer, 94, NEON_GROUND - 12, (NE['cyan'], NE['pink'], NE['lime']))
     neon_sign(layer, 134, 18, 20, NE['cyan'])
     street_light(layer, 142)
-    tenement(layer, 152, 36, 30, NE['plum'], 1)
+    tenement(layer, 152, 36, 30, NE['plum'], 1, trim='cyan')
+    billboard(layer, 156, 6, 28, 11, 'cyan', 'pink')
     cone(layer, 196)
     cone(layer, 204)
     neon_sign(layer, 212, 24, 14, NE['lime'])
@@ -3071,7 +3115,7 @@ def neon_goal():  # neon tower with a beacon on top
             if x not in (39,):
                 lit = (i + j * 2) % 3 != 0
                 vpart(layer, rect(x, y, x + 2, y + 2), NE['lit'] if lit else NE['unlit'], 0.85)
-    neon_sign(layer, 40, 18, 36, NE['pink'])
+    neon_sign(layer, 40, 18, 36, NE['pink'], reflect=False)  # no road under it here
     layer.dots(NE['iron'], [(31, y) for y in range(1, 11)] + [(32, y) for y in range(3, 11)])
     vpart(layer, rect(30, 0, 33, 2), NE['red'], 0.95)  # beacon
     vpart(layer, rect(10, 62, 53, LB), darker(NE['plum'], 0.85))

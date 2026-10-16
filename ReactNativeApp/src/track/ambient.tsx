@@ -925,21 +925,23 @@ function Rain({ clock, viewport, above }: { clock: SharedValue<number>; viewport
   const height = above + SCENE_H;
   return (
     <>
-      {Array.from({ length: Math.round((36 * height) / SCENE_H) }, (_, i) => (
+      {/* A light drizzle: a few faint drops, so the neon still reads through it */}
+      {Array.from({ length: Math.round((12 * height) / SCENE_H) }, (_, i) => (
         <Speck
           key={i}
           clock={clock}
-          color="#9fb0d8"
+          color="rgba(159, 176, 216, 0.55)"
           h={3}
           place={(t) => {
             'worklet';
             const y = ((t * 360 + i * 53) % (height + 20)) - 10;
-            return { x: ((i * 37 + y * 0.15) % Math.max(1, viewport)), y };
+            // Spread evenly across the screen however few drops there are
+            return { x: (viewport * ((i * 0.618) % 1) + y * 0.15) % Math.max(1, viewport), y };
           }}
         />
       ))}
       {/* Ripples in the puddles on the road */}
-      {Array.from({ length: 6 }, (_, i) => (
+      {Array.from({ length: 3 }, (_, i) => (
         <Speck
           key={`r${i}`}
           clock={clock}

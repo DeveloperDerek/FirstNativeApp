@@ -867,8 +867,8 @@ def flickering_torch(original):
 
 
 def dark_sign(original):
-    def neon_sign(layer, x, y, h, color):
-        return original(layer, x, y, h, gen.hexc('#3a3448'))
+    def neon_sign(layer, x, y, h, color, reflect=True):
+        return original(layer, x, y, h, gen.hexc('#3a3448'), reflect=False)  # off: nothing on the road
     return neon_sign
 
 
@@ -1204,9 +1204,14 @@ THEMES = {
         vents={'tile_a': [[88, 49]], 'tile_b': [[147, 49]]},
         smoke='#c8c0d8',
         swaps={'day': {h(NE['pink']): '#5a5068', h(NE['cyan']): '#4e5a68', h(NE['lime']): '#58604e',
-                       h(NE['lit']): '#8a8ea0', h(NE['far_lit']): h(NE['far'])}},
+                       h(NE['lit']): '#8a8ea0', h(NE['tv']): '#8a8ea0', h(NE['far_lit']): h(NE['far']),
+                       # signs off by day: the wet road just looks wet
+                       h(NE['ref_pink']): h(NE['ground']), h(NE['ref_cyan']): h(NE['ground']),
+                       h(NE['ref_lime']): h(NE['ground'])}},
         lights={ph: {h(NE['pink']): None, h(NE['cyan']): None, h(NE['lime']): None, h(NE['lit']): None,
-                     h(NE['far_lit']): None, h(NE['glint']): None, '#ff5050': None} for ph in ('sunset', 'night')},
+                     h(NE['tv']): None, h(NE['far_lit']): None, h(NE['glint']): None, '#ff5050': None,
+                     h(NE['ref_pink']): None, h(NE['ref_cyan']): None, h(NE['ref_lime']): None}
+                for ph in ('sunset', 'night')},
         flicker=[h(NE['lit'])], window_lit=h(NE['lit']),
         phases=phases(
             dict(sky=['#8a8e9c', '#969aa6', '#a2a5b0', '#adb0ba', '#b8bac2'], light='#e0e2ea',
@@ -1216,7 +1221,7 @@ THEMES = {
             dict(sky=['#e0705a', '#e8866a', '#ee9e7a', '#f2b48c', '#f4c8a0'], light='#ffc8a0',
                  lift_to='#4a2a50', rim='#ff9a70', depth=('#6a4060', '#7a4a68'), haze='#f4c8a0',
                  far_windows='#f0d27a', front=(1, 1, 1)),
-            dict(sky=['#1c1630', '#221a3a', '#2a2044', '#30244c', '#382a56'], light='#9a90c8',
+            dict(sky=['#1c1630', '#221a3a', '#2c2046', '#3c2652', '#52305e'], light='#9a90c8',
                  lift_to='#1c1630', lift=0.3, sat=1.05, rim='#ff8fd0', shade=(0.75, 0.72, 0.9),
                  depth=('#2a2246', '#33295a'), haze='#382a56', far_windows='#f0d27a', stars=20,
                  front=(0.92, 0.92, 0.95)),
