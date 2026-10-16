@@ -18,7 +18,7 @@
 // things stop on whole art pixels so they stay crisp.
 
 import { useIsFocused } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { type ImageStyle, StyleSheet, View } from 'react-native';
 import Reanimated, {
   type SharedValue,
@@ -35,7 +35,10 @@ import type { DayPhase } from './time-of-day';
 const P = 2; // points per art pixel
 const FPS = 12;
 const SCENE_H = 192;
-const SKY_H = 72 * P; // the sky image; the road starts below it
+const SKY_H = 72 * P; // the sky over the scene; the road starts below it
+// The sky picture also reaches this far above the scene, behind the page's
+// header (scripts/generate-map-lighting.py, SKY_ABOVE)
+const SKY_ABOVE = 160 * P;
 const DEPTH_H = 40 * P;
 const DEPTH_W = 256 * P;
 const TILE_TOP = 32; // tiles sit at the bottom of the 192-point scene
@@ -274,44 +277,59 @@ function Speck({
  * Fixed to the screen behind the road: the sky picture, two depth strips
  * that slide slower than the road as it scrolls (so they look far away),
  * and whatever moves far off at this time of day.
+ *
+ * `above` is how much sky shows over the scene (behind the page's header,
+ * up to the top of the screen): the layer is that much taller and the
+ * scene starts that far down. Past the picture's top it is the sky color.
  */
 export function SkyLayer({
   scenery,
   clock,
   scrollX,
   viewport,
+  above = 0,
 }: {
   scenery: Scenery;
   clock: SharedValue<number>;
   scrollX: SharedValue<number>;
   viewport: number;
+  above?: number;
 }) {
   const has = useKinds(scenery);
   const depthTop = scenery.depthTop * P;
+  // The picture's bottom stays on the road line however much shows above
+  const picture = { top: above - SKY_ABOVE, height: SKY_ABOVE + SKY_H };
   return (
-    <View style={[styles.layer, { height: SCENE_H }]} pointerEvents="none">
-      <Reanimated.Image
-        source={scenery.skyImage}
-        style={{ position: 'absolute', top: 0, left: 0, width: 256 * P, height: SKY_H }}
-      />
-      {has('sunbeams') && <Sunbeams clock={clock} />}
-      {has('aurora') && <Aurora clock={clock} viewport={viewport} />}
-      {has('twinkles') && <Twinkles stars={scenery.stars} clock={clock} viewport={viewport} />}
-      {has('shootingStars') && <ShootingStar clock={clock} viewport={viewport} />}
-      {has('satellite') && <Satellite clock={clock} viewport={viewport} />}
-      {has('clouds') && <Clouds phase={scenery.phase} clock={clock} viewport={viewport} />}
-      <Depth source={scenery.depth[0]} rate={0.2} top={depthTop} scrollX={scrollX} viewport={viewport} />
-      <Depth source={scenery.depth[1]} rate={0.45} top={depthTop + 4 * P} scrollX={scrollX} viewport={viewport} />
-      {has('birds') && <Flock kind="bird" clock={clock} viewport={viewport} />}
-      {has('gulls') && <Flock kind="gull" clock={clock} viewport={viewport} />}
-      {has('pigeons') && <Flock kind="pigeon" clock={clock} viewport={viewport} />}
-      {has('bats') && <Flock kind="bat" clock={clock} viewport={viewport} />}
-      {has('eagle') && <Eagle clock={clock} viewport={viewport} />}
-      {has('plane') && <Plane clock={clock} viewport={viewport} />}
-      {has('fish') && <FishSchool clock={clock} viewport={viewport} />}
-      {has('jellyfish') && <Jellyfish clock={clock} viewport={viewport} />}
+    <View style={[styles.layer, { height: above + SCENE_H }]} pointerEvents="none">
+      {/* Stars and sunbeams are placed in the picture, as they are drawn */}
+      <View style={[styles.row, picture]}>
+        <Reanimated.Image source={scenery.skyImage} style={{ width: 256 * P, height: picture.height }} />
+        {has('sunbeams') && <Sunbeams clock={clock} />}
+        {has('twinkles') && <Twinkles stars={scenery.stars} clock={clock} viewport={viewport} />}
+      </View>
+      <SceneOffset above={above}>
+        {has('aurora') && <Aurora clock={clock} viewport={viewport} />}
+        {has('shootingStars') && <ShootingStar clock={clock} viewport={viewport} />}
+        {has('satellite') && <Satellite clock={clock} viewport={viewport} />}
+        {has('clouds') && <Clouds phase={scenery.phase} clock={clock} viewport={viewport} />}
+        <Depth source={scenery.depth[0]} rate={0.2} top={depthTop} scrollX={scrollX} viewport={viewport} />
+        <Depth source={scenery.depth[1]} rate={0.45} top={depthTop + 4 * P} scrollX={scrollX} viewport={viewport} />
+        {has('birds') && <Flock kind="bird" clock={clock} viewport={viewport} />}
+        {has('gulls') && <Flock kind="gull" clock={clock} viewport={viewport} />}
+        {has('pigeons') && <Flock kind="pigeon" clock={clock} viewport={viewport} />}
+        {has('bats') && <Flock kind="bat" clock={clock} viewport={viewport} />}
+        {has('eagle') && <Eagle clock={clock} viewport={viewport} />}
+        {has('plane') && <Plane clock={clock} viewport={viewport} />}
+        {has('fish') && <FishSchool clock={clock} viewport={viewport} />}
+        {has('jellyfish') && <Jellyfish clock={clock} viewport={viewport} />}
+      </SceneOffset>
     </View>
   );
+}
+
+/** Lays out its children from the top of the scene, `above` points down the layer. */
+function SceneOffset({ above, children }: { above: number; children: ReactNode }) {
+  return <View style={[styles.layer, { top: above, height: SCENE_H }]}>{children}</View>;
 }
 
 function Depth({
@@ -799,10 +817,13 @@ export function FrontLayer({
   scenery,
   clock,
   viewport,
+  above = 0,
 }: {
   scenery: Scenery;
   clock: SharedValue<number>;
   viewport: number;
+  /** As on SkyLayer; snow and rain fall from the top of it */
+  above?: number;
 }) {
   const has = useKinds(scenery);
   // Rain only on some nights, the same for everyone on a given date
@@ -811,25 +832,11 @@ export function FrontLayer({
     const n = d.getFullYear() * 400 + d.getMonth() * 32 + d.getDate();
     return hash(n) < 0.4;
   });
+  const height = above + SCENE_H;
   return (
-    <View style={[styles.layer, { height: SCENE_H }]} pointerEvents="none">
-      {has('fireflies') && [0, 1, 2, 3, 4, 5].map((i) => <Firefly key={i} seed={i} clock={clock} viewport={viewport} />)}
-      {has('leaves') &&
-        Array.from({ length: 7 }, (_, i) => (
-          <Speck
-            key={i}
-            clock={clock}
-            color={LEAF_COLORS[i % LEAF_COLORS.length]}
-            w={2}
-            place={(t) => {
-              'worklet';
-              const u = ((t * 0.07 + i * 0.37) % 1);
-              return { x: viewport * ((i * 0.29) % 1) + Math.sin(t * 1.3 + i * 2) * 14 + u * 30, y: -6 + u * 160 };
-            }}
-          />
-        ))}
+    <View style={[styles.layer, { height }]} pointerEvents="none">
       {has('snow') &&
-        Array.from({ length: 24 }, (_, i) => (
+        Array.from({ length: Math.round((24 * height) / SCENE_H) }, (_, i) => (
           <Speck
             key={i}
             clock={clock}
@@ -837,70 +844,88 @@ export function FrontLayer({
             place={(t) => {
               'worklet';
               const speed = 14 + (i % 4) * 5;
-              const y = ((t * speed + i * 37) % (SCENE_H + 10)) - 6;
+              const y = ((t * speed + i * 37) % (height + 10)) - 6;
               return { x: ((i * 53) % Math.max(1, viewport)) + Math.sin(t * 0.8 + i) * 8, y };
             }}
           />
         ))}
-      {has('dust') &&
-        Array.from({ length: 10 }, (_, i) => (
-          <Speck
-            key={i}
-            clock={clock}
-            color="#cfc4e0"
-            place={(t) => {
-              'worklet';
-              if (Math.sin(t * 0.9 + i * 1.7) < -0.3) return null;
-              return {
-                x: viewport * ((i * 0.37 + 0.05) % 1) + Math.sin(t * 0.3 + i) * 12,
-                y: 20 + ((i * 29) % 110) + Math.sin(t * 0.25 + i * 2) * 10,
-              };
-            }}
-          />
-        ))}
-      {has('drips') &&
-        [0, 1, 2, 3].map((i) => (
-          <Speck
-            key={i}
-            clock={clock}
-            color="#8fa8d8"
-            h={2}
-            place={(t) => {
-              'worklet';
-              const period = 3 + i;
-              const u = ((t + i * 1.3) % period) / 1.1;
-              if (u > 1) return null;
-              return { x: viewport * (0.15 + i * 0.23), y: 10 + u * u * 130 };
-            }}
-          />
-        ))}
-      {has('bubbles') &&
-        Array.from({ length: 12 }, (_, i) => (
-          <Speck
-            key={i}
-            clock={clock}
-            color="#cfeaf7"
-            w={i % 3 === 0 ? 2 : 1}
-            h={i % 3 === 0 ? 2 : 1}
-            place={(t) => {
-              'worklet';
-              const speed = 12 + (i % 3) * 6;
-              const y = 160 - ((t * speed + i * 41) % 180);
-              return { x: viewport * ((i * 0.41 + 0.03) % 1) + Math.sin(t * 2 + i) * 3, y };
-            }}
-          />
-        ))}
-      {has('rain') && rainy && <Rain clock={clock} viewport={viewport} />}
+      {has('rain') && rainy && <Rain clock={clock} viewport={viewport} above={above} />}
+      <SceneOffset above={above}>
+        {has('fireflies') && [0, 1, 2, 3, 4, 5].map((i) => <Firefly key={i} seed={i} clock={clock} viewport={viewport} />)}
+        {has('leaves') &&
+          Array.from({ length: 7 }, (_, i) => (
+            <Speck
+              key={i}
+              clock={clock}
+              color={LEAF_COLORS[i % LEAF_COLORS.length]}
+              w={2}
+              place={(t) => {
+                'worklet';
+                const u = ((t * 0.07 + i * 0.37) % 1);
+                return { x: viewport * ((i * 0.29) % 1) + Math.sin(t * 1.3 + i * 2) * 14 + u * 30, y: -6 + u * 160 };
+              }}
+            />
+          ))}
+        {has('dust') &&
+          Array.from({ length: 10 }, (_, i) => (
+            <Speck
+              key={i}
+              clock={clock}
+              color="#cfc4e0"
+              place={(t) => {
+                'worklet';
+                if (Math.sin(t * 0.9 + i * 1.7) < -0.3) return null;
+                return {
+                  x: viewport * ((i * 0.37 + 0.05) % 1) + Math.sin(t * 0.3 + i) * 12,
+                  y: 20 + ((i * 29) % 110) + Math.sin(t * 0.25 + i * 2) * 10,
+                };
+              }}
+            />
+          ))}
+        {has('drips') &&
+          [0, 1, 2, 3].map((i) => (
+            <Speck
+              key={i}
+              clock={clock}
+              color="#8fa8d8"
+              h={2}
+              place={(t) => {
+                'worklet';
+                const period = 3 + i;
+                const u = ((t + i * 1.3) % period) / 1.1;
+                if (u > 1) return null;
+                return { x: viewport * (0.15 + i * 0.23), y: 10 + u * u * 130 };
+              }}
+            />
+          ))}
+        {has('bubbles') &&
+          Array.from({ length: 12 }, (_, i) => (
+            <Speck
+              key={i}
+              clock={clock}
+              color="#cfeaf7"
+              w={i % 3 === 0 ? 2 : 1}
+              h={i % 3 === 0 ? 2 : 1}
+              place={(t) => {
+                'worklet';
+                const speed = 12 + (i % 3) * 6;
+                const y = 160 - ((t * speed + i * 41) % 180);
+                return { x: viewport * ((i * 0.41 + 0.03) % 1) + Math.sin(t * 2 + i) * 3, y };
+              }}
+            />
+          ))}
+      </SceneOffset>
     </View>
   );
 }
 
 const LEAF_COLORS = ['#e8894f', '#f2c14e', '#c9653a', '#9cbf5a'];
 
-function Rain({ clock, viewport }: { clock: SharedValue<number>; viewport: number }) {
+function Rain({ clock, viewport, above }: { clock: SharedValue<number>; viewport: number; above: number }) {
+  const height = above + SCENE_H;
   return (
     <>
-      {Array.from({ length: 36 }, (_, i) => (
+      {Array.from({ length: Math.round((36 * height) / SCENE_H) }, (_, i) => (
         <Speck
           key={i}
           clock={clock}
@@ -908,7 +933,7 @@ function Rain({ clock, viewport }: { clock: SharedValue<number>; viewport: numbe
           h={3}
           place={(t) => {
             'worklet';
-            const y = ((t * 360 + i * 53) % (SCENE_H + 20)) - 10;
+            const y = ((t * 360 + i * 53) % (height + 20)) - 10;
             return { x: ((i * 37 + y * 0.15) % Math.max(1, viewport)), y };
           }}
         />
@@ -924,7 +949,7 @@ function Rain({ clock, viewport }: { clock: SharedValue<number>; viewport: numbe
             'worklet';
             const beat = Math.floor(t * 2 + i * 0.4);
             if ((t * 2 + i * 0.4) % 1 > 0.5) return null;
-            return { x: viewport * hash(beat + i * 7.7), y: 150 + hash(beat * 3 + i) * 34 };
+            return { x: viewport * hash(beat + i * 7.7), y: above + 150 + hash(beat * 3 + i) * 34 };
           }}
         />
       ))}

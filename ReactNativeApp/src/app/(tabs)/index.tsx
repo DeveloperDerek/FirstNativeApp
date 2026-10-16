@@ -145,46 +145,50 @@ export default function TodayScreen() {
   const ink = { color: theme.ink };
   const selected = walkers.find((w) => w.id === selectedId) ?? null;
 
+  const header = (
+    // From the very top of the screen, behind the status bar
+    <View style={[styles.header, { paddingTop: insets.top + Spacing.two }]}>
+      <View style={styles.topBar}>
+        <CoinBalance balance={balance} color={theme.skyInk} />
+        <Pressable
+          onPress={() => router.push('/shop')}
+          accessibilityRole="button"
+          style={({ pressed }) => pressed && styles.pressed}>
+          <ThemedText type="smallBold" style={[styles.shopLink, { color: theme.skyInk }]}>
+            Shop
+          </ThemedText>
+        </Pressable>
+      </View>
+      <View style={styles.hero}>
+        <ThemedText type="code" style={[styles.caps, { color: theme.skyInk }]}>
+          Today
+        </ThemedText>
+        <ThemedText style={[styles.count, { color: theme.skyInk }]}>
+          {today?.toLocaleString() ?? '--'}
+        </ThemedText>
+        <ThemedText type="small" style={{ color: theme.skyInk }}>
+          {Math.round(progress * 100)}% of {dailyGoal.toLocaleString()} goal
+          {sharing && (earnedCoins ? ' · +150 coins' : ' · 150 coins at goal')}
+        </ThemedText>
+        <StreakLine streak={streak} steps={today ?? 0} color={theme.skyInk} />
+        <CheckinCountdown nextAt={nextCheckin} color={theme.skyInk} />
+      </View>
+    </View>
+  );
+
   return (
     // The ground color fills the whole screen, down to the bottom edge
     <View style={[styles.screen, { backgroundColor: theme.ground }]}>
-      {/* Sky color from the very top of the screen (behind the status bar) down to the road */}
-      <View style={{ backgroundColor: theme.sky, paddingTop: insets.top }}>
-        <View style={styles.header}>
-          <View style={styles.topBar}>
-            <CoinBalance balance={balance} color={theme.skyInk} />
-            <Pressable
-              onPress={() => router.push('/shop')}
-              accessibilityRole="button"
-              style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedText type="smallBold" style={[styles.shopLink, { color: theme.skyInk }]}>
-                Shop
-              </ThemedText>
-            </Pressable>
-          </View>
-          <View style={styles.hero}>
-            <ThemedText type="code" style={[styles.caps, { color: theme.skyInk }]}>
-              Today
-            </ThemedText>
-            <ThemedText style={[styles.count, { color: theme.skyInk }]}>
-              {today?.toLocaleString() ?? '--'}
-            </ThemedText>
-            <ThemedText type="small" style={{ color: theme.skyInk }}>
-              {Math.round(progress * 100)}% of {dailyGoal.toLocaleString()} goal
-              {sharing && (earnedCoins ? ' · +150 coins' : ' · 150 coins at goal')}
-            </ThemedText>
-            <StreakLine streak={streak} steps={today ?? 0} color={theme.skyInk} />
-            <CheckinCountdown nextAt={nextCheckin} color={theme.skyInk} />
-          </View>
-        </View>
-      </View>
-
-      {/* Edge to edge: no padding around the map. It stays put while the list scrolls. */}
-      {mode.kind !== 'solo' && !sharing ? null : (
+      {/* Edge to edge: no padding around the map. It stays put while the list scrolls.
+          The map's sky runs up behind the header to the top of the screen. */}
+      {mode.kind !== 'solo' && !sharing ? (
+        <View style={{ backgroundColor: theme.sky }}>{header}</View>
+      ) : (
         <StepTrack
           walkers={pickShown(walkers, MAX_ON_TRACK)}
           theme={theme}
           onSelect={(w) => setSelectedId(w.id)}
+          header={header}
         />
       )}
 
@@ -316,7 +320,6 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.two,
     paddingBottom: Spacing.two,
     gap: Spacing.two,
   },

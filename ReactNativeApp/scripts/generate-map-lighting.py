@@ -57,6 +57,11 @@ SCENE_H = 96  # StepTrack's SCENE_H (192 points) in art pixels
 TILE_TOP = SCENE_H - TILE_H  # 16: where tiles start in the scene
 SKY_H = TILE_TOP + ROAD_TOP  # scene rows above the road: 72
 SKY_W = 256  # 512 points, wider than any phone
+# The sky picture reaches this far above the scene too, so the page's
+# header (coins, today's count, page titles) sits on it, up to the top of
+# the screen. Sun, moon and Earth stay where they were over the scene.
+SKY_ABOVE = 160
+SKY_FULL_H = SKY_ABOVE + SKY_H
 DEPTH_H = 40
 SCALES = ((2, ''), (4, '@2x'), (6, '@3x'))  # 2 points per art pixel, like the maps
 PHASE_NAMES = ('day', 'sunset', 'night')
@@ -372,8 +377,8 @@ def sky_image(p, style):
     or neither), 'water' (under the sea: lighter toward the surface, with
     sunbeams by day)."""
     bands, px, stars = p['sky'], {}, []
-    for y in range(SKY_H):
-        f = y / SKY_H * (len(bands) - 1)
+    for y in range(SKY_FULL_H):
+        f = y / SKY_FULL_H * (len(bands) - 1)
         i = int(f)
         frac = f - i
         a, b = bands[i], bands[min(i + 1, len(bands) - 1)]
@@ -405,24 +410,26 @@ def sky_image(p, style):
         """Shafts of light from the top, leaning by `slant`."""
         for k, x0 in enumerate((30, 92, 150, 214)):
             width = 8 + (k % 2) * 5
-            for y in range(SKY_H):
+            for y in range(SKY_FULL_H):
                 for x in range(x0 + round(y * slant), x0 + round(y * slant) + width):
-                    fade = 1 - y / SKY_H
+                    fade = 1 - y / SKY_FULL_H
                     if (x % SKY_W, y) in px and dither(x, y, strength * fade):
                         px[(x % SKY_W, y)] = lerp(px[(x % SKY_W, y)], color, 0.35)
 
     if style == 'open':
         if p.get('moon'):
             sx, sy = p['moon']
-            starfield(p['stars'], 7, SKY_H - 24)
+            sy += SKY_ABOVE
+            starfield(p['stars'] * SKY_FULL_H // SKY_H, 7, SKY_FULL_H - 24)
             glow(sx, sy, 22, hexc('#cfd8ff'), 0.8)
             disc(sx, sy, 6, hexc('#f4f1dc'), bite=(3, 2))
         elif p.get('sun'):  # an overcast day has none
             sx, sy = p['sun']
+            sy += SKY_ABOVE
             glow(sx, sy, p['glow'], p['sun_color'], p['glow_strength'])
             disc(sx, sy, 7, p['sun_color'])
             if p.get('rays'):
-                for y in range(SKY_H):
+                for y in range(SKY_FULL_H):
                     for x in range(sx, SKY_W):
                         ang = math.atan2(y - sy, x - sx)
                         fade = 1 - min(1, math.hypot(x - sx, y - sy) / 420)
@@ -432,13 +439,15 @@ def sky_image(p, style):
         if p.get('grates'):
             beams(hexc(p['grates']), p.get('grate_strength', 0.45), 0.35)
     elif style == 'space':
-        starfield(p['stars'], 11, SKY_H - 8)
+        starfield(p['stars'] * SKY_FULL_H // SKY_H, 11, SKY_FULL_H - 8)
         if p.get('sun'):
             sx, sy = p['sun']
+            sy += SKY_ABOVE
             glow(sx, sy, 16, (255, 255, 255), 0.7)
             disc(sx, sy, 5, (255, 255, 250))
         if p.get('earthrise'):
             ex, ey = p['earthrise']
+            ey += SKY_ABOVE
             glow(ex, ey, 30, hexc('#7fb0ff'), 1.0)
             for y in range(-16, 17):
                 for x in range(-16, 17):
@@ -739,7 +748,7 @@ def build_theme(key, cfg):
                   lambda x, y: shadow_px.get((x, y)))
 
         sky, stars = sky_image(p, cfg.get('sky_style', 'open'))
-        write_png(os.path.join(folder, 'sky'), SKY_W, SKY_H, lambda x, y: sky.get((x, y)))
+        write_png(os.path.join(folder, 'sky'), SKY_W, SKY_FULL_H, lambda x, y: sky.get((x, y)))
         if cfg.get('horizon') is not None:
             p['horizon_in_depth'] = cfg['horizon'] + TILE_TOP - (cfg.get('depth_top', SKY_H - DEPTH_H))
         for layer, label in ((0, 'depth_far'), (1, 'depth_near')):
@@ -1358,11 +1367,11 @@ def ambient_sprites():
     for k in (0, 1):
         px = {}
         for b, x0 in enumerate((20, 70, 128, 180, 230)):
-            for y in range(SKY_H):
+            for y in range(SKY_FULL_H):
                 for x in range(x0 - round(y * 0.25), x0 - round(y * 0.25) + 4 + b % 2 * 2):
-                    if dither(x + k, y + k * 2, 0.4 * (1 - y / SKY_H)):
+                    if dither(x + k, y + k * 2, 0.4 * (1 - y / SKY_FULL_H)):
                         px[(x % SKY_W, y)] = (220, 248, 255, 150)
-        save(f'sunbeams_{k}', SKY_W, SKY_H, px)
+        save(f'sunbeams_{k}', SKY_W, SKY_FULL_H, px)
 
     # The goal flag's second frame: the same flag as
     # generate-avatar-sprites.py's goal_flag(), its cloth rippled a pixel

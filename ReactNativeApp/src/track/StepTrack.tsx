@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Image,
@@ -203,19 +203,26 @@ function GoalFlag({ clock, waving }: { clock: SharedValue<number>; waving: boole
  * It runs edge to edge with no box: the sky color fills behind the
  * scenery and everything below the road is the theme's ground color, so
  * it blends into a screen painted in the same two colors.
+ *
+ * `header` sits on the map's sky above the scene: the sky picture and
+ * what moves in it carry on behind it, up to the top of the screen.
  */
 export function StepTrack({
   walkers,
   theme,
   onSelect,
+  header,
 }: {
   walkers: Walker[];
   theme: MapTheme;
   /** Called when a character on the road is tapped */
   onSelect?: (walker: Walker) => void;
+  header?: ReactNode;
 }) {
   const scrollRef = useRef<ScrollViewInstance>(null);
   const [viewport, setViewport] = useState(0);
+  // The header's height: the sky reaches that far above the scene
+  const [above, setAbove] = useState(0);
   // Once someone scrolls by hand, stop re-centering on them.
   const userScrolled = useRef(false);
   // Lit maps: the sky and hills behind the road, moving things, shadows
@@ -271,8 +278,9 @@ export function StepTrack({
         onLayout={(e) => setViewport(e.nativeEvent.layout.width)}
         style={{ backgroundColor: theme.sky }}>
         {scenery && viewport > 0 && (
-          <SkyLayer scenery={scenery} clock={clock} scrollX={scrollX} viewport={viewport} />
+          <SkyLayer scenery={scenery} clock={clock} scrollX={scrollX} viewport={viewport} above={above} />
         )}
+        {header && <View onLayout={(e) => setAbove(e.nativeEvent.layout.height)}>{header}</View>}
         <ScrollView
           ref={scrollRef}
           horizontal
@@ -432,7 +440,9 @@ export function StepTrack({
             </View>
           </View>
         </ScrollView>
-        {scenery && viewport > 0 && <FrontLayer scenery={scenery} clock={clock} viewport={viewport} />}
+        {scenery && viewport > 0 && (
+          <FrontLayer scenery={scenery} clock={clock} viewport={viewport} above={above} />
+        )}
       </View>
     </View>
   );
