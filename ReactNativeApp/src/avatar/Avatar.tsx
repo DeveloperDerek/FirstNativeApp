@@ -56,7 +56,8 @@ export function useSprite(source: number | undefined): SkImage | null {
 }
 
 // One sprite layer. tint multiplies a grayscale sprite by a color.
-function Layer({ source, scale, tint }: { source: number | undefined; scale: number; tint?: string }) {
+// Also drawn in pieces by WalkingAvatar.
+export function Layer({ source, scale, tint }: { source: number | undefined; scale: number; tint?: string }) {
   const image = useSprite(source);
   if (!image) return null;
   return (

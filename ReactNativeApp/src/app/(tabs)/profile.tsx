@@ -18,7 +18,7 @@ import {
   nameProblem,
 } from '@/auth/register';
 import { appleCodeForDeletion, appleSignInEnabled, signOut } from '@/auth/signIn';
-import { Avatar } from '@/avatar/Avatar';
+import type { AvatarConfig } from '@/avatar/types';
 import { AchievementBadge } from '@/components/achievement-badge';
 import { formatDay } from '@/components/birthday-field';
 import { RemindersSection } from '@/components/reminders-section';
@@ -27,7 +27,9 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Row, Section } from '@/components/ui/section';
 import { TextField } from '@/components/ui/text-field';
+import { WalkingScene } from '@/components/walking-scene';
 import { Spacing } from '@/constants/theme';
+import { useMapTheme } from '@/hooks/use-map-theme';
 import { errorMessage } from '@/lib/error-message';
 import { privacyUrl } from '@/lib/supabase';
 import {
@@ -37,6 +39,19 @@ import {
   pushPermission,
   setPushEnabled,
 } from '@/notifications/push';
+
+/** Your character strolling through your map, the full width of the card. */
+function CharacterScene({ avatar }: { avatar: AvatarConfig }) {
+  const { theme } = useMapTheme();
+  const [width, setWidth] = useState(0);
+  return (
+    <View style={styles.scene} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}>
+      {width > 0 && (
+        <WalkingScene theme={theme} avatar={avatar} label="Your character" width={width} wander />
+      )}
+    </View>
+  );
+}
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -120,8 +135,8 @@ export default function ProfileScreen() {
     <Screen title="Profile" subtitle={session?.user.email}>
       {profile && (
         <Section title="Your character">
+          <CharacterScene avatar={profile.avatar} />
           <View style={styles.character}>
-            <Avatar config={profile.avatar} scale={3} accessibilityLabel="Your character" />
             <View style={styles.characterText}>
               <ThemedText type="small" themeColor="textSecondary">
                 Friends and group members see your character on leaderboards.
@@ -438,6 +453,10 @@ const styles = StyleSheet.create({
   badges: {
     flexDirection: 'row',
     gap: Spacing.three,
+  },
+  scene: {
+    borderRadius: Spacing.two,
+    overflow: 'hidden',
   },
   character: {
     flexDirection: 'row',

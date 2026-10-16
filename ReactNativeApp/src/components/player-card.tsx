@@ -190,6 +190,7 @@ export function PlayerCard({
               label={`${name === 'You' ? 'Your' : `${name}'s`} character`}
               width={cardW - 6} // inside the 3-point border
               scale={AVATAR_SCALE}
+              wander
             />
           )}
 
