@@ -98,6 +98,8 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-1 to COIN-5)
                         bottom_skirt_pink)
       - 'grandfathered' items people were wearing when they became paid,
                         recorded at 0 coins
+      - 'starter'       pet_dog, given to every new account at sign-up,
+                        recorded at 0 coins
       - admin grants    admins own every item, recorded at 0 coins
 
   2g. THINGS THAT USED TO PAY AND DON'T ANY MORE
@@ -148,6 +150,11 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-1 to COIN-5)
     Hat      none
     Pet      pet_cat
     Map      map_village
+
+  STARTER PETS FOR NEW ACCOUNTS
+    pet_cat (free for everyone) and pet_dog. The dog stays in the shop
+    for older accounts; new ones are given it at sign-up
+    (20261119000000_starter_pets.sql).
 
   ACHIEVEMENT ITEMS (never sold, no price)
     shoes_winged    1,000,000 total steps          (steps_1m)
