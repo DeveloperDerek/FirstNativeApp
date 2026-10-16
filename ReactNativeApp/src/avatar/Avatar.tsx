@@ -56,7 +56,8 @@ export function useSprite(source: number | undefined): SkImage | null {
 }
 
 // One sprite layer. tint multiplies a grayscale sprite by a color.
-function Layer({ source, scale, tint }: { source: number | undefined; scale: number; tint?: string }) {
+// Also drawn in pieces by WalkingAvatar.
+export function Layer({ source, scale, tint }: { source: number | undefined; scale: number; tint?: string }) {
   const image = useSprite(source);
   if (!image) return null;
   return (
@@ -157,6 +158,40 @@ export function PixelSprite({
           sampling={CRISP}
         />
       )}
+    </Canvas>
+  );
+}
+
+/** Sprite rows a HeadIcon shows: the headroom and the head, down to the chin. */
+export const HEAD_ROWS = HEADROOM + 26;
+
+/**
+ * Just the head: hair, face, glasses and hat, cropped from the top of
+ * the sprite, for small markers like Today's minimap. Capes and held
+ * items are left out so they don't stick into the next icon.
+ */
+export function HeadIcon({
+  config,
+  scale = 1,
+  accessibilityLabel,
+}: {
+  config: AvatarConfig;
+  /** Whole number, like Avatar. */
+  scale?: number;
+  accessibilityLabel?: string;
+}) {
+  const hair = findItem('hair', config.hair);
+  return (
+    <Canvas
+      style={{ width: SPRITE_W * scale, height: HEAD_ROWS * scale }}
+      accessible={accessibilityLabel !== undefined}
+      accessibilityLabel={accessibilityLabel}>
+      <Layer source={hair?.back} scale={scale} tint={config.hairColor} />
+      <Layer source={BODY} scale={scale} tint={config.skin} />
+      <Layer source={findItem('face', config.face)?.image} scale={scale} />
+      <Layer source={findItem('glasses', config.glasses)?.image} scale={scale} />
+      <Layer source={hair?.image} scale={scale} tint={config.hairColor} />
+      <Layer source={findItem('hat', config.hat)?.image} scale={scale} />
     </Canvas>
   );
 }

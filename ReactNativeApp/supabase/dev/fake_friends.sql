@@ -13,10 +13,22 @@
 --     not active, and nobody could see them (step-tracker-register.txt).
 --   - a character and background, with the paid items given to them,
 --     including some of the newer shoes, held items, pets and the neon map
---   - step sharing turned on, their own daily goal, and a step history
---     long enough for streaks of different lengths (the history goes back
---     past the 8 days the app can upload; the step-row check is skipped
---     for this script only)
+--   - step sharing turned on, and a step history long enough for streaks
+--     of different lengths (the history goes back past the 8 days the app
+--     can upload; the step-row check is skipped for this script only).
+--     The daily goal is everyone's coin target (7,000 to 10,000), so
+--     streak days are 10,000 or more, which meets any goal.
+--   - today's steps set on purpose, to try out the road and its minimap:
+--       Marcus      0       hasn't walked yet: stands at the start
+--       Sam, Hana,
+--       Ava         4,100 to 4,350, close together: their heads stack
+--       Diego       7,600
+--       Priya       9,800   just short of the 10,000 flag
+--       Theo        10,400  past the flag: the road grows to 15,000
+--       Luna        16,300  far ahead: the road grows to 20,000
+--     (Nina and Omar aren't your friends, so you don't see their steps.)
+--   - nearly every pet and held item worn by someone (all but the snail
+--     and the bug net), the new dog included (Marcus)
 --   - achievements worked out from that history (badges on the player
 --     card), and the reward items that come with them, which some wear:
 --       Priya   100-day streak, a million steps   Laurel crown
@@ -48,43 +60,43 @@ begin
   create temp table fake_players on commit drop as
   select * from (values
     -- id, username, display name, relation to you, background, typical
-    -- steps a day, own goal, days in a row at the goal ending yesterday,
-    -- days of history, last seen (how long ago), character.
+    -- steps a day, steps so far today, days in a row at the goal ending
+    -- yesterday, days of history, last seen (how long ago), character.
     -- The first 8 characters of each id must differ: the sign-up trigger
     -- makes a temporary username from them (user_xxxxxxxx). The friends
     -- are f4ce0001-8 (fake_quest.sql finds them by that); the strangers
     -- are f4ce0010 and f4ce0011, so it doesn't.
     ('f4ce0001-0000-4000-8000-000000000001'::uuid, 'sam_rivera', 'Sam Rivera', 'friend', 'map_forest',
-     9000, 8000, 34, 45, interval '2 minutes',
+     9000, 4100, 34, 45, interval '2 minutes',
      '{"skin":"#e0a878","hairColor":"#d9534f","hair":"hair_ponytail","face":"face_wink","top":"top_jacket_green","bottom":"bottom_jeans_blue","shoes":"shoes_running_blue","hat":null,"glasses":"glasses_round","cape":null,"hand":"hand_flag","outfit":null,"pet":"pet_cat"}'::jsonb),
     ('f4ce0002-0000-4000-8000-000000000002', 'priya_walks', 'Priya Patel', 'friend', 'map_beach',
-     12000, 10000, 104, 120, interval '25 minutes',
-     '{"skin":"#c68655","hairColor":"#2a1a1a","hair":"hair_long","face":"face_joy","top":"top_tee_white","bottom":"bottom_shorts_blue","shoes":"shoes_sandals","hat":"hat_flowers","glasses":null,"cape":null,"hand":"hand_surfboard","outfit":"outfit_dress","pet":"pet_mushroom"}'),
+     12000, 9800, 104, 120, interval '25 minutes',
+     '{"skin":"#c68655","hairColor":"#2a1a1a","hair":"hair_long","face":"face_joy","top":"top_tee_white","bottom":"bottom_shorts_blue","shoes":"shoes_sandals","hat":"hat_flowers","glasses":null,"cape":null,"hand":"hand_fishing_rod","outfit":"outfit_dress","pet":"pet_mushroom"}'),
     ('f4ce0003-0000-4000-8000-000000000003', 'marcus_c', 'Marcus Chen', 'friend', 'map_neon',
-     7000, 6000, 3, 20, interval '3 hours',
-     '{"skin":"#f6c9a0","hairColor":"#2a1a1a","hair":"hair_short","face":"face_determined","top":"top_varsity","bottom":"bottom_track_red","shoes":"shoes_rocket","hat":"hat_headphones","glasses":null,"cape":null,"hand":"hand_guitar","outfit":null}'),
+     7000, 0, 3, 20, interval '3 hours',
+     '{"skin":"#f6c9a0","hairColor":"#2a1a1a","hair":"hair_short","face":"face_determined","top":"top_varsity","bottom":"bottom_track_red","shoes":"shoes_rocket","hat":"hat_headphones","glasses":null,"cape":null,"hand":"hand_guitar","outfit":null,"pet":"pet_dog"}'),
     ('f4ce0004-0000-4000-8000-000000000004', 'luna_okafor', 'Luna Okafor', 'friend', 'map_space',
-     15000, 12000, 75, 90, interval '20 seconds',
-     '{"skin":"#6f4428","hairColor":"#2a1a1a","hair":"hair_afro","face":"face_starry","top":"top_puffer_purple","bottom":"bottom_pants_black","shoes":"shoes_gold","hat":null,"glasses":"glasses_star","cape":"wings_fairy","hand":null,"outfit":null,"pet":"pet_slime"}'),
+     15000, 16300, 75, 90, interval '20 seconds',
+     '{"skin":"#6f4428","hairColor":"#2a1a1a","hair":"hair_afro","face":"face_starry","top":"top_puffer_purple","bottom":"bottom_pants_black","shoes":"shoes_gold","hat":null,"glasses":"glasses_star","cape":"wings_fairy","hand":"hand_wand","outfit":null,"pet":"pet_slime"}'),
     ('f4ce0005-0000-4000-8000-000000000005', 'diego_m', 'Diego Morales', 'friend', 'map_mountain',
-     11000, 10000, 9, 30, interval '26 hours',
-     '{"skin":"#a86b45","hairColor":"#7a4a2a","hair":"hair_buzz","face":"face_smile","top":"top_sweater_yellow","bottom":"bottom_cargo_khaki","shoes":"shoes_cowboy","hat":"hat_beanie_teal","glasses":null,"cape":null,"hand":"hand_fishing_rod","outfit":null,"pet":"pet_dog"}'),
+     11000, 7600, 9, 30, interval '26 hours',
+     '{"skin":"#a86b45","hairColor":"#7a4a2a","hair":"hair_buzz","face":"face_smile","top":"top_sweater_yellow","bottom":"bottom_cargo_khaki","shoes":"shoes_cowboy","hat":"hat_beanie_teal","glasses":null,"cape":null,"hand":"hand_sword","outfit":null,"pet":null}'),
     ('f4ce0006-0000-4000-8000-000000000006', 'hana_k', 'Hana Kim', 'friend', 'map_ocean',
-     6000, 5000, 12, 20, interval '1 hour',
+     6000, 4250, 12, 20, interval '1 hour',
      '{"skin":"#fde0c8","hairColor":"#f48fb1","hair":"hair_bob","face":"face_cat","top":"top_stripe_navy","bottom":"bottom_skirt_plaid","shoes":"shoes_slippers_bunny","hat":"hat_cat","glasses":null,"cape":null,"hand":"hand_balloon","outfit":null,"pet":"pet_octopus"}'),
     ('f4ce0007-0000-4000-8000-000000000007', 'theo_b', 'Theo Bennett', 'friend', 'map_dungeon',
-     13000, 12000, 30, 40, interval '9 hours',
+     13000, 10400, 30, 40, interval '9 hours',
      '{"skin":"#e0a878","hairColor":"#5b8def","hair":"hair_mohawk","face":"face_determined","top":"top_hoodie_red","bottom":"bottom_jeans_blue","shoes":"shoes_boots_brown","hat":null,"glasses":"glasses_eyepatch","cape":"cape_red","hand":"hand_shield","outfit":"outfit_knight","pet":"pet_stump"}'),
     ('f4ce0008-0000-4000-8000-000000000008', 'ava_rossi', 'Ava Rossi', 'friend', 'map_village',
-     3500, 5000, 0, 8, null,
+     3500, 4350, 0, 8, null,
      '{"skin":"#f6c9a0","hairColor":"#f2d16b","hair":"hair_twintails","face":"face_sleepy","top":"top_tee_white","bottom":"bottom_skirt_pink","shoes":"shoes_skates_pink","hat":null,"glasses":null,"cape":null,"hand":"hand_lollipop","outfit":"outfit_pajamas","pet":"pet_fox"}'),
     ('f4ce0010-0000-4000-8000-000000000010', 'nina_alvarez', 'Nina Alvarez', 'asks_me', 'map_forest',
-     8000, 10000, 2, 8, interval '15 minutes',
-     '{"skin":"#c68655","hairColor":"#7a4a2a","hair":"hair_wavy","face":"face_smile","top":"top_sweater_yellow","bottom":"bottom_jeans_blue","shoes":"shoes_clogs_green","hat":null,"glasses":null,"cape":null,"hand":"hand_sunflower","outfit":null,"pet":"pet_orange_mushroom"}'),
+     8000, 5200, 2, 8, interval '15 minutes',
+     '{"skin":"#c68655","hairColor":"#7a4a2a","hair":"hair_wavy","face":"face_smile","top":"top_sweater_yellow","bottom":"bottom_jeans_blue","shoes":"shoes_clogs_green","hat":null,"glasses":null,"cape":null,"hand":"hand_umbrella","outfit":null,"pet":"pet_orange_mushroom"}'),
     ('f4ce0011-0000-4000-8000-000000000011', 'omar_h', 'Omar Haddad', 'i_asked', 'map_city',
-     10000, 10000, 5, 8, interval '4 hours',
-     '{"skin":"#a86b45","hairColor":"#2a1a1a","hair":"hair_spiky","face":"face_surprised","top":"top_hoodie_red","bottom":"bottom_pants_black","shoes":"shoes_hightop_black","hat":"hat_cap_red","glasses":null,"cape":null,"hand":"hand_bug_net","outfit":null}')
-  ) as t(id, username, display_name, relation, map_theme, typical_steps, goal, streak_days,
+     10000, 6100, 5, 8, interval '4 hours',
+     '{"skin":"#a86b45","hairColor":"#2a1a1a","hair":"hair_spiky","face":"face_surprised","top":"top_hoodie_red","bottom":"bottom_pants_black","shoes":"shoes_hightop_black","hat":"hat_cap_red","glasses":null,"cape":null,"hand":"hand_lantern","outfit":null,"pet":"pet_pig"}')
+  ) as t(id, username, display_name, relation, map_theme, typical_steps, today_steps, streak_days,
          history_days, seen_ago, avatar);
 
   -- Auth users. The on_auth_user_created trigger makes their profiles.
@@ -137,16 +149,15 @@ begin
   from fake_players f
   where p.id = f.id;
 
-  -- Their own daily goal, set long before their history starts
+  -- No personal goals any more (GOAL-15): earlier runs of this script
+  -- gave them some, which would still apply to their older days
   delete from public.daily_goal_changes c using fake_players f where c.user_id = f.id;
-  insert into public.daily_goal_changes (user_id, starts_on, goal, chosen_at)
-  select f.id, current_date - f.history_days - 1, f.goal, now() - interval '1 year'
-  from fake_players f;
 
-  -- Steps. Today is partway through; the streak's days (ending yesterday)
-  -- are at or over the goal; the day before the streak falls short, to
-  -- start it; older days vary around the typical day. A couple of big
-  -- days for the day-steps achievements.
+  -- Steps. Today is the set count (above); the streak's days (ending
+  -- yesterday) are 10,000 or more, over any goal; the day before the
+  -- streak falls short of every goal, to start it; older days vary
+  -- around the typical day. A couple of big days for the day-steps
+  -- achievements.
   alter table public.daily_steps disable trigger daily_steps_check;
   insert into public.daily_steps (user_id, day, steps)
   select
@@ -155,9 +166,9 @@ begin
     case
       when f.id = 'f4ce0004-0000-4000-8000-000000000004' and d = 40 then 31000   -- Luna
       when f.id = 'f4ce0007-0000-4000-8000-000000000007' and d = 3 then 22000    -- Theo
-      when d = 0 then round(f.typical_steps * (0.3 + random() * 0.5))
-      when d <= f.streak_days then f.goal + round(random() * f.typical_steps * 0.4)
-      when d = f.streak_days + 1 then round(f.goal * 0.5)
+      when d = 0 then f.today_steps
+      when d <= f.streak_days then 10000 + round(random() * f.typical_steps * 0.4)
+      when d = f.streak_days + 1 then 5000
       else round(f.typical_steps * (0.6 + random() * 0.8))
     end::int
   from fake_players f

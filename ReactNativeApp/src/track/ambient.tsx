@@ -45,6 +45,7 @@ const TILE_TOP = 32; // tiles sit at the bottom of the 192-point scene
 
 type Kind =
   | 'clouds'
+  | 'highClouds'
   | 'birds'
   | 'gulls'
   | 'pigeons'
@@ -76,6 +77,7 @@ const LIGHT: DayPhase[] = ['day', 'sunset'];
 /** What moves on each map, and when. */
 const MOVEMENTS: Record<string, [Kind, DayPhase[]][]> = {
   village: [
+    ['highClouds', ALL],
     ['clouds', LIGHT],
     ['birds', LIGHT],
     ['smoke', ALL],
@@ -85,22 +87,26 @@ const MOVEMENTS: Record<string, [Kind, DayPhase[]][]> = {
     ['fireflies', ['night']],
   ],
   forest: [
+    ['highClouds', ALL],
     ['leaves', LIGHT],
     ['birds', LIGHT],
     ['fireflies', ['night']],
   ],
   city: [
+    ['highClouds', ALL],
     ['clouds', LIGHT],
     ['pigeons', ['day']],
     ['windows', ['sunset', 'night']],
     ['plane', ['night']],
   ],
   beach: [
+    ['highClouds', ALL],
     ['gulls', LIGHT],
     ['sailboat', ['day']],
     ['moonGlint', ['night']],
   ],
   mountain: [
+    ['highClouds', ALL],
     ['snow', ALL],
     ['eagle', ['day']],
     ['clouds', LIGHT],
@@ -124,6 +130,7 @@ const MOVEMENTS: Record<string, [Kind, DayPhase[]][]> = {
     ['sunbeams', ['day']],
   ],
   neon: [
+    ['highClouds', ALL],
     ['bats', ['night']],
     ['smoke', ALL],
     ['rain', ['night']],
@@ -305,8 +312,11 @@ export function SkyLayer({
       <View style={[styles.row, picture]}>
         <Reanimated.Image source={scenery.skyImage} style={{ width: 256 * P, height: picture.height }} />
         {has('sunbeams') && <Sunbeams clock={clock} />}
-        {has('twinkles') && <Twinkles stars={scenery.stars} clock={clock} viewport={viewport} />}
+        {has('twinkles') && (
+          <Twinkles stars={scenery.stars} every={TWINKLE_EVERY[scenery.map] ?? 4} clock={clock} viewport={viewport} />
+        )}
       </View>
+      {has('highClouds') && <HighClouds phase={scenery.phase} above={above} clock={clock} viewport={viewport} />}
       <SceneOffset above={above}>
         {has('aurora') && <Aurora clock={clock} viewport={viewport} />}
         {has('shootingStars') && <ShootingStar clock={clock} viewport={viewport} />}
@@ -369,11 +379,48 @@ function Clouds({ phase, clock, viewport }: { phase: DayPhase; clock: SharedValu
   return CLOUDS.map((c, i) => <Cloud key={i} {...c} sprite={sprite} clock={clock} viewport={viewport} />);
 }
 
+// Behind the page's header: `at` is how far down the header (0 to 1)
+const HIGH_CLOUDS = [
+  { at: 0.3, speed: 2, offset: 100 },
+  { at: 0.55, speed: 3, offset: 330 },
+  { at: 0.75, speed: 2.5, offset: 0 },
+  { at: 0.45, speed: 3.5, offset: 560 },
+];
+
+/** Clouds drifting through the sky behind the header; faint at night. */
+function HighClouds({
+  phase,
+  above,
+  clock,
+  viewport,
+}: {
+  phase: DayPhase;
+  above: number;
+  clock: SharedValue<number>;
+  viewport: number;
+}) {
+  if (above < 40) return null; // no header to drift behind
+  const sprite = phase === 'sunset' ? AMBIENT_SPRITES.cloud_sunset : AMBIENT_SPRITES.cloud_day;
+  return HIGH_CLOUDS.map((c, i) => (
+    <Cloud
+      key={i}
+      y={snap(above * c.at - (sprite.height * P) / 2)}
+      speed={c.speed}
+      offset={c.offset}
+      sprite={sprite}
+      opacity={phase === 'night' ? 0.2 : 1}
+      clock={clock}
+      viewport={viewport}
+    />
+  ));
+}
+
 function Cloud({
   sprite,
   y,
   speed,
   offset,
+  opacity = 1,
   clock,
   viewport,
 }: {
@@ -381,6 +428,7 @@ function Cloud({
   y: number;
   speed: number;
   offset: number;
+  opacity?: number;
   clock: SharedValue<number>;
   viewport: number;
 }) {
@@ -390,7 +438,7 @@ function Cloud({
     const span = viewport + w;
     return { transform: [{ translateX: snap(((clock.value * speed + offset) % span) - w) }] };
   });
-  return <Reanimated.Image source={sprite.source} style={[styles.abs, { top: y }, size(sprite), style]} />;
+  return <Reanimated.Image source={sprite.source} style={[styles.abs, { top: y, opacity }, size(sprite), style]} />;
 }
 
 const FLOCKS = {
@@ -480,9 +528,22 @@ function Satellite({ clock, viewport }: { clock: SharedValue<number>; viewport: 
   return <Reanimated.Image source={sprite.source} style={[styles.abs, size(sprite), style]} />;
 }
 
-/** A few of the stars in the sky picture flare into a little cross now and then. */
-function Twinkles({ stars, clock, viewport }: { stars: number[][]; clock: SharedValue<number>; viewport: number }) {
-  const shown = stars.filter(([x]) => (x + 2) * P < viewport).filter((_, i) => i % 4 === 0);
+// Space has fewer stars in its picture, so more of them twinkle
+const TWINKLE_EVERY: Record<string, number> = { space: 2 };
+
+/** Every `every`th star in the sky picture flares into a little cross now and then. */
+function Twinkles({
+  stars,
+  every,
+  clock,
+  viewport,
+}: {
+  stars: number[][];
+  every: number;
+  clock: SharedValue<number>;
+  viewport: number;
+}) {
+  const shown = stars.filter(([x]) => (x + 2) * P < viewport).filter((_, i) => i % every === 0);
   return shown.map(([x, y], i) => <Twinkle key={i} x={x} y={y} seed={i} clock={clock} />);
 }
 
@@ -786,18 +847,18 @@ export function ClockHands({ left, clock }: { left: number; clock: { cx: number;
   }, []);
   const minutes = now.getMinutes();
   const hours = (now.getHours() % 12) + minutes / 60;
+  // One set for both hands: they share the centre pixel (and overlap at
+  // times like 12:00), and a repeated pixel would repeat a React key
+  const pts = new Set<string>();
   const hand = (angle: number, length: number) => {
-    const pts = new Set<string>();
     for (let i = 0; i <= length * 2; i++) {
       const r = i / 2;
       pts.add(`${Math.round(clock.cx + Math.sin(angle) * r)},${Math.round(clock.cy - Math.cos(angle) * r)}`);
     }
-    return [...pts].map((p) => p.split(',').map(Number));
   };
-  const pixels = [
-    ...hand((minutes / 60) * 2 * Math.PI, clock.r - 1),
-    ...hand((hours / 12) * 2 * Math.PI, Math.max(2, clock.r - 3)),
-  ];
+  hand((minutes / 60) * 2 * Math.PI, clock.r - 1);
+  hand((hours / 12) * 2 * Math.PI, Math.max(2, clock.r - 3));
+  const pixels = [...pts].map((p) => p.split(',').map(Number));
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none" accessibilityElementsHidden>
       {pixels.map(([x, y]) => (

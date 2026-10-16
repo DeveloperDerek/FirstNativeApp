@@ -98,6 +98,8 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-1 to COIN-5)
                         bottom_skirt_pink)
       - 'grandfathered' items people were wearing when they became paid,
                         recorded at 0 coins
+      - 'starter'       pet_dog, given to every new account at sign-up,
+                        recorded at 0 coins
       - admin grants    admins own every item, recorded at 0 coins
 
   2g. THINGS THAT USED TO PAY AND DON'T ANY MORE
@@ -149,13 +151,18 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-1 to COIN-5)
     Pet      pet_cat
     Map      map_village
 
+  STARTER PETS FOR NEW ACCOUNTS
+    pet_cat (free for everyone) and pet_dog. The dog stays in the shop
+    for older accounts; new ones are given it at sign-up
+    (20261119000000_starter_pets.sql).
+
   ACHIEVEMENT ITEMS (never sold, no price)
     shoes_winged    1,000,000 total steps          (steps_1m)
     cape_ember      30-day streak                  (streak_30)
     hat_laurel      100-day streak                 (streak_100)
     pet_mimic       first completed quest          (quest_1)
 
-  PAID ITEMS: 96 items, 91,300 coins for the full set
+  PAID ITEMS: 94 items, 89,600 coins for the full set
   Median price: 700. Every price is a round hundred.
   (*) = price changed in the rebalance; the old price is in brackets.
 
@@ -207,14 +214,14 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-1 to COIN-5)
     cape_royal           1,800      wings_fairy          2,500
     wings_angel          2,500
 
-  HELD ITEMS (13 items, 10,600 total)
-    hand_lollipop          400      hand_sword             800
-    hand_balloon           500      hand_wand              900
-    hand_sunflower         500      hand_fishing_rod       900
+  HELD ITEMS (11 items, 8,900 total)
+    hand_lollipop          400      hand_wand              900
+    hand_balloon           500      hand_fishing_rod       900
     hand_flag              600      hand_shield          1,200
-    hand_umbrella          700      hand_surfboard       1,200
-    hand_lantern           700      hand_guitar          1,500
+    hand_umbrella          700      hand_guitar          1,500
+    hand_lantern           700
     hand_bug_net           700
+    hand_sword             800
 
   OUTFITS (6 items, 10,500 total)
     outfit_pajamas       1,200      outfit_tuxedo        1,800

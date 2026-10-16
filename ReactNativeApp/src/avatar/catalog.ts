@@ -302,8 +302,9 @@ export const CATALOG: Record<Slot, Item[]> = {
       back: require('@/assets/avatar/cape_ember_back.png'),
     },
   ],
-  // Held in the hand on the left. back (if any) is drawn just behind the
-  // body, for long things that would otherwise cover the face.
+  // All held in their left hand, on the right of the picture (the walk
+  // swings that arm; see WalkingAvatar). back (if any) is drawn just
+  // behind the body, for long things that would otherwise cover the face.
   hand: [
     {
       id: 'hand_balloon',
@@ -316,11 +317,6 @@ export const CATALOG: Record<Slot, Item[]> = {
     { id: 'hand_lollipop', label: 'Lollipop', image: require('@/assets/avatar/hand_lollipop.png') },
     { id: 'hand_lantern', label: 'Lantern', image: require('@/assets/avatar/hand_lantern.png') },
     {
-      id: 'hand_sunflower',
-      label: 'Sunflower',
-      image: require('@/assets/avatar/hand_sunflower.png'),
-    },
-    {
       id: 'hand_fishing_rod',
       label: 'Fishing rod',
       image: require('@/assets/avatar/hand_fishing_rod.png'),
@@ -330,11 +326,6 @@ export const CATALOG: Record<Slot, Item[]> = {
     { id: 'hand_flag', label: 'Flag', image: require('@/assets/avatar/hand_flag.png') },
     { id: 'hand_shield', label: 'Big shield', image: require('@/assets/avatar/hand_shield.png') },
     { id: 'hand_guitar', label: 'Guitar', image: require('@/assets/avatar/hand_guitar.png') },
-    {
-      id: 'hand_surfboard',
-      label: 'Surfboard',
-      back: require('@/assets/avatar/hand_surfboard_back.png'),
-    },
   ],
   // One-piece outfits: drawn instead of the top and bottom
   outfit: [

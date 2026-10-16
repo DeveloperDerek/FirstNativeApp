@@ -4,6 +4,8 @@
 // To add a pet: drop name_a.png and name_b.png in assets/pets/ and add a
 // line. A paid pet also needs a row in shop_items, deployed first; a reward
 // pet is also listed in src/achievements/achievements.ts.
+// New accounts start with the cat (free) and the dog (given at sign-up,
+// supabase/migrations/20261119000000_starter_pets.sql).
 
 export const PET_SIZE = 16;
 
@@ -16,8 +18,8 @@ export const PETS: Pet[] = [
     frames: [require('@/assets/pets/cat_a.png'), require('@/assets/pets/cat_b.png')],
   },
   {
-    // Drawn as a fluffy white Samoyed: round head, small ears, plume tail
-    // curled over the back, chest ruff and shaggy belly
+    // A plain short-haired dog: tan coat, dark floppy ear, light muzzle
+    // and belly, tail up, red collar
     id: 'pet_dog',
     label: 'Dog',
     frames: [require('@/assets/pets/dog_a.png'), require('@/assets/pets/dog_b.png')],
