@@ -892,8 +892,9 @@ def wings(name, color, shape):
 
 
 # ---------------------------------------------------------------- held items (in the hand on the left)
-# The first six are drawn on the left and flipped into the right hand,
-# where the committed sprites have always held them.
+# Every held item goes in their left hand, on the right of the picture
+# (the guitar is slung across the body). Most are drawn on the left and
+# flipped there.
 def hand_balloon(name, color):
     c = hexc(color)
     layer = Layer()
@@ -969,7 +970,7 @@ def line(x0, y0, x1, y1):
 
 
 # Held across the body it would cover the face, so the rod leans up to
-# the right behind the head (the _back layer); only the grip is in front.
+# the left behind the head (the _back layer); only the grip is in front.
 def hand_fishing_rod(name):
     back = Layer()
     rod = line(8, 37, 30, -7)
@@ -978,12 +979,12 @@ def hand_fishing_rod(name):
     bobber = ell(30.5, 24.5, 1.8, 2.4)
     back.part(bobber, hexc('#e2483d'), hexc('#b8302a'))
     back.dots(WHITE, [(x, y) for x, y in bobber if y >= 25 and back.px[(x, y)] != OUTLINE])
-    back.save(f'{name}_back')
+    back.flip().save(f'{name}_back')
     front = Layer()
     grip = line(8, 37, 6, 42)
     front.dots(OUTLINE, grip).dots(hexc('#c89a62'), [(x + 1, y) for x, y in grip])
     front.part(rect(10, 31, 13, 34), hexc('#b8bcc8'), hexc('#8a8e9a'))
-    front.save(name)
+    front.flip().save(name)
 
 
 def hand_bug_net(name):
@@ -995,7 +996,7 @@ def hand_bug_net(name):
     layer.dots(hexc('#eef6f0'), mesh)
     layer.dots(hexc('#a8cdb4'), [(x, y) for x, y in mesh if x % 2 == 0 or y % 2 == 0])
     layer.part(ring(cx, cy, 5, 5, 1.6), hexc('#2a9d8f'), hexc('#1f7a6f'))
-    layer.save(name)
+    layer.flip().save(name)
 
 
 def hand_flag(name, color):
@@ -1010,7 +1011,7 @@ def hand_flag(name, color):
     layer.part(cloth, c, darker(c))
     star = {(13, -5), (12, -4), (13, -4), (14, -4), (11, -3), (12, -3), (13, -3), (14, -3), (15, -3), (12, -2), (14, -2)}
     layer.dots(WHITE, star)
-    layer.save(name)
+    layer.flip().save(name)  # the banner streams back as they walk
 
 
 def hand_shield(name, color):
@@ -1023,7 +1024,9 @@ def hand_shield(name, color):
     emblem = {(6, 29), (7, 29), (5, 30), (6, 30), (7, 30), (8, 30), (4, 31), (5, 31), (6, 31), (7, 31), (8, 31), (9, 31),
               (5, 32), (6, 32), (7, 32), (8, 32), (6, 33), (7, 33)}
     layer.dots(GOLD, emblem)
-    layer.dots(WHITE, [(3, 27), (4, 27), (3, 28)])
+    layer.flip()
+    # The shine after flipping, so it stays top left with the light
+    layer.dots(WHITE, [(W - 1 - x, y) for x, y in ((10, 27), (9, 27), (10, 28))])
     layer.save(name)
 
 

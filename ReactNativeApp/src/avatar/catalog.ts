@@ -302,8 +302,9 @@ export const CATALOG: Record<Slot, Item[]> = {
       back: require('@/assets/avatar/cape_ember_back.png'),
     },
   ],
-  // Held in the hand on the left. back (if any) is drawn just behind the
-  // body, for long things that would otherwise cover the face.
+  // All held in their left hand, on the right of the picture (the walk
+  // swings that arm; see WalkingAvatar). back (if any) is drawn just
+  // behind the body, for long things that would otherwise cover the face.
   hand: [
     {
       id: 'hand_balloon',
