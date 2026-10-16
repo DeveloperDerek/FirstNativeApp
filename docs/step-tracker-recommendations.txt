@@ -63,8 +63,9 @@ domain, email and dashboard settings, so those are not repeated here.
     Many people start lower. Let each person pick a goal (e.g. 5,000 to
     20,000) for their progress bar and history. Coins can stay tied to
     10,000 so the economy stays fair, or scale with the goal.
-  - Built, then removed in October 2026: the goal is 10,000 for
-    everyone again (step-tracker-decisions.txt, GOAL-15).
+  - Built, then removed in October 2026 (step-tracker-decisions.txt,
+    GOAL-15). The goal is now each player's daily target, 7,000 to
+    10,000 and different each day, the one that pays coins (GOAL-16).
 
   2b. STREAKS
   - "5 days in a row at your goal" is the strongest everyday reason to

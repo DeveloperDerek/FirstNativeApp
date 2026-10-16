@@ -240,10 +240,10 @@ Also run `bash supabase/tests/concurrency/group_owner_race.sh` against the local
 
 ## 16. Daily goal, streaks, usernames and quests (`step-tracker-goals-streaks.txt`, `step-tracker-decisions.txt`)
 
-- [ ] iPhone  - [ ] Android — **No goal to pick (GOAL-15):** Profile has no Daily goal section, and Today says "% of 10,000 goal".
-- [ ] iPhone  - [ ] Android — **Coin target:** Today shows "coins at N" (7,000 to 10,000); walking past N shows "+100 coins" and the coins arrive once. The next day's N can differ; reopening the app the same day never changes it.
-- [ ] iPhone  - [ ] Android — **The track:** the road's 10,000 tick reads GOAL with the flag, and there's no MINE marker.
-- [ ] iPhone  - [ ] Android — **Streak:** walk past 10,000: Today's line goes up at once ("6-day streak · best 6"). Before reaching it: "5-day streak. 2,140 steps to keep it going."
+- [ ] iPhone  - [ ] Android — **No goal to pick (GOAL-15):** Profile has no Daily goal section.
+- [ ] iPhone  - [ ] Android — **The goal is the coin target (GOAL-16):** Today shows "% of N goal · 150 coins at goal" with N from 7,000 to 10,000; walking past N shows "+150 coins" and the coins arrive once. The next day's N can differ; reopening the app the same day never changes it.
+- [ ] iPhone  - [ ] Android — **The track:** the road's 10,000 tick reads "10k" with the flag, and there's no MINE marker.
+- [ ] iPhone  - [ ] Android — **Streak:** walk past your goal (N): Today's line goes up at once ("6-day streak · best 6"). Before reaching it: "5-day streak. 2,140 steps to keep it going."
 - [ ] iPhone  - [ ] Android — **7th day:** the streak shows 7, and no streak coins are paid (only the day's coin target pays).
 - [ ] iPhone  - [ ] Android — **Friends:** a friend's player card shows your streak; someone who isn't a friend (outside a group) doesn't.
 - [ ] iPhone  - [ ] Android — **Not sharing:** Today says "Share your steps to keep a streak".

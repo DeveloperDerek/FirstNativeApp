@@ -1,14 +1,14 @@
 import { myToday } from '@/api/steps';
 import { supabase } from '@/lib/supabase';
 
-// The daily goal and streaks (step-tracker-goals-streaks.txt). Everyone's
-// goal is 10,000; the server keeps the goals of past days (from when people
-// could pick their own) and works streaks out from the uploaded days.
+// The daily goal and streaks (step-tracker-goals-streaks.txt). A day's goal
+// is the player's coin target for that day (GOAL-16); older days keep the
+// goal they had then. The server works streaks out from the uploaded days.
 
 export type MyGoal = {
-  /** Today's goal: 10,000 (a past custom goal can still apply to the day it was removed) */
+  /** Today's goal: 7,000 to 10,000, different each day; reaching it pays the daily coins */
   today: number;
-  /** Steps needed today for the daily coins: 7,000 to 10,000, different each day */
+  /** Steps needed today for the daily coins: the same as today's goal (GOAL-16) */
   coin_steps: number;
   /** The goal for each of the last 7 days, oldest first */
   recent: { day: string; goal: number }[];

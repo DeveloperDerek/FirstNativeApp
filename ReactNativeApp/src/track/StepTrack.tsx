@@ -181,7 +181,7 @@ function GoalFlag({ clock, waving }: { clock: SharedValue<number>; waving: boole
       width={FLAG_W}
       height={FLAG_H}
       scale={SCALE}
-      accessibilityLabel="Goal flag at 10,000 steps"
+      accessibilityLabel="Flag at 10,000 steps"
     />
   );
   if (!waving) return flag(FLAG);
@@ -394,7 +394,9 @@ export function StepTrack({
                 />
               )}
 
-              {/* The goal flag stays at 10,000, at the back of the road */}
+              {/* The flag stays at 10,000, at the back of the road: where the
+                  road ends until someone passes it. Each player's own goal
+                  is their daily target (7,000 to 10,000), shown on Today. */}
               <View
                 pointerEvents="none"
                 style={[styles.flag, { left: centerFor(GOAL) - FLAG_POLE_X * SCALE }]}>
@@ -416,13 +418,13 @@ export function StepTrack({
             {/* Distance markers, drawn straight onto the ground */}
             <View style={[styles.markers, { width, backgroundColor: theme.ground }]}>
               {ticksFor(max).map((v) => {
-                const isGoal = v === GOAL;
+                const isFlag = v === GOAL;
                 const color = theme.ink;
                 return (
                   <View key={v} style={[styles.tick, { left: centerFor(v) - 24 }]}>
                     <View style={[styles.tickMark, { backgroundColor: color }]} />
-                    <ThemedText type={isGoal ? 'smallBold' : 'small'} style={[styles.tickLabel, { color }]}>
-                      {isGoal ? 'GOAL' : formatSteps(v)}
+                    <ThemedText type={isFlag ? 'smallBold' : 'small'} style={[styles.tickLabel, { color }]}>
+                      {formatSteps(v)}
                     </ThemedText>
                   </View>
                 );

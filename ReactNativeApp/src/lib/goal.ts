@@ -1,14 +1,9 @@
-// The daily goal (step-tracker-goals-streaks.txt): 10,000 for everyone.
-// No imports, so `npm test` can check these.
+// The daily goal (step-tracker-goals-streaks.txt): each player's coin
+// target, 7,000 to 10,000 steps, different each day (GOAL-16). The server
+// picks it. No imports, so `npm test` can check these.
 
-/** Everyone's daily goal. */
+/** The most a day's goal can be, shown until the server has answered. */
 export const DEFAULT_GOAL = 10_000;
-/**
- * Daily coins: each player's target is 7,000 to 10,000 steps, different
- * each day (decision 2). The server picks it; this is the most it can be,
- * for before it has answered.
- */
-export const COIN_STEPS_MAX = 10_000;
 
 /** 0 to 1, for the progress display. */
 export const goalProgress = (steps: number, goal: number) =>

@@ -238,3 +238,9 @@ needs them set by hand.
    else in it breaks). Until it runs, the new build still shows anyone's
    old goal on Today ("% of 7,500 goal"). Then the checks in
    `DEVICE-TESTS.md` §16.
+14. The goal is the daily target (`step-tracker-goals-streaks.txt`,
+   GOAL-16): push `20261117000000_goal_is_coin_target.sql`, then the new
+   build. The migration alone already makes every build's goal the
+   target (they read it from the server); older builds still show the
+   coin target as a separate "coins at N", which stays true. The new
+   build shows one number. Then the checks in `DEVICE-TESTS.md` §16.

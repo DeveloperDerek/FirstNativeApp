@@ -1,7 +1,8 @@
 STEP TRACKER - THE DAILY GOAL, AND STREAKS (BLUEPRINT)
 Two things people notice every day:
-  A. The daily goal: 10,000 for everyone (people could pick their own
-     until October 2026; see the first change below)
+  A. The daily goal: each player's daily target, 7,000 to 10,000 steps,
+     the same one that pays the daily coins (see the first change below;
+     people could pick their own goal until October 2026)
   B. Streaks: days in a row at the goal (shown, never paid in coins)
 Last checked: October 2026
 
@@ -10,8 +11,33 @@ describes what changes, what the database and screens need, and the
 decisions made (section 6). Items 2a and 2b of
 step-tracker-recommendations.txt.
 
+CHANGED IN OCTOBER 2026: THE GOAL IS THE DAILY TARGET (step-tracker-
+decisions.txt, GOAL-16)
+  - A day's goal is the player's daily coin target: 7,000 to 10,000
+    steps in 500s, different for each player each day, worked out by
+    the server (coin_steps_on). One number now does both jobs: reach it
+    and the day counts for your streak, History and reminders, and pays
+    the 150 daily coins.
+  - Today: "62% of 8,500 goal · 150 coins at goal", then "+150 coins"
+    once reached (it used to show the goal and "coins at N" apart).
+  - The step track's flag stays at 10,000, where the road ends until
+    someone passes it; that tick reads "10k" rather than GOAL. There is
+    no per-player marker (see GOAL-15 on why it was removed).
+  - It started on the day it shipped. The switch counts from the day
+    before the server's date, so it covers "today" on every phone; a
+    target is never above 10,000, so no day got harder. Days before the
+    switch keep their goal (10,000, or a personal goal from before).
+  - Built in 20261117000000_goal_is_coin_target.sql: goal_on() returns
+    coin_steps_on() from the switch day (the app_settings row
+    goal_is_coin_target_from, in days since 2000-01-01), and the stored
+    goals before it. Every reader of the goal goes through goal_on, so
+    my_goal, my_history, the streaks and the reminders follow.
+  - Tested in supabase/tests/database/goal_is_coin_target.test.sql. The
+    older goal tests switch the setting off, since they check the
+    stored goals that past days keep.
+
 CHANGED IN OCTOBER 2026: PERSONAL GOALS REMOVED (step-tracker-decisions.txt,
-GOAL-15)
+GOAL-15; the goal then became the daily target, GOAL-16, above)
   - People can no longer pick their own goal. It was one more setting
     on a crowded Profile page and one more marker on the road. The
     daily goal is 10,000 for everyone again.
@@ -66,8 +92,9 @@ CHANGED EARLIER IN OCTOBER 2026 (step-tracker-decisions.txt, GOAL-1, 2 and 6)
 ======================================================================
 
   Everything in this part about picking, changing or showing your own
-  goal no longer applies: the goal is 10,000 for everyone. The coin
-  rules (COINS, below) still do.
+  goal no longer applies: the goal is the daily target (GOAL-16). The
+  coin rules (COINS, below) still do, and the target they describe is
+  now the goal too.
 
   WHAT YOU CAN PICK (DECIDED)
   - From 5,000 to 20,000, in steps of 500. Starts at 10,000,
@@ -254,7 +281,8 @@ CHANGED EARLIER IN OCTOBER 2026 (step-tracker-decisions.txt, GOAL-1, 2 and 6)
     picker, a note on coins and your best streak; GOAL-15).
   - Player card: "12-day streak".
   - History: days at the goal stand out, each judged by the goal that
-    applied that day (10,000, or a personal goal from before GOAL-15).
+    applied that day (the daily target since GOAL-16; 10,000 or a
+    personal goal before it).
 
   BUILT (20261108000000_goals_streaks.sql, then
   20261112000000_goal_range_coin_steps.sql)
@@ -273,7 +301,8 @@ CHANGED EARLIER IN OCTOBER 2026 (step-tracker-decisions.txt, GOAL-1, 2 and 6)
         bonuses (the first version did, 7 and 30 days).
       - Today counts as done the moment the phone's own steps reach the
         goal, before the upload, so the streak line moves at once.
-      - The track: 10,000 reads GOAL. (Until GOAL-15 a personal goal
+      - The track: the flag at 10,000, its tick reading "10k" (GOAL-16;
+        it read GOAL before that). (Until GOAL-15 a personal goal
         showed as a MINE tick or marker, and 10,000 read GOAL only
         while it was your goal too.)
 
@@ -292,12 +321,22 @@ CHANGED EARLIER IN OCTOBER 2026 (step-tracker-decisions.txt, GOAL-1, 2 and 6)
   6. October 2026: personal goals removed (GOAL-15,
      20261116000000_remove_personal_goal.sql); the Profile picker and
      the MINE marker taken out of the app.
+  7. October 2026: the goal is the daily target (GOAL-16,
+     20261117000000_goal_is_coin_target.sql); Today shows one number.
 
 ======================================================================
 5. TESTS
 ======================================================================
 
-  DATABASE (supabase/tests/database/goals_streaks.test.sql)
+  DATABASE (supabase/tests/database/goal_is_coin_target.test.sql)
+  - The goal before the switch is the stored one (10,000 if none);
+    from the switch day it is the coin target, 7,000 to 10,000 in 500s,
+    changing day to day; my_goal's goal and coin target are equal;
+    walking exactly the target 5 days is a 5-day streak, one step short
+    today isn't done; History judges by the target.
+
+  DATABASE (supabase/tests/database/goals_streaks.test.sql; the switch
+  is off here, so recent days use the stored goals)
   - The app can't set a goal (set_daily_goal is gone). The tests below
     give past days other goals through the internal set_daily_goal_at,
     as personal goals did before GOAL-15.
@@ -341,11 +380,13 @@ CHANGED EARLIER IN OCTOBER 2026 (step-tracker-decisions.txt, GOAL-1, 2 and 6)
     went with the picker, GOAL-15.)
 
   ON A PHONE (DEVICE-TESTS.md)
-  - Profile has no Daily goal section, and the step track reads GOAL
-    at 10,000 with no MINE marker (GOAL-15).
+  - Profile has no Daily goal section (GOAL-15). Today shows "% of N
+    goal" with N from 7,000 to 10,000, the step track's 10,000 tick
+    reads "10k" with the flag, and there's no MINE marker (GOAL-16).
   - Today shows the day's coin target; walking past it shows "+100
     coins", walking past only your goal doesn't.
-  - Walk past 10,000: the streak goes up and Today says so.
+  - Walk past your goal: the streak goes up, Today says so and shows
+    "+150 coins".
   - On the 7th day in a row: no coins for the streak.
   - A friend's player card shows your streak.
 
@@ -384,4 +425,7 @@ CHANGED EARLIER IN OCTOBER 2026 (step-tracker-decisions.txt, GOAL-1, 2 and 6)
       5,000 goal. Accepted; tested. (No longer applies, GOAL-15:
       goals can't be changed.)
   15. Personal goals removed (October 2026): the goal is 10,000 for
-      everyone; past days keep the goal they had.
+      everyone; past days keep the goal they had. (Changed by 16.)
+  16. The goal is each player's daily target, the one that pays the
+      daily coins (7,000 to 10,000, different each day). Days before
+      the change keep their goal.
