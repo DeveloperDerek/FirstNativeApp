@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from 'react';
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
   GestureDetector,
@@ -9,48 +9,58 @@ import {
 import Reanimated, { type SharedValue, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { HEAD_ROWS, HeadIcon } from '@/avatar/Avatar';
+import { HeadIcon, PixelSprite } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
 import { ThemedText } from '@/components/themed-text';
 
-import {
-  barX,
-  groupIcons,
-  labelsFor,
-  milestonesFor,
-  nextStop,
-  stepsAt,
-  viewportOnBar,
-} from './minimap-math';
-import { DIAMOND, FLAG, glyphSize, PixelGlyph, STAR } from './pixel-glyph';
-import { formatSteps, GOAL } from './scale';
+import { barX, milestonesFor, nextStop, stepsAt, viewportOnBar } from './minimap-math';
+import { PixelGlyph, STAR } from './pixel-glyph';
+import { assignLanes, formatSteps, GOAL } from './scale';
 import type { Walker } from './StepTrack';
 import type { MapTheme } from './themes';
 
-// Layout, top to bottom (see docs/step-tracker-minimap.txt): icons stand
-// on the bar, yours a little higher with a pointer; the bar; labels.
-const ICON_W = 32; // a HeadIcon at scale 1
-const HEAD_W = 24; // the head itself, for deciding which icons overlap
-const POINTER = ['OOOOO', '.OOO.', '..O..'];
-const BAR_Y = HEAD_ROWS + glyphSize(POINTER).height + 2;
-const BAR_H = 6; // 2-point outline, 2-point track
-const LABEL_Y = BAR_Y + BAR_H + 4;
-export const MINIMAP_H = LABEL_Y + 16;
-const OTHERS_TOP = BAR_Y - 2 - HEAD_ROWS;
-const GOLD = '#f2c94c';
-const TRACK = 'rgba(0, 0, 0, 0.18)';
-const LABEL_W = 40;
+// A white pill holding a soft grey track with a dashed line along it;
+// round heads on the line, overlapping heads stacked upward; ringed
+// milestones with a tag under them. See docs/step-tracker-minimap.txt.
+const SIDE = 12; // space either side of the pill
+const PILL_H = 64;
+const PAD = 6; // pill to track
+const TRACK_H = PILL_H - 2 * PAD;
+const MID = TRACK_H / 2; // the dashed line, in track coordinates
+const INSET = TRACK_H / 2 + 4; // ends of the line: where the track is full height
+const BUBBLE = 36;
+const LANE_UP = 15; // each stacked head sits this much higher
+const MAX_LANES = 3;
+const RING = 38;
+const ABOVE = 2 * LANE_UP + 4; // room over the pill for stacked heads
+export const MINIMAP_H = ABOVE + PILL_H + 12;
+
+const COLORS = {
+  pill: '#ffffff',
+  track: '#e8eaf0',
+  dash: '#cdd0da',
+  walked: '#9ea3b5',
+  window: 'rgba(40, 50, 90, 0.07)',
+  bubbleEdge: '#eef0f5',
+  me: '#f08a2c',
+  goal: '#5bd65b',
+  goalDone: '#e6f9e6',
+  flag: '#4fd0f0',
+  tagText: '#6b6f80',
+  gold: '#f2c94c',
+  ink: '#3a2a2a',
+};
+const FLAG = require('@/assets/track/flag_goal.png');
 
 /**
- * Today's whole road on one bar under it: your progress, the landmarks,
- * the 10,000 flag, your goal, everyone's head, and a bracket over the
- * part of the road on screen. Tap to move the road there, drag to scrub
- * it; tapping a head centers the road on them.
+ * Today's whole road on one bar under it: everyone's head at their
+ * steps, your goal and the 10,000 flag as ringed milestones, and a soft
+ * window over the part of the road on screen. Tap to move the road
+ * there, drag to scrub it; tapping a head centers the road on them.
  */
 export function Minimap({
   walkers,
   max,
-  theme,
   myGoal,
   place,
   scrollX,
@@ -79,23 +89,36 @@ export function Minimap({
   /** The steps at the middle of the screen right now */
   viewCenter: () => number;
 }) {
-  const ink = theme.ink;
+  const trackW = width - 2 * SIDE - 2 * PAD;
+  const x = (steps: number) => barX(steps, max, trackW, INSET);
   const me = walkers.find((w) => w.isMe);
   const mySteps = me?.steps ?? 0;
   const reached = myGoal !== undefined && mySteps >= myGoal;
-  const groups = groupIcons(walkers, max, width, HEAD_W * 0.8);
-  const fillTo = barX(mySteps, max, width);
-  const x = (steps: number) => barX(steps, max, width);
 
-  // A tap on a head goes to them; anywhere else on the bar, to that spot
+  // Everyone else stacks upward where they'd overlap; you stay on the line
+  const others = walkers.filter((w) => !w.isMe);
+  const otherXs = others.map((w) => x(w.steps));
+  const lanes = assignLanes(otherXs, BUBBLE, MAX_LANES);
+  const heads = others
+    .map((w, i) => ({ walker: w, x: otherXs[i], lane: lanes[i] }))
+    .sort((a, b) => b.lane - a.lane); // higher ones drawn first, behind
+
+  // Milestones: your goal, and the 10,000 flag unless your goal is there
+  const marks = [
+    ...(myGoal !== undefined && myGoal <= max ? [{ steps: myGoal, kind: 'goal' as const }] : []),
+    ...(GOAL <= max && myGoal !== GOAL ? [{ steps: GOAL, kind: 'flag' as const }] : []),
+  ];
+
+  // Touch, in track coordinates. A tap on a head goes to them (front
+  // ones first); anywhere else, to that spot.
   function tapAt(px: number, py: number) {
-    const hit = (cx: number, top: number) => Math.abs(px - cx) <= HEAD_W / 2 && py >= top && py <= BAR_Y;
-    if (me && hit(fillTo, 0)) return onJump(me.steps);
-    const group = groups.find((g) => hit(g.x, OTHERS_TOP));
-    onJump(group ? group.leader.steps : stepsAt(px, max, width));
+    const hit = (cx: number, lane: number) => Math.hypot(px - cx, py - (MID - lane * LANE_UP)) <= BUBBLE / 2;
+    if (me && hit(x(mySteps), 0)) return onJump(mySteps);
+    const head = [...heads].reverse().find((h) => hit(h.x, h.lane));
+    onJump(head ? head.walker.steps : stepsAt(px, max, trackW, INSET));
   }
   function scrubTo(px: number) {
-    onScrub(stepsAt(px, max, width));
+    onScrub(stepsAt(px, max, trackW, INSET));
   }
   const pan = usePanGesture({
     activeOffsetX: [-6, 6],
@@ -113,9 +136,9 @@ export function Minimap({
   });
   const gesture = useExclusiveGestures(pan, tap);
 
-  const bracket = useAnimatedStyle(() => {
-    const v = viewportOnBar(scrollX.get(), viewport, max, width);
-    return { left: v.left - 2, width: v.width + 4 };
+  const window = useAnimatedStyle(() => {
+    const v = viewportOnBar(scrollX.get(), viewport, max, trackW, INSET);
+    return { left: v.left - MID, width: v.width + 2 * MID };
   });
 
   // Read as one summary; swiping up and down moves the road between stops
@@ -134,124 +157,87 @@ export function Minimap({
     if (to !== undefined) onJump(to);
   }
 
-  const star = glyphSize(STAR);
-  const flag = glyphSize(FLAG);
-  const diamond = glyphSize(DIAMOND);
+  // The dashed line, darker behind you
+  const dashes = [];
+  for (let d = x(0); d + 12 <= x(max); d += 22) dashes.push(d);
 
   return (
-    <GestureDetector gesture={gesture}>
+    <View
+      style={{ width, height: MINIMAP_H }}
+      accessible
+      accessibilityRole="adjustable"
+      accessibilityLabel={summary}
+      accessibilityHint="Swipe up or down to move the road between milestones. Tap or drag to move it there."
+      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      onAccessibilityAction={(e) => step(e.nativeEvent.actionName === 'increment' ? 1 : -1)}>
       <View
-        style={{ width, height: MINIMAP_H }}
-        accessible
-        accessibilityRole="adjustable"
-        accessibilityLabel={summary}
-        accessibilityHint="Swipe up or down to move the road between milestones. Tap or drag to move it there."
-        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-        onAccessibilityAction={(e) => step(e.nativeEvent.actionName === 'increment' ? 1 : -1)}>
-        <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={StyleSheet.absoluteFill}>
-          {/* The bar: an outline round the track, your part filled */}
-          <View
-            style={[
-              styles.abs,
-              { left: x(0) - 2, top: BAR_Y, width: x(max) - x(0) + 4, height: BAR_H, backgroundColor: ink },
-            ]}>
-            <View style={[styles.abs, { left: 2, top: 2, right: 2, height: 2, backgroundColor: theme.ground }]} />
-            <View style={[styles.abs, { left: 2, top: 2, right: 2, height: 2, backgroundColor: TRACK }]} />
-            <View
-              style={[
-                styles.abs,
-                { left: 2, top: 2, width: fillTo - x(0), height: 2, backgroundColor: reached ? GOLD : theme.button },
-              ]}
-            />
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden
+        style={[styles.pill, { top: ABOVE, left: SIDE, right: SIDE }]}>
+        <GestureDetector gesture={gesture}>
+          <View style={styles.track}>
+            <Reanimated.View style={[styles.window, window]} />
+            {dashes.map((d) => (
+              <View
+                key={d}
+                style={[styles.dash, { left: d, backgroundColor: d + 6 <= x(mySteps) ? COLORS.walked : COLORS.dash }]}
+              />
+            ))}
+
+            {heads.map((h) => (
+              <Head key={h.walker.id} walker={h.walker} x={h.x} lane={h.lane} />
+            ))}
+
+            {marks.map((m) => (
+              <Milestone key={m.kind} x={x(m.steps)} kind={m.kind} done={m.kind === 'goal' && reached} label={formatSteps(m.steps)} />
+            ))}
+
+            {me && <Head walker={me} x={x(mySteps)} lane={0} isMe />}
           </View>
-
-          {/* A landmark every 5,000: filled once you've passed it */}
-          {milestonesFor(max).map((s) => (
-            <View
-              key={s}
-              style={[styles.abs, { left: x(s) - diamond.width / 2, top: BAR_Y + (BAR_H - diamond.height) / 2 }]}>
-              <PixelGlyph rows={DIAMOND} outline={ink} fill={mySteps >= s ? (reached ? GOLD : theme.button) : theme.ground} />
-            </View>
-          ))}
-
-          {GOAL <= max && (
-            <View style={[styles.abs, { left: x(GOAL) - 1, top: BAR_Y - flag.height }]}>
-              <PixelGlyph rows={FLAG} outline={ink} fill="#e2483d" />
-            </View>
-          )}
-          {myGoal !== undefined && (
-            <View style={[styles.abs, { left: x(myGoal) - star.width / 2, top: BAR_Y - star.height }]}>
-              <PixelGlyph rows={STAR} outline={ink} fill={reached ? GOLD : theme.ground} />
-            </View>
-          )}
-
-          {labelsFor(max).map((v) => (
-            <ThemedText
-              key={v}
-              style={[
-                styles.label,
-                {
-                  left: Math.min(width - LABEL_W, Math.max(0, x(v) - LABEL_W / 2)),
-                  top: LABEL_Y,
-                  color: ink,
-                },
-              ]}>
-              {formatSteps(v)}
-            </ThemedText>
-          ))}
-
-          {/* What's on screen */}
-          <Reanimated.View
-            style={[styles.abs, styles.bracket, { top: BAR_Y - 4, height: BAR_H + 8, borderColor: ink }, bracket]}
-          />
-
-          {groups.map((g) => (
-            <Icon key={g.leader.id} walker={g.leader} x={g.x} top={OTHERS_TOP} others={g.others} theme={theme} />
-          ))}
-          {me && (
-            <Icon walker={me} x={fillTo} top={0} others={0} theme={theme}>
-              <View style={{ alignItems: 'center' }}>
-                <PixelGlyph rows={POINTER} outline={ink} fill={ink} />
-              </View>
-            </Icon>
-          )}
-        </View>
+        </GestureDetector>
       </View>
-    </GestureDetector>
+    </View>
   );
 }
 
-/** A head on the bar, walking to its new spot when the count changes. */
-function Icon({
-  walker,
-  x,
-  top,
-  others,
-  theme,
-  children,
-}: {
-  walker: Walker;
-  x: number;
-  top: number;
-  others: number;
-  theme: MapTheme;
-  children?: ReactNode;
-}) {
+/** A round head on the line, gliding to its new spot when the count changes. */
+function Head({ walker, x, lane, isMe = false }: { walker: Walker; x: number; lane: number; isMe?: boolean }) {
   const at = useSharedValue(x);
   useEffect(() => {
     at.set(withTiming(x, { duration: 600 }));
   }, [at, x]);
-  const style = useAnimatedStyle(() => ({ transform: [{ translateX: Math.round(at.get()) - ICON_W / 2 }] }));
+  const style = useAnimatedStyle(() => ({ transform: [{ translateX: Math.round(at.get()) }] }));
+  const top = MID - lane * LANE_UP;
   return (
-    <Reanimated.View style={[styles.abs, { left: 0, top, width: ICON_W }, style]}>
-      <HeadIcon config={normalizeAvatar(walker.avatar)} />
-      {children}
-      {others > 0 && (
-        <View style={[styles.badge, { backgroundColor: theme.ink }]}>
-          <ThemedText style={[styles.badgeText, { color: theme.ground }]}>+{others}</ThemedText>
+    <Reanimated.View style={[styles.anchor, { top }, style]}>
+      {isMe && <View style={styles.meRing} />}
+      <View style={styles.bubble}>
+        {/* The head's middle (sprite row 22 with the headroom) at the circle's */}
+        <View style={styles.face}>
+          <HeadIcon config={normalizeAvatar(walker.avatar)} />
         </View>
-      )}
+      </View>
     </Reanimated.View>
+  );
+}
+
+/** A ringed milestone with a line through the track and a tag under it. */
+function Milestone({ x, kind, done, label }: { x: number; kind: 'goal' | 'flag'; done: boolean; label: string }) {
+  const color = kind === 'goal' ? COLORS.goal : COLORS.flag;
+  return (
+    <View style={[styles.anchor, { top: MID, left: x }]} pointerEvents="none">
+      <View style={[styles.markLine, { backgroundColor: color }]} />
+      <View style={[styles.ring, { borderColor: color, backgroundColor: done ? COLORS.goalDone : COLORS.pill }]}>
+        {kind === 'goal' ? (
+          <PixelGlyph rows={STAR} outline={COLORS.ink} fill={done ? COLORS.gold : COLORS.pill} />
+        ) : (
+          <PixelSprite source={FLAG} width={12} height={24} scale={1} />
+        )}
+      </View>
+      <View style={styles.tag}>
+        <ThemedText style={styles.tagText}>{label}</ThemedText>
+      </View>
+    </View>
   );
 }
 
@@ -262,33 +248,95 @@ function ordinal(n: number) {
 }
 
 const styles = StyleSheet.create({
-  abs: {
+  pill: {
     position: 'absolute',
+    height: PILL_H,
+    padding: PAD,
+    borderRadius: PILL_H / 2,
+    backgroundColor: COLORS.pill,
+    shadowColor: '#1a2040',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
-  bracket: {
-    borderWidth: 2,
+  track: {
+    height: TRACK_H,
+    borderRadius: TRACK_H / 2,
+    backgroundColor: COLORS.track,
   },
-  label: {
+  window: {
     position: 'absolute',
-    width: LABEL_W,
-    textAlign: 'center',
-    fontSize: 10,
-    lineHeight: 14,
+    top: 4,
+    height: TRACK_H - 8,
+    borderRadius: (TRACK_H - 8) / 2,
+    backgroundColor: COLORS.window,
   },
-  badge: {
+  dash: {
     position: 'absolute',
-    right: 0,
-    top: 6,
-    minWidth: 16,
-    height: 14,
-    paddingHorizontal: 3,
-    borderRadius: 7,
+    top: MID - 2,
+    width: 12,
+    height: 4,
+    borderRadius: 2,
+  },
+  // Children are centered on this zero-size point
+  anchor: {
+    position: 'absolute',
+    left: 0,
+    width: 0,
+    height: 0,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  badgeText: {
-    fontSize: 9,
-    lineHeight: 14,
+  bubble: {
+    position: 'absolute',
+    width: BUBBLE,
+    height: BUBBLE,
+    borderRadius: BUBBLE / 2,
+    borderWidth: 2,
+    borderColor: COLORS.bubbleEdge,
+    backgroundColor: COLORS.pill,
+    overflow: 'hidden',
+  },
+  face: {
+    position: 'absolute',
+    left: (BUBBLE - 4 - 32) / 2,
+    top: (BUBBLE - 4) / 2 - 22,
+  },
+  meRing: {
+    position: 'absolute',
+    width: BUBBLE + 10,
+    height: BUBBLE + 16,
+    borderRadius: (BUBBLE + 10) / 2,
+    borderWidth: 3,
+    borderColor: COLORS.me,
+  },
+  markLine: {
+    position: 'absolute',
+    width: 3,
+    height: TRACK_H + 2 * PAD,
+    borderRadius: 1.5,
+  },
+  ring: {
+    position: 'absolute',
+    width: RING,
+    height: RING,
+    borderRadius: RING / 2,
+    borderWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tag: {
+    position: 'absolute',
+    top: TRACK_H / 2 + PAD - 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    backgroundColor: COLORS.pill,
+  },
+  tagText: {
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '700',
+    color: COLORS.tagText,
   },
 });
-
