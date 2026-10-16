@@ -98,21 +98,25 @@ One strip, the full width of the screen, that never scrolls:
 3. WHERE IT GOES
 ======================================================================
 
-  Directly under the road, on the ground color, fixed (it does not
-  scroll with the road or with the list below):
+  Directly under the road, on the ground color, as the first thing in
+  Today's list (above "Who"):
 
     [ header on the sky: coins, Today, count, goal % ]
-    [ the road (scrolls sideways) ]
+    [ the road (scrolls sideways) ]          <- stays put
     [ the road's distance markers ]
-    [ THE MINIMAP ]                      <- new, 110 points tall
-    [ Who: Just me / Friends / groups ... the list scrolls ]
+    [ THE MINIMAP ]      <- top of the list, 110 points tall
+    [ Who: Just me / Friends / groups ... ]
 
-  It belongs to StepTrack, so it shows exactly when the road does: not
-  when Friends or a group is picked without sharing on (the road is
-  hidden then too).
+  It scrolls up with the list and fades as it goes: gone once it has
+  scrolled two thirds of the way off, back when you scroll to the top.
+  (First built fixed under the road; moved into the list so it can
+  get out of the way.) StepTrack and the minimap share the road's
+  scrolling through useRoadLink (StepTrack.tsx); RoadMinimap is the
+  minimap wired to it.
 
-  110 points: room over the pill for stacked heads, the pill, and the
-  tags hanging under it. The road itself does not get any shorter.
+  It shows exactly when the road does: not when Friends or a group is
+  picked without sharing on (the road is hidden then too). The road
+  itself does not get any shorter.
 
 ======================================================================
 4. HOW IT WORKS (the code)

@@ -30,7 +30,7 @@ import {
 } from './ambient';
 import type { Scenery } from './lighting';
 import { AMBIENT_SPRITES } from './lighting.generated';
-import { Minimap } from './Minimap';
+import { Minimap, MINIMAP_H } from './Minimap';
 import { scrollFor } from './minimap-math';
 import { PixelGlyph, STAR } from './pixel-glyph';
 import {
@@ -221,7 +221,7 @@ export function StepTrack({
   onSelect,
   header,
   myGoal,
-  myPlace,
+  link,
 }: {
   walkers: Walker[];
   theme: MapTheme;
@@ -230,20 +230,17 @@ export function StepTrack({
   header?: ReactNode;
   /** Your daily goal: a star on the road */
   myGoal?: number;
-  /** Your place in the whole ranking (the road may show only the top) */
-  myPlace?: { place: number; of: number };
+  /** Shares the road's scrolling with a RoadMinimap elsewhere on the page */
+  link?: RoadLink;
 }) {
-  const scrollRef = useRef<ScrollViewInstance>(null);
-  const [viewport, setViewport] = useState(0);
+  const own = useRoadLink();
+  const { scrollRef, scrollX, userScrolledRef, viewport, setViewport } = link ?? own;
   // The header's height: the sky reaches that far above the scene
   const [above, setAbove] = useState(0);
-  // Once someone scrolls by hand, stop re-centering on them.
-  const userScrolled = useRef(false);
+  // Once someone scrolls by hand (userScrolledRef), stop re-centering on them.
   // Lit maps: the sky and hills behind the road, moving things, shadows
   const scenery = theme.scenery;
   const clock = useAmbientClock();
-  const scrollX = useSharedValue(0);
-  const reducedMotion = useReducedMotion();
 
   const highest = walkers.reduce((m, w) => Math.max(m, w.steps), 0);
   const max = scaleMax(highest);
@@ -259,19 +256,12 @@ export function StepTrack({
   // person scrolls themselves.
   const mySteps = me?.steps;
   useEffect(() => {
-    if (userScrolled.current || viewport === 0 || mySteps === undefined) return;
+    if (userScrolledRef.current || viewport === 0 || mySteps === undefined) return;
     scrollRef.current?.scrollTo({
       x: Math.max(0, centerFor(mySteps) - viewport / 2),
       animated: false,
     });
-  }, [mySteps, viewport]);
-
-  // The minimap moves the road: animated for a tap, at once for a drag.
-  // Either way the road stops following your count.
-  function scrollRoadTo(steps: number, animated: boolean) {
-    userScrolled.current = true;
-    scrollRef.current?.scrollTo({ x: scrollFor(steps, max, viewport), animated: animated && !reducedMotion });
-  }
+  }, [mySteps, viewport, scrollRef, userScrolledRef]);
 
   // Lit maps keep open ground at both ends of every tile, so each tile
   // starts at a landmark and the landmark stands in that clearing (tiles
@@ -311,12 +301,12 @@ export function StepTrack({
           overScrollMode="never"
           showsHorizontalScrollIndicator={false}
           onScrollBeginDrag={() => {
-            userScrolled.current = true;
+            userScrolledRef.current = true;
           }}
           // The hills behind slide along at their own speed, and the
           // minimap's bracket follows
           onScroll={(e) => {
-            scrollX.value = e.nativeEvent.contentOffset.x;
+            scrollX.set(e.nativeEvent.contentOffset.x);
           }}
           scrollEventThrottle={16}
           accessibilityLabel="Step road. Swipe left or right to scroll.">
@@ -480,28 +470,81 @@ export function StepTrack({
           <FrontLayer scenery={scenery} clock={clock} viewport={viewport} above={above} />
         )}
       </View>
-      {/* The whole road at a glance, on the ground under it */}
-      {viewport > 0 && (
-        <View style={[styles.minimap, { backgroundColor: theme.ground }]}>
-          <Minimap
-            walkers={walkers}
-            max={max}
-            theme={theme}
-            place={myPlace}
-            scrollX={scrollX}
-            width={viewport}
-            viewport={viewport}
-            onJump={(steps) => scrollRoadTo(steps, true)}
-            onScrub={(steps) => scrollRoadTo(steps, false)}
-            viewCenter={() => (scrollX.get() + viewport / 2 - ROAD_PAD) / PX_PER_STEP}
-          />
-        </View>
-      )}
     </View>
   );
 }
 
 const GOAL_MARK_W = 64;
+
+/**
+ * The road's scrolling, shared between StepTrack and a RoadMinimap
+ * shown somewhere else (Today puts the minimap at the top of its list,
+ * so it scrolls away with it).
+ */
+export function useRoadLink() {
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const scrollX = useSharedValue(0);
+  // Once someone scrolls by hand, the road stops re-centering on them
+  const userScrolledRef = useRef(false);
+  const [viewport, setViewport] = useState(0);
+  return { scrollRef, scrollX, userScrolledRef, viewport, setViewport };
+}
+export type RoadLink = ReturnType<typeof useRoadLink>;
+
+/**
+ * The minimap for a StepTrack sharing `link`: tap or drag it to move
+ * the road. `fadeWith` is the page's vertical scroll: it fades out as
+ * the page scrolls down past it, and comes back at the top.
+ */
+export function RoadMinimap({
+  link,
+  walkers,
+  theme,
+  myPlace,
+  fadeWith,
+}: {
+  link: RoadLink;
+  /** The same people the road shows */
+  walkers: Walker[];
+  theme: MapTheme;
+  /** Your place in the whole ranking (the road may show only the top) */
+  myPlace?: { place: number; of: number };
+  fadeWith?: SharedValue<number>;
+}) {
+  const { scrollRef, scrollX, userScrolledRef, viewport } = link;
+  const reducedMotion = useReducedMotion();
+  const max = scaleMax(walkers.reduce((m, w) => Math.max(m, w.steps), 0));
+
+  // Animated for a tap, at once for a drag. Either way the road stops
+  // following your count.
+  function scrollRoadTo(steps: number, animated: boolean) {
+    userScrolledRef.current = true;
+    scrollRef.current?.scrollTo({ x: scrollFor(steps, max, viewport), animated: animated && !reducedMotion });
+  }
+
+  // Gone by the time it has scrolled two thirds of the way off
+  const fade = useAnimatedStyle(() => ({
+    opacity: fadeWith ? 1 - Math.min(1, Math.max(0, fadeWith.get()) / (MINIMAP_H * 0.66)) : 1,
+  }));
+
+  if (viewport === 0) return null;
+  return (
+    <Reanimated.View style={[styles.minimap, fade]}>
+      <Minimap
+        walkers={walkers}
+        max={max}
+        theme={theme}
+        place={myPlace}
+        scrollX={scrollX}
+        width={viewport}
+        viewport={viewport}
+        onJump={(steps) => scrollRoadTo(steps, true)}
+        onScrub={(steps) => scrollRoadTo(steps, false)}
+        viewCenter={() => (scrollX.get() + viewport / 2 - ROAD_PAD) / PX_PER_STEP}
+      />
+    </Reanimated.View>
+  );
+}
 
 const styles = StyleSheet.create({
   tiles: {
