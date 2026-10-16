@@ -16,8 +16,8 @@ export const PETS: Pet[] = [
     frames: [require('@/assets/pets/cat_a.png'), require('@/assets/pets/cat_b.png')],
   },
   {
-    // Drawn as a fluffy white Samoyed: round head, small ears, plume tail
-    // curled over the back, chest ruff and shaggy belly
+    // A plain short-haired dog: tan coat, dark floppy ear, light muzzle
+    // and belly, tail up, red collar
     id: 'pet_dog',
     label: 'Dog',
     frames: [require('@/assets/pets/dog_a.png'), require('@/assets/pets/dog_b.png')],
