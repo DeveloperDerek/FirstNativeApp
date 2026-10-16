@@ -1,0 +1,241 @@
+STEP TRACKER - TODAY MINIMAP (BLUEPRINT)
+A horizontal progress bar under Today's road that shows the whole day's
+road at once: a minimap of the track, with milestone markers and a
+small avatar icon for each person on it.
+Last checked: October 2026
+
+Status: proposed, waiting for approval. There is no code in this file.
+It describes what gets built, where, and how to check it. Decisions
+that are yours to make are collected in section 8.
+
+Everything here lives in these files:
+  src/track/Minimap.tsx      NEW: the bar, markers, icons, viewport
+  src/track/minimap.ts       NEW: the math (no UI, unit tested)
+  src/track/minimap.test.ts  NEW: tests for the math (npm test)
+  src/track/StepTrack.tsx    shows the minimap and wires it to the road
+  src/avatar/Avatar.tsx      a head-only crop of the character (HeadIcon)
+
+Nothing changes in the database. No new art files: the minimap is
+drawn from Views and the existing character layers.
+
+======================================================================
+1. HOW THE ROAD WORKS TODAY
+======================================================================
+
+  - StepTrack draws a road wider than the screen, scrolling sideways.
+    1,000 steps is 100 points of road (PX_PER_STEP = 0.1), with 64
+    points of empty road at each end (ROAD_PAD).
+  - The road ends at 10,000 until someone passes it, then grows in
+    5,000s (scaleMax). Nobody moves when it grows.
+  - Landmarks stand every 5,000 steps: start (0), mid (5,000), goal
+    (10,000) and far (15,000), and the far one repeats every 5,000
+    after that (landmarksFor).
+  - The goal flag stands at 10,000. Each player's own daily goal is
+    their coin target (7,000 to 10,000), shown as a percentage in the
+    header ("62% of 8,000 goal"), but nowhere on the road.
+  - Up to 30 people are drawn (pickShown: the top 30 and you). The
+    road opens centered on you and follows your count until you
+    scroll by hand.
+  - On a phone the screen shows about 390 points: about 3,900 steps of
+    road. Someone at 4,000 and someone at 12,000 are never on screen
+    together, and nothing shows how far along the day's road you are.
+
+======================================================================
+2. WHAT THE MINIMAP IS
+======================================================================
+
+One strip, the full width of the screen, that never scrolls:
+
+     0      2.5k     5k      7.5k  ★ 10k            15k
+     ├───────┼────────◆───────┼──█──⚑────────────────◆
+     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░                         (your fill)
+            (A)          (You)    (B)(C)+2
+               └──── [   what's on screen   ] ────┘
+
+  a. THE BAR. Spans 0 to the road's end (the same scaleMax as the
+     road), so 10,000 sits in the same place on both until someone
+     passes it. Drawn pixel-art style like the rest of the app: a
+     track 4 points tall with a 2-point outline, square ends, whole
+     points only.
+
+  b. YOUR FILL. From 0 to your steps, in a brighter color than the
+     track. It turns gold once you reach your daily goal.
+
+  c. MILESTONE MARKERS, standing on the bar:
+       - each landmark (0, 5k, 10k, 15k, then every 5k): a 6 x 6
+         pixel diamond, filled once you have passed it
+       - the 10,000 flag: a small pixel flag, as on the road
+       - YOUR daily goal (7,000 to 10,000): a star, drawn above the
+         bar, so you can see where you get your coins. When your goal
+         is 10,000 the star and the flag share the spot (star in front)
+       - tick labels every 2,500 under the bar ("0", "2.5k", "5k"...),
+         the same labels as the road's distance markers. When the road
+         is long (20k+), only every 5k gets a label, so they never crowd
+
+  d. AVATAR ICONS. A head-only crop of each person's character (hair,
+     hat, face; their real outfit colors) at their spot on the bar:
+       - you: above the bar, a little larger, with a 1-pixel ring in
+         the theme's ink color, always drawn on top
+       - everyone else: below the bar
+       - icons that would overlap gather into one icon with a count
+         badge ("+2"): the leader of the group shows, the rest count
+       - solo ("Just me"): only you
+
+  e. THE VIEWPORT. A bracket over the part of the bar that is on screen
+     right now. It slides as the road is scrolled, so the minimap
+     always shows where you are looking.
+
+  f. TOUCH:
+       - tap anywhere on the bar: the road scrolls there (animated)
+       - drag along the bar: the road follows your finger, like
+         scrubbing a video
+       - tap an icon (or a "+2" group): the road scrolls to center on
+         them. Opening someone's profile stays on the road, where
+         tapping a character already does it.
+     After a tap or drag the road no longer auto-follows your count
+     (as when you scroll the road yourself).
+
+======================================================================
+3. WHERE IT GOES
+======================================================================
+
+  Directly under the road, on the ground color, fixed (it does not
+  scroll with the road or with the list below):
+
+    [ header on the sky: coins, Today, count, goal % ]
+    [ the road (scrolls sideways) ]
+    [ the road's distance markers ]
+    [ THE MINIMAP ]                      <- new, about 56 points tall
+    [ Who: Just me / Friends / groups ... the list scrolls ]
+
+  It belongs to StepTrack, so it shows exactly when the road does: not
+  when Friends or a group is picked without sharing on (the road is
+  hidden then too).
+
+  56 points is tall enough for your icon above the bar, the bar, the
+  tick labels, and the other icons below. The road itself does not
+  get any shorter.
+
+======================================================================
+4. HOW IT WORKS (the code)
+======================================================================
+
+  4a. minimap.ts (pure functions, no UI)
+      - barX(steps, max, barWidth): where a step count sits on the bar.
+        Linear from 0 to max, rounded to whole points, inset so an
+        icon at 0 or at the end isn't cut off.
+      - stepsAt(x, max, barWidth): the reverse, for taps and drags.
+      - viewportOnBar(scrollX, viewport, max, barWidth): the bracket's
+        left and width, from the road's scroll position. Uses the
+        road's own math (centerFor, roadWidth in scale.ts), so the
+        two can't drift apart.
+      - groupIcons(people, barWidth, iconWidth): the overlap rule.
+        Sorts by position; anyone closer than 0.8 icon widths to the
+        group before joins it. Returns each group's x, its leader
+        (most steps) and how many others. You are never put in a
+        group (your icon is in its own row above the bar).
+      - labelsFor(max): tick labels every 2,500, or every 5,000 once
+        the road is 20,000 or longer.
+
+  4b. Minimap.tsx
+      - Props: walkers (the same list the road draws), max, the theme,
+        your daily goal, the road's scrollX (a shared value StepTrack
+        already keeps for the hills) and the viewport width, plus
+        onJump(steps) and onScrub(steps).
+      - The bar, fill, markers and labels are plain Views, sized in
+        whole points, in the theme's ink, ground and sky colors.
+      - The viewport bracket is a Reanimated view whose left and width
+        follow scrollX on the UI thread: no re-render while scrolling.
+      - Touch uses one Pressable for taps and a pan gesture for drags
+        (react-native-gesture-handler, already used by the
+        leaderboard and the draggable rows). Dragging calls scrollTo on the road without
+        animation, so the road keeps up with the finger.
+      - Icons are positioned with the same "walk to the new spot"
+        animation the road uses (600 ms) when counts change.
+
+  4c. HeadIcon (in Avatar.tsx)
+      - The same layers Avatar draws, in a Canvas that shows only the
+        top of the sprite (the 8 rows of headroom and rows 0 to 25:
+        hats, hair, face). Scale 1 (32 x 34 points) for others,
+        scale 1 with the ring for you.
+      - Each layer image is already decoded once and shared
+        (loadSprite), so 30 icons cost no more decoding than the
+        leaderboard does today.
+      - Held items and capes are left out, so a balloon or a wand
+        doesn't stick into the next icon.
+
+  4d. StepTrack.tsx
+      - Renders <Minimap> under the distance markers, passing what it
+        already computes (walkers, max, scrollX, viewport).
+      - onJump / onScrub call scrollRef.current.scrollTo with the
+        road's x for those steps (centerFor(steps) - viewport / 2),
+        and set userScrolled so the road stops auto-following.
+      - The daily goal is passed in from Today (index.tsx already has
+        it as dailyGoal) as a new optional prop, myGoal.
+
+======================================================================
+5. ACCESSIBILITY
+======================================================================
+
+  - The minimap is one element for screen readers, read as a summary:
+    "Today's road: you are at 6,200 steps, 1,800 to your goal and 3,800
+    to the flag. 2nd of 5." In solo, without the ranking.
+  - It is "adjustable": swiping up or down jumps the road to the next
+    or previous milestone, so the map can be explored without dragging.
+  - The icons, markers and labels inside are hidden from screen
+    readers (the summary says it all, and the leaderboard below lists
+    everyone).
+  - Reduce Motion: icons jump to their new spots instead of sliding;
+    the road scrolls without animation when tapped.
+
+======================================================================
+6. BUILD ORDER
+======================================================================
+
+  1. minimap.ts and its tests: positions, the reverse for taps, the
+     viewport bracket, grouping and labels.
+  2. HeadIcon in Avatar.tsx.
+  3. Minimap.tsx: bar, fill, markers, labels, icons (no touch yet).
+  4. StepTrack: show it, pass scrollX, wire the viewport bracket.
+  5. Touch: tap to jump, drag to scrub, icon taps.
+  6. Accessibility summary and the adjustable actions.
+  7. Check on every map in day, sunset and night (theme colors and
+     contrast), solo and with a big group.
+
+======================================================================
+7. HOW TO CHECK IT
+======================================================================
+
+  - npm test: the new minimap tests pass with the old ones.
+  - Solo, 0 steps: only your icon, at the left end; nothing filled.
+  - Solo, past your goal: the fill is gold and the star is filled.
+  - A group where someone has 23,000: the bar ends at 25,000, labels
+    every 5k, and the 10,000 flag moves left on the bar (the bar is
+    the whole road).
+  - Five people within 300 steps of each other: one icon and "+4"
+    below the bar; you stay above.
+  - Scroll the road: the bracket slides with it, smoothly.
+  - Tap the far end of the bar: the road scrolls there. Drag along the
+    bar: the road follows.
+  - VoiceOver: the summary reads correctly; swiping up and down moves
+    the road from milestone to milestone.
+  - Small screen (iPhone SE) and large: labels don't overlap, icons
+    stay inside the bar's ends.
+
+======================================================================
+8. DECISIONS FOR YOU
+======================================================================
+
+  1. Place: under the road, on the ground (recommended, section 3),
+     or on the sky between the header and the road?
+  2. Milestone style: the pixel diamonds, flag and star (recommended),
+     or tiny versions of each map's landmarks (bakery, town hall...)?
+     The landmarks are 128 x 144 drawings; shrunk to about 16 points
+     they'd blur together, so they would need new small pixel icons
+     drawn for all 9 maps (36 icons).
+  3. Tapping an icon: scroll the road to them (recommended), or open
+     their profile straight away?
+  4. Your daily goal on the bar as a star (recommended), or leave it
+     to the header's percentage?
+  5. Should the road itself also get a marker at your daily goal,
+     now that the minimap will have one?
