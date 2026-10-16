@@ -135,9 +135,10 @@ select is((pg_temp.streak(4)->>'current')::int, 7, '...but a 7-day streak');
 select pg_temp.walk(5, 99, 0, 12000);
 select pg_temp.as_user(5);
 select is(public.claim_daily_rewards(), 1200, '100 days in a row: only the 8 days of daily coins in the window');
--- (Its achievement reward items are in the coin history too, at 0 coins)
+-- (Its achievement reward items and the starter dog every new account
+-- gets are in the coin history too, at 0 coins)
 select is((select count(*)::int from public.coin_transactions where user_id = pg_temp.u(5)
-           and reason not in ('daily_goal', 'achievement')), 0, 'no streak coins of any kind');
+           and reason not in ('daily_goal', 'achievement', 'starter')), 0, 'no streak coins of any kind');
 
 -- ---------------------------------------------------------------------
 -- The daily coin target: 7,000 to 10,000, per player and day (GOAL-2)
