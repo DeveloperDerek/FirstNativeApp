@@ -9,11 +9,11 @@ describe('coins (step-tracker-group-quests.txt, sections 3 and 5)', () => {
   test('the table of coins each at exactly the goal', () => {
     const goals = [8_000, 15_000, 30_000, 50_000, 120_000];
     const expected = [
-      [24, 16, 12],
-      [45, 30, 23],
+      [48, 32, 24],
       [90, 60, 45],
-      [150, 100, 75],
-      [360, 240, 180],
+      [180, 120, 90],
+      [300, 200, 150],
+      [720, 480, 360],
     ];
     goals.forEach((goal, i) =>
       [2, 4, 8].forEach((party, j) => assert.equal(coinsEach(goal, goal, party), expected[i][j]))
@@ -21,11 +21,11 @@ describe('coins (step-tracker-group-quests.txt, sections 3 and 5)', () => {
   });
 
   test('worked examples', () => {
-    assert.equal(stepCoins(10_000, 8_000), 50);
+    assert.equal(stepCoins(10_000, 8_000), 100);
     assert.equal(groupMultiplier(4), 1.6);
-    assert.equal(coinsEach(10_000, 8_000, 4), 20);
-    assert.equal(coinsEach(12_000, 8_000, 2), 36); // 2-member Sprint at 150%
-    assert.equal(coinsEach(200_000, 120_000, 2), 540); // capped at 150%
+    assert.equal(coinsEach(10_000, 8_000, 4), 40);
+    assert.equal(coinsEach(12_000, 8_000, 2), 72); // 2-member Sprint at 150%
+    assert.equal(coinsEach(200_000, 120_000, 2), 1080); // capped at 150%
   });
 
   test('multiplier', () => {

@@ -230,3 +230,17 @@ needs them set by hand.
    as one summary. Older builds show no achievements and never offer the
    items. Then the checks in `DEVICE-TESTS.md` §19, and
    `bash supabase/tests/concurrency/achievement_race.sh` locally.
+13. Personal goals removed (`step-tracker-goals-streaks.txt`, GOAL-15):
+   ship the new build first, then push
+   `20261116000000_remove_personal_goal.sql`. The migration moves
+   everyone to 10,000 from the next day and removes `set_daily_goal`, so
+   an older build's Profile > Daily goal shows an error on Save (nothing
+   else in it breaks). Until it runs, the new build still shows anyone's
+   old goal on Today ("% of 7,500 goal"). Then the checks in
+   `DEVICE-TESTS.md` §16.
+14. The goal is the daily target (`step-tracker-goals-streaks.txt`,
+   GOAL-16): push `20261117000000_goal_is_coin_target.sql`, then the new
+   build. The migration alone already makes every build's goal the
+   target (they read it from the server); older builds still show the
+   coin target as a separate "coins at N", which stays true. The new
+   build shows one number. Then the checks in `DEVICE-TESTS.md` §16.

@@ -41,7 +41,7 @@ select is((select steps from public.daily_steps where user_id = pg_temp.u(1) and
           20000, 'today is uploaded');
 select is((select steps from public.daily_steps where user_id = pg_temp.u(1) and day = current_date - 1),
           3000, '...and yesterday');
-select is((select (r ->> 'earned')::int from r1), 100, 'the day over the coin target pays 100 coins');
+select is((select (r ->> 'earned')::int from r1), 150, 'the day over the coin target pays 150 coins');
 select is((select r -> 'goal' from r1), public.my_goal(current_date), 'the goal is my_goal()');
 select is((select r -> 'streak' from r1), public.my_streak(current_date), 'the streak is my_streak()');
 select is((select (r -> 'streak' ->> 'today_done')::boolean from r1), true,

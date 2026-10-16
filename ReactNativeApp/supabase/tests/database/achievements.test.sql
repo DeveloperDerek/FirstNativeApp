@@ -7,6 +7,11 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(82);
+-- These tests are about the stored goals that past days keep. Since
+-- GOAL-16 a day's goal is the player's coin target from the switch day
+-- on (goal_is_coin_target.test.sql); switch that off here, so recent
+-- days use the stored goals too. Rolled back at the end.
+delete from public.app_settings where key = 'goal_is_coin_target_from';
 
 -- 1 A: days in a row, 2 B: total steps, 3 C: streaks, 4 D: quests,
 -- 5 E: in the group but not the party, 6 N: doesn't share, 7 M: a million,
@@ -131,7 +136,7 @@ values (pg_temp.u(15), current_date - 30, 8000, now() - interval '31 days');
 select pg_temp.award(15);
 select is(pg_temp.earned_on(15, 'streak_7'), current_date - 1, 'G: a week at an 8,000 goal');
 select pg_temp.as_user(15);
-select public.set_daily_goal(12000, current_date);
+select public.set_daily_goal_at(12000, current_date, now());
 select pg_temp.award(15);
 select is(pg_temp.earned_on(15, 'streak_7'), current_date - 1, '...a higher goal from tomorrow changes nothing');
 select is(pg_temp.progress(15, 'streak_7'), 7::bigint, '...nor the best streak');

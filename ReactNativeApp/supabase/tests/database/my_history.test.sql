@@ -7,6 +7,11 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(32);
+-- These tests are about the stored goals that past days keep. Since
+-- GOAL-16 a day's goal is the player's coin target from the switch day
+-- on (goal_is_coin_target.test.sql); switch that off here, so recent
+-- days use the stored goals too. Rolled back at the end.
+delete from public.app_settings where key = 'goal_is_coin_target_from';
 
 insert into auth.users (id, email)
 select ('000000' || lpad(to_hex(n), 2, '0') || '-91a1-0000-0000-000000000000')::uuid,

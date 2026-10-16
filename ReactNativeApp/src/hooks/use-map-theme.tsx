@@ -5,7 +5,10 @@ import { listOwnedItems } from '@/api/coins';
 import { saveMapTheme } from '@/api/mapTheme';
 import { useAuth } from '@/auth/AuthProvider';
 import { errorMessage } from '@/lib/error-message';
+import { lightTheme } from '@/track/lighting';
 import { DEFAULT_THEME_ID, getTheme, type MapTheme } from '@/track/themes';
+
+import { useDayPhase } from './use-day-phase';
 
 type MapThemeState = {
   theme: MapTheme;
@@ -67,7 +70,9 @@ export function MapThemeProvider({ children }: { children: ReactNode }) {
     [ownedIds]
   );
 
-  const theme = getTheme(pending ?? profile?.map_theme);
+  // Lit for the time of day, so every page changes light with the clock
+  const phase = useDayPhase();
+  const theme = lightTheme(getTheme(pending ?? profile?.map_theme), phase);
 
   const pickTheme = useCallback(
     async (id: string) => {

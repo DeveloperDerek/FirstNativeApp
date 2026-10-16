@@ -18,6 +18,7 @@ file names and canvas size.
 
 Usage: python3 scripts/generate-avatar-sprites.py
 """
+import math
 import os
 import struct
 import zlib
@@ -1664,32 +1665,33 @@ def street_base():
     )
 
 
+# The village keeps a clearing of open street at both ends of each tile
+# (36 pixels), so a landmark standing on the seam between two tiles never
+# lands on a house. The lit road (generate-map-lighting.py) lines its
+# tiles up that way.
 def village_tile_a():
     layer = street_base()
-    tree(layer, 10)
-    house(layer, 22, 30, 24, V['red'], chimney=True)
-    lamp(layer, 60)
-    house(layer, 68, 34, 20, V['blue'], warm=True, shop=V['blue'])
-    fence(layer, 108, 132)
-    tree(layer, 146, h=26, r=9)
-    house(layer, 162, 28, 26, V['green'])
-    well(layer, 206)
-    tree(layer, 232, h=20, r=7)
-    lamp(layer, 248)
+    tree(layer, 46)
+    house(layer, 58, 30, 24, V['red'], chimney=True)
+    lamp(layer, 94)
+    house(layer, 100, 34, 20, V['blue'], warm=True, shop=V['blue'])
+    fence(layer, 140, 156)
+    tree(layer, 170, h=26, r=9)
+    house(layer, 184, 28, 26, V['green'])
+    lamp(layer, 218)
     return layer
 
 
 def village_tile_b():
     layer = street_base()
-    lamp(layer, 6)
-    house(layer, 16, 32, 22, V['slate'], warm=True, chimney=True)
-    stall(layer, 56, V['red'])
-    tree(layer, 92, h=24, r=8)
-    house(layer, 108, 26, 28, V['red'])
-    fence(layer, 140, 156)
-    house(layer, 166, 36, 20, V['brown'], shop=V['green'])
-    tree(layer, 216, h=22, r=8)
-    stall(layer, 228, V['blue'])
+    lamp(layer, 38)
+    house(layer, 44, 32, 22, V['slate'], warm=True, chimney=True)
+    stall(layer, 82, V['red'])
+    tree(layer, 112, h=24, r=8)
+    house(layer, 124, 26, 28, V['red'])
+    well(layer, 162)
+    house(layer, 174, 30, 20, V['brown'], shop=V['green'])
+    tree(layer, 212, h=22, r=6)
     return layer
 
 
@@ -1836,39 +1838,35 @@ def log(layer, x0):
 def forest_tile_a():
     layer = forest_base()
     set_outline('#2f3f25')
-    pine(layer, 12, 40, 9)
-    fern(layer, 28)
-    pine(layer, 46, 50, 11, FO['pine2'])
-    mushroom(layer, 64)
-    bush(layer, 80)
-    pine(layer, 102, 36, 8)
+    pine(layer, 50, 50, 11, FO['pine2'])
+    fern(layer, 68)
+    mushroom(layer, 78)
+    bush(layer, 88)
+    pine(layer, 104, 36, 8)
     log(layer, 116)
     fern(layer, 138)
     pine(layer, 158, 52, 12, FO['pine2'])
     mushroom(layer, 178)
     mushroom(layer, 183)
-    bush(layer, 198)
-    pine(layer, 224, 42, 10)
-    fern(layer, 245)
+    bush(layer, 194)
+    pine(layer, 210, 42, 9)
     return layer
 
 
 def forest_tile_b():
     layer = forest_base()
     set_outline('#2f3f25')
-    pine(layer, 11, 38, 8, FO['pine2'])
-    bush(layer, 30)
-    pine(layer, 52, 46, 11)
-    log(layer, 68)
-    mushroom(layer, 92)
-    pine(layer, 112, 40, 9, FO['pine2'])
-    fern(layer, 130)
-    bush(layer, 147)
-    pine(layer, 170, 54, 12)
-    fern(layer, 192)
-    mushroom(layer, 201)
-    pine(layer, 226, 44, 10, FO['pine2'])
-    bush(layer, 246, 4)
+    pine(layer, 48, 38, 8, FO['pine2'])
+    bush(layer, 63)
+    pine(layer, 80, 46, 11)
+    log(layer, 94)
+    mushroom(layer, 114)
+    pine(layer, 130, 40, 9, FO['pine2'])
+    fern(layer, 148)
+    bush(layer, 162)
+    pine(layer, 184, 54, 12)
+    fern(layer, 204)
+    mushroom(layer, 213)
     return layer
 
 
@@ -1994,30 +1992,25 @@ def bench(layer, x0):
 def city_tile_a():
     layer = city_base()
     set_outline('#353a44')
-    building(layer, 4, 40, 40, hexc('#c98f7a'))
-    city_lamp(layer, 49)
-    building(layer, 58, 36, 30, hexc('#8fa3c0'), awning=CI['red'])
-    planter(layer, 102)
-    building(layer, 112, 44, 44, hexc('#d8c38f'))
-    hydrant(layer, 162)
-    building(layer, 170, 38, 34, hexc('#9cb08a'), awning=hexc('#f7c948'))
-    city_lamp(layer, 211)
-    building(layer, 220, 32, 26, hexc('#b39cc0'))
+    building(layer, 40, 40, 40, hexc('#c98f7a'))
+    city_lamp(layer, 84)
+    building(layer, 93, 36, 30, hexc('#8fa3c0'), awning=CI['red'])
+    planter(layer, 137)
+    building(layer, 145, 40, 44, hexc('#d8c38f'))
+    building(layer, 190, 30, 26, hexc('#b39cc0'))
     return layer
 
 
 def city_tile_b():
     layer = city_base()
     set_outline('#353a44')
-    building(layer, 3, 34, 36, hexc('#9cb08a'))
-    planter(layer, 45)
-    building(layer, 56, 42, 46, hexc('#c98f7a'), awning=CI['green'])
-    city_lamp(layer, 102)
-    building(layer, 110, 36, 28, hexc('#b39cc0'))
-    bench(layer, 150)
-    building(layer, 168, 40, 40, hexc('#8fa3c0'))
-    city_lamp(layer, 212)
-    building(layer, 221, 31, 30, hexc('#d8c38f'), awning=CI['red'])
+    building(layer, 40, 34, 36, hexc('#9cb08a'))
+    planter(layer, 81)
+    building(layer, 90, 42, 46, hexc('#c98f7a'), awning=CI['green'])
+    city_lamp(layer, 136)
+    building(layer, 145, 34, 28, hexc('#b39cc0'))
+    bench(layer, 182)
+    building(layer, 198, 22, 30, hexc('#d8c38f'), awning=CI['red'])
     return layer
 
 
@@ -2148,30 +2141,28 @@ def dune_grass(layer, cx):
 def beach_tile_a():
     layer = beach_base()
     set_outline('#7a6a4a')
-    palm(layer, 14, 34, 5)
-    umbrella(layer, 46, BE['red'])
-    beach_ball(layer, 61)
-    sandcastle(layer, 78)
-    palm(layer, 116, 40, -6)
-    umbrella(layer, 142, BE['blue'])
-    dune_grass(layer, 167)
-    palm(layer, 196, 30, 4)
-    umbrella(layer, 231, BE['yellow'])
+    umbrella(layer, 48, BE['red'])
+    beach_ball(layer, 62)
+    sandcastle(layer, 72)
+    palm(layer, 110, 40, -6)
+    umbrella(layer, 136, BE['blue'])
+    dune_grass(layer, 158)
+    palm(layer, 180, 30, 4)
+    umbrella(layer, 210, BE['yellow'])
     return layer
 
 
 def beach_tile_b():
     layer = beach_base()
     set_outline('#7a6a4a')
-    umbrella(layer, 16, BE['green'])
-    palm(layer, 54, 38, -5)
-    beach_ball(layer, 77)
-    dune_grass(layer, 97)
-    umbrella(layer, 125, BE['red'])
+    umbrella(layer, 46, BE['green'])
+    palm(layer, 80, 38, -5)
+    beach_ball(layer, 98)
+    dune_grass(layer, 112)
+    umbrella(layer, 130, BE['red'])
     palm(layer, 160, 34, 6)
     sandcastle(layer, 188)
-    umbrella(layer, 226, BE['blue'])
-    dune_grass(layer, 248)
+    dune_grass(layer, 212)
     return layer
 
 
@@ -2271,27 +2262,25 @@ def boulder(layer, cx, r=4):
 def mountain_tile_a():
     layer = mountain_base([(60, 26, 30), (150, 32, 36), (215, 20, 24)])
     set_outline('#3f4250')
-    pine(layer, 20, 34, 8, MO['pine'], MO['snow'])
-    boulder(layer, 42)
-    pine(layer, 96, 40, 9, MO['pine'], MO['snow'])
-    boulder(layer, 120, 5)
-    pine(layer, 176, 36, 8, MO['pine'], MO['snow'])
-    boulder(layer, 206, 3)
-    pine(layer, 238, 30, 8, MO['pine'], MO['snow'])
+    boulder(layer, 44)
+    pine(layer, 66, 34, 8, MO['pine'], MO['snow'])
+    pine(layer, 100, 40, 9, MO['pine'], MO['snow'])
+    boulder(layer, 124, 5)
+    pine(layer, 160, 36, 8, MO['pine'], MO['snow'])
+    boulder(layer, 186, 3)
+    pine(layer, 208, 30, 8, MO['pine'], MO['snow'])
     return layer
 
 
 def mountain_tile_b():
     layer = mountain_base([(44, 22, 28), (124, 30, 34), (204, 26, 30)])
     set_outline('#3f4250')
-    boulder(layer, 14, 4)
-    pine(layer, 58, 38, 9, MO['pine'], MO['snow'])
-    pine(layer, 74, 26, 6, MO['pine'], MO['snow'])
-    boulder(layer, 102, 5)
-    pine(layer, 142, 42, 10, MO['pine'], MO['snow'])
-    boulder(layer, 170, 4)
-    pine(layer, 224, 36, 9, MO['pine'], MO['snow'])
-    boulder(layer, 247, 3)
+    pine(layer, 52, 38, 9, MO['pine'], MO['snow'])
+    pine(layer, 68, 26, 6, MO['pine'], MO['snow'])
+    boulder(layer, 96, 5)
+    pine(layer, 136, 42, 10, MO['pine'], MO['snow'])
+    boulder(layer, 164, 4)
+    pine(layer, 206, 36, 9, MO['pine'], MO['snow'])
     return layer
 
 
@@ -2437,42 +2426,37 @@ def banner(layer, x0, w=10, h=16):
 def dungeon_tile_a():
     layer = dungeon_base()
     set_outline('#1e1a26')
-    pillar(layer, 8)
-    torch(layer, 24)
-    dungeon_arch(layer, 44)
-    torch(layer, 64)
-    barrel(layer, 76)
-    bars_window(layer, 92)
-    chain(layer, 112)
-    crate(layer, 120)
-    pillar(layer, 140)
-    banner(layer, 156)
-    barrel(layer, 178)
-    dungeon_arch(layer, 202, 14, 22)
-    torch(layer, 222)
-    crate(layer, 232, 8)
-    chain(layer, 248, 10)
+    pillar(layer, 41)
+    torch(layer, 56)
+    dungeon_arch(layer, 78)
+    torch(layer, 98)
+    barrel(layer, 110)
+    bars_window(layer, 120)
+    chain(layer, 136)
+    crate(layer, 142)
+    pillar(layer, 164)
+    banner(layer, 176)
+    barrel(layer, 196)
+    torch(layer, 208)
+    crate(layer, 211, 8)
     return layer
 
 
 def dungeon_tile_b():
     layer = dungeon_base()
     set_outline('#1e1a26')
-    chain(layer, 6, 12)
-    banner(layer, 14)
-    torch(layer, 36)
-    bars_window(layer, 46)
-    barrel(layer, 66)
-    crate(layer, 74)
-    pillar(layer, 96)
-    dungeon_arch(layer, 124, 18, 26)
-    torch(layer, 146)
-    chain(layer, 160)
-    barrel(layer, 170)
-    pillar(layer, 190)
-    banner(layer, 204, 9, 14)
-    bars_window(layer, 222)
-    crate(layer, 240, 8)
+    chain(layer, 40, 12)
+    banner(layer, 46)
+    torch(layer, 66)
+    bars_window(layer, 76)
+    barrel(layer, 96)
+    crate(layer, 104)
+    pillar(layer, 124)
+    dungeon_arch(layer, 150, 18, 26)
+    torch(layer, 172)
+    chain(layer, 182)
+    barrel(layer, 192)
+    pillar(layer, 212)
     return layer
 
 
@@ -2622,17 +2606,16 @@ def space_tile_a():
     layer = space_base(1)
     set_outline('#2a2f4a')
     planet_ringed(layer, 70, 18)
-    habitat(layer, 18)
-    antenna(layer, 38)
-    moon_rock(layer, 52)
-    habitat(layer, 92, 13)
-    moon_rock(layer, 118, 4)
-    mini_dish(layer, 136)
-    antenna(layer, 156, 22)
-    habitat(layer, 182, 9)
-    moon_rock(layer, 204, 2)
-    mini_dish(layer, 222)
-    moon_rock(layer, 244, 3)
+    habitat(layer, 48, 10)
+    antenna(layer, 66)
+    moon_rock(layer, 78)
+    habitat(layer, 102, 13)
+    moon_rock(layer, 126, 4)
+    mini_dish(layer, 142)
+    antenna(layer, 160, 22)
+    habitat(layer, 184, 9)
+    moon_rock(layer, 202, 2)
+    mini_dish(layer, 214)
     return layer
 
 
@@ -2640,16 +2623,15 @@ def space_tile_b():
     layer = space_base(2)
     set_outline('#2a2f4a')
     planet_earth(layer, 190, 16)
-    moon_rock(layer, 10, 4)
-    mini_dish(layer, 30)
-    habitat(layer, 60, 11)
-    antenna(layer, 82)
-    moon_rock(layer, 100)
-    habitat(layer, 128, 9)
-    moon_rock(layer, 150, 2)
-    antenna(layer, 168, 16)
-    habitat(layer, 210, 12)
-    mini_dish(layer, 240)
+    moon_rock(layer, 44, 4)
+    mini_dish(layer, 58)
+    habitat(layer, 84, 11)
+    antenna(layer, 104)
+    moon_rock(layer, 118)
+    habitat(layer, 142, 9)
+    moon_rock(layer, 160, 2)
+    antenna(layer, 172, 16)
+    habitat(layer, 204, 12)
     return layer
 
 
@@ -2797,42 +2779,35 @@ def starfish(layer, cx):
 
 
 def ocean_tile_a():
+    # Fish and bubbles swim and rise in the app (src/track/ambient.tsx)
     layer = ocean_base()
     set_outline('#1f4a66')
-    kelp(layer, 10, 40)
-    coral(layer, 30, OC['coral'])
-    fish(layer, 48, 22, OC['fish'])
-    sea_rock(layer, 56, 5, OC['coral2'])
-    bubbles(layer, 74, 50)
-    kelp(layer, 88, 46, OC['kelp2'])
-    starfish(layer, 104)
-    coral(layer, 122, OC['coral2'], 16)
-    fish(layer, 140, 30, OC['fish2'], left=True)
-    kelp(layer, 156, 34)
-    sea_rock(layer, 178, 4)
-    coral(layer, 200, OC['coral'], 12)
-    fish(layer, 212, 16, OC['fish'], left=True)
-    kelp(layer, 228, 42, OC['kelp2'])
-    starfish(layer, 246)
+    kelp(layer, 42, 40)
+    coral(layer, 58, OC['coral'])
+    sea_rock(layer, 80, 5, OC['coral2'])
+    kelp(layer, 100, 46, OC['kelp2'])
+    starfish(layer, 114)
+    coral(layer, 130, OC['coral2'], 16)
+    kelp(layer, 150, 34)
+    sea_rock(layer, 170, 4)
+    coral(layer, 190, OC['coral'], 12)
+    kelp(layer, 212, 42, OC['kelp2'])
     return layer
 
 
 def ocean_tile_b():
     layer = ocean_base()
     set_outline('#1f4a66')
-    sea_rock(layer, 14, 5, OC['coral'])
-    kelp(layer, 36, 44, OC['kelp2'])
-    fish(layer, 58, 26, OC['fish2'])
-    coral(layer, 62, OC['coral2'])
-    starfish(layer, 82)
-    kelp(layer, 100, 38)
-    bubbles(layer, 114, 46)
-    coral(layer, 134, OC['coral'], 15)
-    sea_rock(layer, 160, 6, OC['coral2'])
-    fish(layer, 176, 18, OC['fish'], left=True)
-    kelp(layer, 190, 48)
-    coral(layer, 214, OC['coral2'], 12)
-    kelp(layer, 238, 36, OC['kelp2'])
+    sea_rock(layer, 46, 5, OC['coral'])
+    kelp(layer, 66, 44, OC['kelp2'])
+    coral(layer, 84, OC['coral2'])
+    starfish(layer, 100)
+    kelp(layer, 116, 38)
+    coral(layer, 138, OC['coral'], 15)
+    sea_rock(layer, 162, 6, OC['coral2'])
+    kelp(layer, 184, 48)
+    coral(layer, 202, OC['coral2'], 12)
+    kelp(layer, 216, 36, OC['kelp2'])
     return layer
 
 
@@ -2916,7 +2891,11 @@ NE = {
     'shutter': hexc('#8a8a98'), 'tank': hexc('#8a6a4a'), 'hoop': hexc('#5a4a3a'),
     'can': hexc('#5f7a6a'), 'cone': hexc('#f08a3d'), 'white': hexc('#f3ebe0'),
     'beam': hexc('#e0a83d'), 'red': hexc('#e0584f'),
+    # Neon caught on the wet road, and windows lit by a TV
+    'ref_pink': hexc('#a8507e'), 'ref_cyan': hexc('#3f9aa4'), 'ref_lime': hexc('#79a04a'),
+    'tv': hexc('#9fb8ff'),
 }
+REFLECTS = {'pink': 'ref_pink', 'cyan': 'ref_cyan', 'lime': 'ref_lime'}
 NEON_GROUND = 49  # buildings stand behind a 6-row sidewalk, as in the city
 
 
@@ -2947,7 +2926,7 @@ def neon_base(seed):
     return layer
 
 
-def tenement(layer, x0, w, h, color, lit_seed=0, shutter=False, escape=False, tank=False):
+def tenement(layer, x0, w, h, color, lit_seed=0, shutter=False, escape=False, tank=False, trim=None):
     top = NEON_GROUND - h + 1
     vpart(layer, rect(x0, top, x0 + w - 1, NEON_GROUND), color)
     vpart(layer, rect(x0 - 1, top - 2, x0 + w, top), darker(color, 0.8))  # parapet
@@ -2957,7 +2936,8 @@ def tenement(layer, x0, w, h, color, lit_seed=0, shutter=False, escape=False, ta
     for j, y in enumerate(range(top + 3, NEON_GROUND - 12, 6)):
         for i, x in enumerate(range(x0 + 3, x0 + w - 4, 6)):
             lit = (i * 3 + j * 5 + lit_seed) % 4 != 0
-            vpart(layer, rect(x, y, x + 2, y + 3), NE['lit'] if lit else NE['unlit'], 0.85)
+            tv = lit and (i * 5 + j * 3 + lit_seed) % 9 == 0
+            vpart(layer, rect(x, y, x + 2, y + 3), NE['tv'] if tv else NE['lit'] if lit else NE['unlit'], 0.85)
     if escape:  # fire escape: landings with a ladder zig-zag between them
         fx = x0 + w - 12
         for y in range(top + 8, NEON_GROUND - 12, 6):
@@ -2980,6 +2960,40 @@ def tenement(layer, x0, w, h, color, lit_seed=0, shutter=False, escape=False, ta
     else:
         vpart(layer, rect(x0 + 2, NEON_GROUND - 7, x0 + w - 9, NEON_GROUND - 2), NE['lit'], 0.9)
         vpart(layer, rect(x0 + w - 7, NEON_GROUND - 8, x0 + w - 3, NEON_GROUND), NE['iron'])
+    if trim:  # a neon tube along the top of the shopfront
+        layer.dots(NE[trim], [(x, NEON_GROUND - 10) for x in range(x0 + 1, x0 + w - 1)])
+        reflection(layer, x0 + 1, w - 2, trim)
+
+
+def reflection(layer, x0, w, color):
+    """A neon light caught on the wet road under it: thin vertical
+    streaks of different lengths, broken up, fading toward the near side."""
+    ref = NE[REFLECTS[color]]
+
+    def noise(n):  # repeatable, in [0, 1)
+        return (math.sin(n * 12.9898) * 43758.5453) % 1
+
+    for x in range(x0, x0 + w):
+        if x % 2 or noise(x * 3.1) > 0.7:  # every other column at most
+            continue
+        length = 4 + int(noise(x * 7.7) * 12)
+        for y in range(57, 57 + length):
+            if y in (66, 67) or noise(x * 1.3 + y * 5.9) < (y - 57) / 16:  # the lane line stays
+                continue
+            layer.dots(ref, [(x, y)])
+
+
+def billboard(layer, x0, y0, w, h, frame, text):
+    """A rooftop sign on two legs: dark board, a neon frame, bars of 'text'."""
+    for lx in (x0 + 3, x0 + w - 4):
+        layer.dots(NE['iron'], [(lx, y) for y in range(y0 + h, y0 + h + 3)])
+    vpart(layer, rect(x0, y0, x0 + w - 1, y0 + h - 1), NE['unlit'], 0.9)
+    layer.dots(NE[frame], [(x, y) for x, y in rect(x0 + 1, y0 + 1, x0 + w - 2, y0 + h - 2)
+                           if x in (x0 + 1, x0 + w - 2) or y in (y0 + 1, y0 + h - 2)])
+    for k, x in enumerate(range(x0 + 3, x0 + w - 3, 4)):
+        tall = k % 3 != 1
+        layer.dots(NE[text], [(xx, y) for xx in (x, x + 1) for y in range(y0 + 3, y0 + h - 3)
+                              if tall or y == y0 + h - 4])
 
 
 def graffiti(layer, x0, y0, colors):
@@ -2990,8 +3004,10 @@ def graffiti(layer, x0, y0, colors):
                        (bx + 2, y0 + 2), (bx + 3, y0 + 3), (bx + 1, y0 + 3)])
 
 
-def neon_sign(layer, x, y, h, color):
+def neon_sign(layer, x, y, h, color, reflect=True):
     """Vertical sign on a bracket: dark board, glowing border and bars."""
+    if reflect:
+        reflection(layer, x - 1, 7, next(k for k, v in NE.items() if v == color))
     layer.dots(NE['iron'], [(x - 2, y + 1), (x - 1, y + 1), (x - 2, y + h - 2), (x - 1, y + h - 2)])
     vpart(layer, rect(x, y, x + 4, y + h - 1), NE['unlit'], 0.9)
     layer.dots(color, [(x + 1, yy) for yy in range(y + 1, y + h - 1)])
@@ -3020,36 +3036,33 @@ def cone(layer, cx):
 def neon_tile_a():
     layer = neon_base(0)
     set_outline('#1c1828')
-    tenement(layer, 3, 38, 40, NE['brick'], 1, shutter=True, escape=True)
-    graffiti(layer, 8, NEON_GROUND - 12, (NE['pink'], NE['cyan'], NE['lime']))
-    street_light(layer, 46)
-    tenement(layer, 56, 34, 32, NE['concrete'], 2, tank=True)
-    neon_sign(layer, 92, 22, 16, NE['pink'])
-    trash_can(layer, 104)
-    tenement(layer, 112, 44, 46, NE['plum'], 3, escape=True)
-    cone(layer, 162)
-    tenement(layer, 170, 38, 36, NE['teal'], 0, shutter=True, tank=True)
-    graffiti(layer, 176, NEON_GROUND - 12, (NE['lime'], NE['pink'], NE['cyan']))
-    street_light(layer, 212)
-    tenement(layer, 222, 31, 28, NE['brick'], 2)
+    tenement(layer, 40, 38, 40, NE['brick'], 1, shutter=True, escape=True)
+    graffiti(layer, 45, NEON_GROUND - 12, (NE['pink'], NE['cyan'], NE['lime']))
+    street_light(layer, 82)
+    tenement(layer, 92, 34, 32, NE['concrete'], 2, tank=True, trim='cyan')
+    billboard(layer, 106, 5, 18, 10, 'pink', 'cyan')
+    neon_sign(layer, 128, 22, 16, NE['pink'])
+    trash_can(layer, 140)
+    tenement(layer, 150, 44, 46, NE['plum'], 3, escape=True, trim='pink')
+    cone(layer, 200)
+    street_light(layer, 208)
     return layer
 
 
 def neon_tile_b():
     layer = neon_base(1)
     set_outline('#1c1828')
-    tenement(layer, 3, 34, 34, NE['teal'], 2, tank=True)
-    trash_can(layer, 43)
-    tenement(layer, 52, 42, 46, NE['brick'], 0, escape=True, shutter=True)
-    graffiti(layer, 56, NEON_GROUND - 12, (NE['cyan'], NE['pink'], NE['lime']))
-    neon_sign(layer, 96, 18, 20, NE['cyan'])
-    street_light(layer, 104)
-    tenement(layer, 114, 36, 30, NE['plum'], 1)
-    cone(layer, 156)
-    cone(layer, 164)
-    tenement(layer, 172, 40, 42, NE['concrete'], 3, escape=True)
-    neon_sign(layer, 214, 24, 14, NE['lime'])
-    tenement(layer, 222, 31, 32, NE['brick'], 1, shutter=True)
+    tenement(layer, 40, 34, 34, NE['teal'], 2, tank=True, trim='lime')
+    trash_can(layer, 80)
+    tenement(layer, 90, 42, 46, NE['brick'], 0, escape=True, shutter=True)
+    graffiti(layer, 94, NEON_GROUND - 12, (NE['cyan'], NE['pink'], NE['lime']))
+    neon_sign(layer, 134, 18, 20, NE['cyan'])
+    street_light(layer, 142)
+    tenement(layer, 152, 36, 30, NE['plum'], 1, trim='cyan')
+    billboard(layer, 156, 6, 28, 11, 'cyan', 'pink')
+    cone(layer, 196)
+    cone(layer, 204)
+    neon_sign(layer, 212, 24, 14, NE['lime'])
     return layer
 
 
@@ -3102,7 +3115,7 @@ def neon_goal():  # neon tower with a beacon on top
             if x not in (39,):
                 lit = (i + j * 2) % 3 != 0
                 vpart(layer, rect(x, y, x + 2, y + 2), NE['lit'] if lit else NE['unlit'], 0.85)
-    neon_sign(layer, 40, 18, 36, NE['pink'])
+    neon_sign(layer, 40, 18, 36, NE['pink'], reflect=False)  # no road under it here
     layer.dots(NE['iron'], [(31, y) for y in range(1, 11)] + [(32, y) for y in range(3, 11)])
     vpart(layer, rect(30, 0, 33, 2), NE['red'], 0.95)  # beacon
     vpart(layer, rect(10, 62, 53, LB), darker(NE['plum'], 0.85))

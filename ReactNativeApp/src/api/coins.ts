@@ -58,16 +58,24 @@ export async function listOwnedItemsInOrder(): Promise<string[]> {
 
 /**
  * Check-in bonus for opening the app. granted = 0 means "not ready yet".
- * nextAt = null means the user is not sharing steps (no coins). Calling it
- * too often is harmless: the database answers "not yet".
+ * nextAt = null means the user is not sharing steps (no coins). welcome is
+ * the one-time welcome bonus inside granted (0 after the first check-in).
+ * Calling it too often is harmless: the database answers "not yet".
  */
-export async function claimCheckin(): Promise<{ granted: number; nextAt: Date | null }> {
+export async function claimCheckin(): Promise<{
+  granted: number;
+  nextAt: Date | null;
+  welcome: number;
+}> {
   const { data, error } = await supabase.rpc('claim_checkin');
   if (error) throw error;
-  const row = (data as { granted: number; next_at: string | null }[] | null)?.[0];
+  const row = (
+    data as { granted: number; next_at: string | null; welcome: number }[] | null
+  )?.[0];
   return {
     granted: row?.granted ?? 0,
     nextAt: row?.next_at ? new Date(row.next_at) : null,
+    welcome: row?.welcome ?? 0,
   };
 }
 

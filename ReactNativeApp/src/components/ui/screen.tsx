@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
-import { type ReactNode, useCallback } from 'react';
+import { type ReactNode, useCallback, useState } from 'react';
 import {
   Image,
   RefreshControl,
@@ -9,23 +9,26 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useMapTheme } from '@/hooks/use-map-theme';
+import { FrontLayer, SkyLayer, useAmbientClock } from '@/track/ambient';
 
 const TILE_W = 512; // same sizes as StepTrack
 const TILE_H = 160;
+const SCENE_H = 192; // lit maps: the sky's depth strips start above the tiles
 
 /** A fixed strip of the map's scenery at full height (as on Today), no characters. */
-function SceneryBand() {
+function SceneryBand({ height }: { height: number }) {
   const { theme } = useMapTheme();
   const { width } = useWindowDimensions();
   const count = Math.ceil(width / TILE_W);
   return (
     <View
-      style={styles.band}
+      style={[styles.band, { height }]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants">
       <View style={styles.tiles}>
@@ -57,9 +60,10 @@ type ScreenProps = {
 };
 
 /**
- * The page background shared with Today: sky color from the top of the
- * screen, a strip of the user's map scenery, then the ground color down
- * to the bottom with the page's content scrolling on it.
+ * The page background shared with Today: the map's sky from the top of
+ * the screen with the title on it, a strip of the user's map scenery,
+ * then the ground color down to the bottom with the page's content
+ * scrolling on it.
  */
 export function Screen({
   title,
@@ -83,22 +87,36 @@ export function Screen({
   );
   const skyText = { color: theme.skyInk };
 
+  // Lit maps: the sky picture, and what moves in it, runs up behind the
+  // title as on Today; `above` is the title's height
+  const lit = scenery ? theme.scenery : undefined;
+  const { width } = useWindowDimensions();
+  const clock = useAmbientClock();
+  const scrollX = useSharedValue(0);
+  const [above, setAbove] = useState(0);
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.ground }]}>
-      <View style={{ backgroundColor: theme.sky, paddingTop: hasHeader ? 0 : insets.top }}>
-        {(title || subtitle) && (
-          <View style={styles.header}>
-            <View style={styles.inner}>
-              {title && (
-                <ThemedText type="subtitle" accessibilityRole="header" style={skyText}>
-                  {title}
-                </ThemedText>
-              )}
-              {subtitle && <ThemedText style={skyText}>{subtitle}</ThemedText>}
+      <View style={{ backgroundColor: theme.sky }}>
+        {lit && <SkyLayer scenery={lit} clock={clock} scrollX={scrollX} viewport={width} above={above} />}
+        <View
+          onLayout={(e) => setAbove(e.nativeEvent.layout.height)}
+          style={{ paddingTop: hasHeader ? 0 : insets.top }}>
+          {(title || subtitle) && (
+            <View style={styles.header}>
+              <View style={styles.inner}>
+                {title && (
+                  <ThemedText type="subtitle" accessibilityRole="header" style={skyText}>
+                    {title}
+                  </ThemedText>
+                )}
+                {subtitle && <ThemedText style={skyText}>{subtitle}</ThemedText>}
+              </View>
             </View>
-          </View>
-        )}
-        {scenery && <SceneryBand />}
+          )}
+        </View>
+        {scenery && <SceneryBand height={lit ? SCENE_H : TILE_H} />}
+        {lit && <FrontLayer scenery={lit} clock={clock} viewport={width} above={above} />}
       </View>
 
       <ScrollView
@@ -131,7 +149,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.two,
   },
   band: {
-    height: TILE_H,
     overflow: 'hidden', // wide tiles past the screen edge
   },
   tiles: {

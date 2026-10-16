@@ -20,7 +20,8 @@ Contents
   8. History, reminders    (step-tracker-history-reminders.txt, 6)
   9. Achievements          (step-tracker-achievements.txt, section 8)
   10. Builds               (step-tracker-builds.txt, section 6)
-  11. Still open
+  11. Coins and prices     (step-tracker-coins-items.txt, section 5)
+  12. Still open
 
 ======================================================================
 1. REGISTRATION (step-tracker-register.txt, section 9)
@@ -162,19 +163,19 @@ Contents
 3. GOALS AND STREAKS (step-tracker-goals-streaks.txt, section 6)
 ======================================================================
 
-  GOAL-1   Goal range: 5,000 to 20,000 in steps of 500; default
-           10,000. Goals outside it moved to the nearest end.
-           (Changed October 2026: was 3,000 to 25,000.)
-           Change to:
+  GOAL-1   No longer applies (GOAL-15): there is no goal to pick.
+           Was: a range of 5,000 to 20,000 in steps of 500, default
+           10,000 (3,000 to 25,000 before that).
 
   GOAL-2   Daily coins: each player's target is 7,000 to 10,000 steps
-           (in 500s), random for each player each day, whatever their
-           goal; shown on Today. The step track still runs 0 to 10,000.
+           (in 500s), random for each player each day; shown on Today.
+           Since GOAL-16 it is also the daily goal. The step track still
+           runs 0 to 10,000.
            (Changed October 2026: was 10,000 for everyone.)
            Change to:
 
-  GOAL-3   Your goal shows as a small marker on your own step track.
-           Change to:
+  GOAL-3   No longer applies (GOAL-15): the step track has no
+           marker of its own for you; 10,000 reads GOAL.
 
   GOAL-4   Your streak shows on your player card to friends and group
            mates.
@@ -183,16 +184,16 @@ Contents
   GOAL-5   No rest days or streak freezes for now.
            Change to:
 
-  GOAL-6   Your own goal pays no coins: no streak bonuses. Streaks
-           follow the personal goal and are only shown. Bonuses
-           already paid are kept.
+  GOAL-6   The goal pays no coins: no streak bonuses. Streaks
+           follow the daily goal (the daily target since GOAL-16)
+           and are only shown. Bonuses already paid are kept.
            (Changed October 2026: was 200 coins at 7 days, 1,000 at
            30 days.)
            Change to:
 
-  GOAL-7   Several goal changes in one day: the last one wins; all
-           are kept. Never changed means 10,000.
-           Change to:
+  GOAL-7   No longer applies (GOAL-15): goals can't be changed.
+           Was: several changes in one day, the last one wins; all
+           kept. Past changes stay in the goal history.
 
   GOAL-8   Launch: streaks shown from existing history.
            (The bonus launch cutoff went with GOAL-6.)
@@ -209,14 +210,32 @@ Contents
            coin history's once-only rule as a second layer.
            Change to:
 
-  GOAL-13  The suspicious-steps checks are unchanged by personal
-           goals.
+  GOAL-13  The suspicious-steps checks don't depend on anyone's goal.
            Change to:
 
-  GOAL-14  A new goal starts the next day. A tampered phone could
-           lower today's goal to rescue a streak, but never earn coins
-           by it, nor beat the streak of an honest player with a 5,000
-           goal. Accepted.
+  GOAL-14  No longer applies (GOAL-15): goals can't be changed, so
+           there is no start date to tamper with. Was: a new goal
+           started the next day, and a tampered phone could lower
+           today's goal to rescue a streak (accepted).
+
+  GOAL-15  Personal goals are removed (October 2026): the daily goal
+           is 10,000 for everyone. Profile's Daily goal section and
+           the step track's MINE marker are gone; Today, History,
+           streaks and goal reminders follow 10,000. Past days keep
+           the goal they had; anyone with another goal moved to
+           10,000 from the next day. The daily coin target (GOAL-2)
+           is unchanged.
+           (Changed the same month by GOAL-16: the goal is the daily
+           target, not 10,000.)
+
+  GOAL-16  The daily goal is each player's daily coin target (GOAL-2):
+           7,000 to 10,000 steps in 500s, different for each player each
+           day, picked by the server. Today ("% of 8,500 goal · 150
+           coins at goal"), History, streaks and goal reminders follow
+           it, and reaching it pays the 150 daily coins. It started on
+           the day it shipped; days before keep the goal they had. The
+           step track's flag stays at 10,000 and reads "10k" (no per-
+           player marker).
            Change to:
 
 ======================================================================
@@ -258,8 +277,9 @@ Contents
             (Changed October 2026: was the same for any group size.)
             Change to:
 
-  QUEST-6   Coins: 1 coin per 200 steps walked, counting up to 150%
+  QUEST-6   Coins: 1 coin per 100 steps walked, counting up to 150%
             of the goal.
+            (Changed October 2026: was 1 coin per 200 steps. COIN-3.)
             Change to:
 
   QUEST-7   Group size bonus: x(1 + 0.2 per member after the first),
@@ -274,7 +294,8 @@ Contents
   QUEST-9   Failed quests pay nothing (show "So close! 87%").
             Change to:
 
-  QUEST-10  Daily cap: 600 quest coins per person per day.
+  QUEST-10  Daily cap: 400 quest coins per person per day.
+            (Changed October 2026: was 600. COIN-3.)
             Change to:
 
   QUEST-11  Quests need step sharing to take part; minimum 2 members
@@ -463,8 +484,44 @@ Contents
            Change to:
 
 ======================================================================
-11. STILL OPEN
+11. COINS AND PRICES (step-tracker-coins-items.txt, section 5)
 ======================================================================
+
+  COIN-1   Welcome bonus: 300 coins, once, with a player's first
+           check-in ever (which the app makes as soon as sharing is
+           turned on). Players who had checked in before the change
+           don't get it.
+           Change to:
+
+  COIN-2   Daily step reward: 150 coins (was 100). Shop refresh:
+           10 coins (was 25). Check-in unchanged: 10 every 6 hours.
+           Walking should pay more than opening the app.
+           Change to:
+
+  COIN-3   Quest coins: 1 per 100 steps (was 200); daily cap 400
+           (was 600). See QUEST-6 and QUEST-10.
+           Change to:
+
+  COIN-4   Prices: pets up (snail stays 500, the rest 800-1,500),
+           maps down 500 each (1,500-3,000), plain bottoms 300,
+           every price a round hundred, outfit_knight 2,500.
+           Past purchases are not refunded or charged the difference.
+           Change to:
+
+  COIN-5   New items are priced on a ladder: Common 300, Uncommon
+           500, Rare 800, Epic 1,500, Legendary 2,500. Pets and maps
+           may sit one step higher.
+           Change to:
+
+======================================================================
+12. STILL OPEN
+======================================================================
+
+  COIN-F  Something to spend coins on once a player owns everything
+          (step-tracker-coins-items.txt, 5f). Options: keep adding
+          items, a "buy any item" option at 2x price, or seasonal
+          items.
+          Decision:
 
   REG-F  Existing accounts and the Terms (step-tracker-register.txt,
          section 9). Accounts made before the Terms box have no

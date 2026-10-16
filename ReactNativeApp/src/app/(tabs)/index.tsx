@@ -31,7 +31,7 @@ import { useMapTheme } from '@/hooks/use-map-theme';
 import { useSteps } from '@/hooks/use-steps';
 import { useWallet } from '@/hooks/use-wallet';
 import { errorMessage } from '@/lib/error-message';
-import { COIN_STEPS_MAX, DEFAULT_GOAL, goalProgress } from '@/lib/goal';
+import { DEFAULT_GOAL, goalProgress } from '@/lib/goal';
 import { pickShown } from '@/track/scale';
 import { StepTrack, type Walker } from '@/track/StepTrack';
 
@@ -67,13 +67,12 @@ export default function TodayScreen() {
   // chosen on the Profile page.
   const { theme } = useMapTheme();
 
-  // Your goal for today (10,000 until you pick one); daily coins have
-  // their own target, 7,000 to 10,000 and different each day
-  // (step-tracker-decisions.txt, GOAL-2)
+  // Today's goal: 7,000 to 10,000, different for each player each day,
+  // and reaching it pays the daily coins (step-tracker-decisions.txt,
+  // GOAL-16). The server picks it.
   const dailyGoal = goal?.today ?? DEFAULT_GOAL;
   const progress = goalProgress(today ?? 0, dailyGoal);
-  const coinSteps = goal?.coin_steps ?? COIN_STEPS_MAX;
-  const earnedCoins = (today ?? 0) >= coinSteps && sharing;
+  const earnedCoins = (today ?? 0) >= dailyGoal && sharing;
   const blocked = permission === 'denied' || permission === 'unavailable';
   // iOS hides denied read access, so zero steps may really mean "no permission".
   const showIosZeroHint = Platform.OS === 'ios' && permission === 'granted' && today === 0;
@@ -146,44 +145,51 @@ export default function TodayScreen() {
   const ink = { color: theme.ink };
   const selected = walkers.find((w) => w.id === selectedId) ?? null;
 
+  const header = (
+    // From the very top of the screen, behind the status bar
+    <View style={[styles.header, { paddingTop: insets.top + Spacing.two }]}>
+      <View style={styles.topBar}>
+        <CoinBalance balance={balance} color={theme.skyInk} />
+        <Pressable
+          onPress={() => router.push('/shop')}
+          accessibilityRole="button"
+          style={({ pressed }) => pressed && styles.pressed}>
+          <ThemedText type="smallBold" style={[styles.shopLink, { color: theme.skyInk }]}>
+            Shop
+          </ThemedText>
+        </Pressable>
+      </View>
+      <View style={styles.hero}>
+        <ThemedText type="code" style={[styles.caps, { color: theme.skyInk }]}>
+          Today
+        </ThemedText>
+        <ThemedText style={[styles.count, { color: theme.skyInk }]}>
+          {today?.toLocaleString() ?? '--'}
+        </ThemedText>
+        <ThemedText type="small" style={{ color: theme.skyInk }}>
+          {Math.round(progress * 100)}% of {dailyGoal.toLocaleString()} goal
+          {sharing && (earnedCoins ? ' · +150 coins' : ' · 150 coins at goal')}
+        </ThemedText>
+        <StreakLine streak={streak} steps={today ?? 0} color={theme.skyInk} />
+        <CheckinCountdown nextAt={nextCheckin} color={theme.skyInk} />
+      </View>
+    </View>
+  );
+
   return (
     // The ground color fills the whole screen, down to the bottom edge
     <View style={[styles.screen, { backgroundColor: theme.ground }]}>
-      {/* Sky color from the very top of the screen (behind the status bar) down to the road */}
-      <View style={{ backgroundColor: theme.sky, paddingTop: insets.top }}>
-        <View style={styles.header}>
-          <View style={styles.topBar}>
-            <CoinBalance balance={balance} color={theme.skyInk} />
-            <Pressable
-              onPress={() => router.push('/shop')}
-              accessibilityRole="button"
-              style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedText type="smallBold" style={[styles.shopLink, { color: theme.skyInk }]}>
-                Shop
-              </ThemedText>
-            </Pressable>
-          </View>
-          <View style={styles.hero}>
-            <ThemedText type="code" style={[styles.caps, { color: theme.skyInk }]}>
-              Today
-            </ThemedText>
-            <ThemedText style={[styles.count, { color: theme.skyInk }]}>
-              {today?.toLocaleString() ?? '--'}
-            </ThemedText>
-            <ThemedText type="small" style={{ color: theme.skyInk }}>
-              {Math.round(progress * 100)}% of {dailyGoal.toLocaleString()} goal
-              {sharing &&
-                (earnedCoins ? ' · +100 coins' : ` · coins at ${coinSteps.toLocaleString()}`)}
-            </ThemedText>
-            <StreakLine streak={streak} steps={today ?? 0} color={theme.skyInk} />
-            <CheckinCountdown nextAt={nextCheckin} color={theme.skyInk} />
-          </View>
-        </View>
-      </View>
-
-      {/* Edge to edge: no padding around the map. It stays put while the list scrolls. */}
-      {mode.kind !== 'solo' && !sharing ? null : (
-        <StepTrack walkers={pickShown(walkers, MAX_ON_TRACK)} theme={theme} myGoal={dailyGoal} />
+      {/* Edge to edge: no padding around the map. It stays put while the list scrolls.
+          The map's sky runs up behind the header to the top of the screen. */}
+      {mode.kind !== 'solo' && !sharing ? (
+        <View style={{ backgroundColor: theme.sky }}>{header}</View>
+      ) : (
+        <StepTrack
+          walkers={pickShown(walkers, MAX_ON_TRACK)}
+          theme={theme}
+          onSelect={(w) => setSelectedId(w.id)}
+          header={header}
+        />
       )}
 
       <ScrollView
@@ -250,7 +256,7 @@ export default function TodayScreen() {
                 </ThemedText>
               )}
               <ThemedText type="small" style={ink}>
-                Tap a name to see their profile.
+                Tap someone on the road or a name below to see their profile.
               </ThemedText>
               <Leaderboard rows={ranked} myId={myId} onSelect={(r) => setSelectedId(r.user_id)} />
               <ThemedText type="small" style={ink}>
@@ -296,7 +302,7 @@ export default function TodayScreen() {
         </View>
       </ScrollView>
 
-      {/* Opens over the page (and the tab bar) when a ranking row is tapped */}
+      {/* Opens over the page (and the tab bar) when a character or ranking row is tapped */}
       <PlayerCard
         walker={selected}
         group={mode.kind === 'group' ? { id: mode.id, name: mode.name } : undefined}
@@ -314,7 +320,6 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.two,
     paddingBottom: Spacing.two,
     gap: Spacing.two,
   },

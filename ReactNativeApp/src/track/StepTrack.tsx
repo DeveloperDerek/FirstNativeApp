@@ -1,18 +1,41 @@
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Image,
+  Pressable,
   ScrollView,
   type ScrollViewInstance,
   StyleSheet,
   View,
 } from 'react-native';
+import Reanimated, { type SharedValue, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
 import { Avatar, HEADROOM, PixelSprite } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
 import { ThemedText } from '@/components/themed-text';
 
-import { assignLanes, centerFor, formatSteps, GOAL, roadWidth, scaleMax, ticksFor } from './scale';
+import {
+  ClockHands,
+  Framed,
+  FrontLayer,
+  HorizonLayer,
+  SkyLayer,
+  StreetLayer,
+  useAmbientClock,
+} from './ambient';
+import type { Scenery } from './lighting';
+import { AMBIENT_SPRITES } from './lighting.generated';
+import {
+  assignLanes,
+  centerFor,
+  formatSteps,
+  GOAL,
+  PX_PER_STEP,
+  ROAD_PAD,
+  roadWidth,
+  scaleMax,
+  ticksFor,
+} from './scale';
 import type { MapTheme } from './themes';
 
 export type Walker = {
@@ -41,6 +64,9 @@ const MAX_LANES = 3; // 3 x 14 fits inside the 48-point road
 // at the same count don't merge into one figure.
 const LANE_SHIFT = [0, 22, -22];
 
+// Landmarks stand every 5,000 steps
+const LANDMARK_EVERY = 5_000 * PX_PER_STEP;
+
 const LANDMARK_W = 128;
 const LANDMARK_H = 144;
 // Landmarks stand on the road and reach above the street art, so the
@@ -51,6 +77,8 @@ const FLAG = require('@/assets/track/flag_goal.png');
 const FLAG_W = 12;
 const FLAG_H = 24;
 const FLAG_POLE_X = 1.5; // pole center within the flag sprite, in sprite pixels
+// The avatar's feet are on its second-to-last row
+const FEET_FROM_BOTTOM = 2 * SCALE;
 
 /**
  * Landmarks up to the end of the road. The theme's last landmark (the
@@ -67,7 +95,21 @@ function landmarksFor(theme: MapTheme, max: number) {
   return [...base, ...extra];
 }
 
-function WalkerSprite({ walker, x, lane }: { walker: Walker; x: number; lane: number }) {
+function WalkerSprite({
+  walker,
+  x,
+  lane,
+  scenery,
+  onSelect,
+}: {
+  walker: Walker;
+  x: number;
+  lane: number;
+  /** The map's light, when it has one: a shadow on the road and the light on the character */
+  scenery?: Scenery;
+  onSelect?: (walker: Walker) => void;
+}) {
+  const shadow = scenery?.walkerShadow;
   // Stop on whole points: 0.1 point per step would leave the pixel art
   // between screen pixels, where it is drawn blurry
   const snapped = Math.round(x);
@@ -80,8 +122,6 @@ function WalkerSprite({ walker, x, lane }: { walker: Walker; x: number; lane: nu
   const name = walker.isMe ? 'You' : walker.name;
   return (
     <Animated.View
-      accessible
-      accessibilityLabel={`${name}: ${walker.steps.toLocaleString()} steps`}
       style={[
         styles.walker,
         {
@@ -90,15 +130,68 @@ function WalkerSprite({ walker, x, lane }: { walker: Walker; x: number; lane: nu
           transform: [{ translateX: anim }],
         },
       ]}>
-      {/* Light backing keeps names readable over buildings */}
-      <ThemedText
-        numberOfLines={1}
-        type={walker.isMe ? 'smallBold' : 'small'}
-        style={styles.walkerLabel}>
-        {name}
-      </ThemedText>
-      <Avatar config={normalizeAvatar(walker.avatar)} scale={SCALE} accessibilityLabel={name} />
+      {/* Their shadow on the road, starting at their feet */}
+      {shadow && (
+        <Image
+          source={shadow.source}
+          resizeMode="stretch"
+          style={{
+            position: 'absolute',
+            left: shadow.left * SCALE,
+            bottom: FEET_FROM_BOTTOM - shadow.height * SCALE,
+            width: shadow.width * SCALE,
+            height: shadow.height * SCALE,
+          }}
+          accessibilityElementsHidden
+        />
+      )}
+      {/* Tapping a character opens their profile card */}
+      <Pressable
+        disabled={!onSelect}
+        onPress={() => onSelect?.(walker)}
+        accessibilityRole={onSelect ? 'button' : undefined}
+        accessibilityLabel={`${name}: ${walker.steps.toLocaleString()} steps`}
+        accessibilityHint={onSelect ? 'Opens their profile' : undefined}
+        style={({ pressed }) => [styles.walkerInner, pressed && styles.walkerPressed]}>
+        {/* Light backing keeps names readable over buildings */}
+        <ThemedText
+          numberOfLines={1}
+          type={walker.isMe ? 'smallBold' : 'small'}
+          style={styles.walkerLabel}>
+          {name}
+        </ThemedText>
+        <Avatar
+          config={normalizeAvatar(walker.avatar)}
+          scale={SCALE}
+          accessibilityLabel={name}
+          light={scenery?.avatarMatrix}
+        />
+      </Pressable>
     </Animated.View>
+  );
+}
+
+/** The goal flag; on lit maps it waves in two frames. */
+function GoalFlag({ clock, waving }: { clock: SharedValue<number>; waving: boolean }) {
+  const first = useAnimatedStyle(() => ({ opacity: Math.floor(clock.value * 2.5) % 2 ? 0 : 1 }));
+  const second = useAnimatedStyle(() => ({ opacity: Math.floor(clock.value * 2.5) % 2 ? 1 : 0 }));
+  const flag = (source: number) => (
+    <PixelSprite
+      source={source}
+      width={FLAG_W}
+      height={FLAG_H}
+      scale={SCALE}
+      accessibilityLabel="Flag at 10,000 steps"
+    />
+  );
+  if (!waving) return flag(FLAG);
+  return (
+    <View>
+      <Reanimated.View style={first}>{flag(FLAG)}</Reanimated.View>
+      <Reanimated.View style={[StyleSheet.absoluteFill, second]} accessibilityElementsHidden>
+        {flag(AMBIENT_SPRITES.flag_wave.source)}
+      </Reanimated.View>
+    </View>
   );
 }
 
@@ -110,21 +203,32 @@ function WalkerSprite({ walker, x, lane }: { walker: Walker; x: number; lane: nu
  * It runs edge to edge with no box: the sky color fills behind the
  * scenery and everything below the road is the theme's ground color, so
  * it blends into a screen painted in the same two colors.
+ *
+ * `header` sits on the map's sky above the scene: the sky picture and
+ * what moves in it carry on behind it, up to the top of the screen.
  */
 export function StepTrack({
   walkers,
   theme,
-  myGoal,
+  onSelect,
+  header,
 }: {
   walkers: Walker[];
   theme: MapTheme;
-  /** Your own daily goal, marked on the road on your phone only (the flag stays at 10,000) */
-  myGoal?: number;
+  /** Called when a character on the road is tapped */
+  onSelect?: (walker: Walker) => void;
+  header?: ReactNode;
 }) {
   const scrollRef = useRef<ScrollViewInstance>(null);
   const [viewport, setViewport] = useState(0);
+  // The header's height: the sky reaches that far above the scene
+  const [above, setAbove] = useState(0);
   // Once someone scrolls by hand, stop re-centering on them.
   const userScrolled = useRef(false);
+  // Lit maps: the sky and hills behind the road, moving things, shadows
+  const scenery = theme.scenery;
+  const clock = useAmbientClock();
+  const scrollX = useSharedValue(0);
 
   const highest = walkers.reduce((m, w) => Math.max(m, w.steps), 0);
   const max = scaleMax(highest);
@@ -147,7 +251,25 @@ export function StepTrack({
     });
   }, [mySteps, viewport]);
 
-  const tileCount = Math.ceil(width / TILE_W);
+  // Lit maps keep open ground at both ends of every tile, so each tile
+  // starts at a landmark and the landmark stands in that clearing (tiles
+  // are 12 points longer than the gap between landmarks; the overlap is
+  // open ground too). Other maps lay tiles end to end.
+  const tiles = scenery
+    ? Array.from({ length: Math.ceil((width - ROAD_PAD) / LANDMARK_EVERY) + 1 }, (_, i) => ({
+        left: ROAD_PAD + (i - 1) * LANDMARK_EVERY,
+        index: (i + 1) % theme.tiles.length,
+      }))
+    : Array.from({ length: Math.ceil(width / TILE_W) }, (_, i) => ({
+        left: i * TILE_W,
+        index: i % theme.tiles.length,
+      }));
+  const landmarks = landmarksFor(theme, max).map((l) => ({
+    ...l,
+    left: centerFor(l.steps) - LANDMARK_W / 2,
+    // Its place in the theme's list (the far one repeats), for its shadow and anchors
+    index: theme.landmarks.findIndex((t) => t.image === l.image),
+  }));
 
   return (
     <View>
@@ -155,6 +277,10 @@ export function StepTrack({
       <View
         onLayout={(e) => setViewport(e.nativeEvent.layout.width)}
         style={{ backgroundColor: theme.sky }}>
+        {scenery && viewport > 0 && (
+          <SkyLayer scenery={scenery} clock={clock} scrollX={scrollX} viewport={viewport} above={above} />
+        )}
+        {header && <View onLayout={(e) => setAbove(e.nativeEvent.layout.height)}>{header}</View>}
         <ScrollView
           ref={scrollRef}
           horizontal
@@ -165,84 +291,148 @@ export function StepTrack({
           onScrollBeginDrag={() => {
             userScrolled.current = true;
           }}
+          // The hills behind slide along at their own speed
+          onScroll={
+            scenery
+              ? (e) => {
+                  scrollX.value = e.nativeEvent.contentOffset.x;
+                }
+              : undefined
+          }
+          scrollEventThrottle={16}
           accessibilityLabel="Step road. Swipe left or right to scroll.">
           <View style={{ width }}>
             {/* Village street + road + characters */}
             <View style={{ width, height: SCENE_H }}>
               <View style={styles.tiles} importantForAccessibility="no-hide-descendants">
-                {Array.from({ length: tileCount }, (_, i) => (
-                  <Image
-                    key={i}
-                    source={theme.tiles[i % theme.tiles.length]}
-                    style={{ width: TILE_W, height: TILE_H }}
-                    resizeMode="stretch"
-                    accessibilityElementsHidden
-                  />
-                ))}
+                {tiles.map((t, i) => {
+                  const style = { position: 'absolute', left: t.left, width: TILE_W, height: TILE_H } as const;
+                  const frames = scenery?.tileFrames;
+                  // Lit maps with a second frame (swaying, flickering) take turns between the two
+                  return frames ? (
+                    <Framed
+                      key={t.left}
+                      a={theme.tiles[t.index]}
+                      b={frames.sources[t.index]}
+                      mode={frames.mode}
+                      rate={frames.rate}
+                      seed={i}
+                      clock={clock}
+                      style={style}
+                    />
+                  ) : (
+                    <Image
+                      key={t.left}
+                      source={theme.tiles[t.index]}
+                      style={style}
+                      resizeMode="stretch"
+                      accessibilityElementsHidden
+                    />
+                  );
+                })}
               </View>
 
-              {landmarksFor(theme, max).map((l) => (
-                <Image
-                  key={l.steps}
-                  source={l.image}
-                  accessibilityLabel={l.label}
-                  resizeMode="stretch"
-                  style={[
-                    styles.landmark,
-                    {
-                      left: centerFor(l.steps) - LANDMARK_W / 2,
-                      width: LANDMARK_W,
-                      height: LANDMARK_H,
-                    },
-                  ]}
-                />
-              ))}
+              {scenery && <StreetLayer scenery={scenery} clock={clock} tiles={tiles} />}
+              {scenery && viewport > 0 && (
+                <HorizonLayer scenery={scenery} clock={clock} scrollX={scrollX} viewport={viewport} />
+              )}
 
-              {/* The goal flag stays at 10,000, at the back of the road */}
+              {/* Each landmark's shadow on the road, under all the landmarks */}
+              {scenery &&
+                landmarks.map((l) => {
+                  const box = scenery.shadowBoxes[l.index];
+                  const source = scenery.landmarkShadows[l.index];
+                  if (!box || !source) return null;
+                  return (
+                    <Image
+                      key={`shadow-${l.steps}`}
+                      source={source}
+                      resizeMode="stretch"
+                      accessibilityElementsHidden
+                      style={[
+                        styles.landmarkShadow,
+                        { left: l.left + box.left * SCALE, width: box.width * SCALE },
+                      ]}
+                    />
+                  );
+                })}
+
+              {landmarks.map((l, i) => {
+                const place = { left: l.left, width: LANDMARK_W, height: LANDMARK_H };
+                const frames = scenery?.landmarkFrames[l.index];
+                return frames ? (
+                  <View
+                    key={l.steps}
+                    accessible
+                    accessibilityRole="image"
+                    accessibilityLabel={l.label}
+                    style={[styles.landmark, place]}>
+                    <Framed
+                      a={l.image}
+                      b={frames.source}
+                      mode={frames.mode}
+                      rate={frames.rate}
+                      seed={i + 0.5}
+                      clock={clock}
+                      style={{ position: 'absolute', left: 0, top: 0, width: LANDMARK_W, height: LANDMARK_H }}
+                    />
+                  </View>
+                ) : (
+                  <Image
+                    key={l.steps}
+                    source={l.image}
+                    accessibilityLabel={l.label}
+                    resizeMode="stretch"
+                    style={[styles.landmark, place]}
+                  />
+                );
+              })}
+
+              {/* A clock landmark shows the real time */}
+              {scenery?.clock &&
+                landmarks
+                  .filter((l) => l.index === 2)
+                  .map((l) => <ClockHands key={`clock-${l.steps}`} left={l.left} clock={scenery.clock!} />)}
+
+              {scenery && (
+                <StreetLayer
+                  scenery={scenery}
+                  clock={clock}
+                  landmarks={landmarks.filter((l) => l.index >= 0)}
+                />
+              )}
+
+              {/* The flag stays at 10,000, at the back of the road: where the
+                  road ends until someone passes it. Each player's own goal
+                  is their daily target (7,000 to 10,000), shown on Today. */}
               <View
                 pointerEvents="none"
                 style={[styles.flag, { left: centerFor(GOAL) - FLAG_POLE_X * SCALE }]}>
-                <PixelSprite
-                  source={FLAG}
-                  width={FLAG_W}
-                  height={FLAG_H}
-                  scale={SCALE}
-                  accessibilityLabel="Goal flag at 10,000 steps"
-                />
+                <GoalFlag clock={clock} waving={Boolean(scenery)} />
               </View>
 
               {walkers.map((w, i) => (
-                <WalkerSprite key={w.id} walker={w} x={xs[i]} lane={lanes[i]} />
+                <WalkerSprite
+                  key={w.id}
+                  walker={w}
+                  x={xs[i]}
+                  lane={lanes[i]}
+                  scenery={scenery}
+                  onSelect={onSelect}
+                />
               ))}
             </View>
 
             {/* Distance markers, drawn straight onto the ground */}
             <View style={[styles.markers, { width, backgroundColor: theme.ground }]}>
-              {/* Your own goal, when it isn't the shared 10,000 and isn't
-                  already a tick (those get relabelled below) */}
-              {myGoal !== undefined && myGoal !== GOAL && myGoal <= max &&
-                !ticksFor(max).includes(myGoal) && (
-                <View
-                  style={[styles.tick, styles.myGoal, { left: centerFor(myGoal) - 24 }]}
-                  accessibilityLabel={`Your goal, ${myGoal.toLocaleString()} steps`}>
-                  <View style={[styles.myGoalMark, { backgroundColor: theme.button }]} />
-                  <ThemedText type="smallBold" style={[styles.tickLabel, { color: theme.ink }]}>
-                    MINE
-                  </ThemedText>
-                </View>
-              )}
               {ticksFor(max).map((v) => {
-                // "GOAL" at 10,000 only while that is your goal too
-                const isGoal = v === GOAL && (myGoal === undefined || myGoal === GOAL);
-                const isMine = myGoal !== undefined && myGoal !== GOAL && v === myGoal;
+                const isFlag = v === GOAL;
                 const color = theme.ink;
                 return (
                   <View key={v} style={[styles.tick, { left: centerFor(v) - 24 }]}>
                     <View style={[styles.tickMark, { backgroundColor: color }]} />
-                    <ThemedText
-                      type={isGoal || isMine ? 'smallBold' : 'small'}
-                      style={[styles.tickLabel, { color }]}>
-                      {isGoal ? 'GOAL' : isMine ? 'MINE' : formatSteps(v)}
+                    <ThemedText type={isFlag ? 'smallBold' : 'small'} style={[styles.tickLabel, { color }]}>
+                      {formatSteps(v)}
                     </ThemedText>
                   </View>
                 );
@@ -250,6 +440,9 @@ export function StepTrack({
             </View>
           </View>
         </ScrollView>
+        {scenery && viewport > 0 && (
+          <FrontLayer scenery={scenery} clock={clock} viewport={viewport} above={above} />
+        )}
       </View>
     </View>
   );
@@ -258,12 +451,19 @@ export function StepTrack({
 const styles = StyleSheet.create({
   tiles: {
     position: 'absolute',
+    left: 0,
+    right: 0,
     bottom: 0, // the road sits at the bottom of the scene
-    flexDirection: 'row',
+    height: TILE_H,
   },
   landmark: {
     position: 'absolute',
     bottom: ROAD_H, // sits on top of the road
+  },
+  landmarkShadow: {
+    position: 'absolute',
+    bottom: 0, // covers the road, from its top line down
+    height: ROAD_H,
   },
   flag: {
     position: 'absolute',
@@ -274,6 +474,12 @@ const styles = StyleSheet.create({
     left: 0,
     width: SPRITE_W,
     alignItems: 'center',
+  },
+  walkerInner: {
+    alignItems: 'center',
+  },
+  walkerPressed: {
+    opacity: 0.7,
   },
   walkerLabel: {
     // Over the sprite's empty headroom, so the name sits just above the
@@ -305,12 +511,5 @@ const styles = StyleSheet.create({
   tickLabel: {
     fontSize: 11,
     lineHeight: 16,
-  },
-  myGoal: {
-    zIndex: 1,
-  },
-  myGoalMark: {
-    width: 4,
-    height: 12,
   },
 });

@@ -5,6 +5,11 @@
 // scripts/generate-avatar-sprites.py) or a line shows where they meet.
 //
 // Metro needs every require() written out, so each image is listed.
+//
+// These are the plain (unlit) maps. lightTheme() in ./lighting swaps in
+// the art and colors for the time of day where a map has them.
+
+import type { Scenery } from './lighting';
 
 export type MapTheme = {
   id: string; // also the shop item id
@@ -18,6 +23,8 @@ export type MapTheme = {
   buttonText: string;
   tiles: number[];
   landmarks: { steps: number; label: string; image: number }[];
+  /** Sky, hills, shadows and moving things; set by lightTheme() */
+  scenery?: Scenery;
 };
 
 export const DEFAULT_THEME_ID = 'map_village';
@@ -42,7 +49,7 @@ export const THEMES: Record<string, MapTheme> = {
       { steps: 5_000, label: 'Bakery', image: require('@/assets/maps/village/mid.png') },
       {
         steps: 10_000,
-        label: 'Town hall, the 10,000 step goal',
+        label: 'Town hall at 10,000 steps',
         image: require('@/assets/maps/village/goal.png'),
       },
       { steps: 15_000, label: 'Windmill', image: require('@/assets/maps/village/far.png') },
@@ -68,7 +75,7 @@ export const THEMES: Record<string, MapTheme> = {
       { steps: 5_000, label: 'Log bridge', image: require('@/assets/maps/forest/mid.png') },
       {
         steps: 10_000,
-        label: 'Great tree, the 10,000 step goal',
+        label: 'Great tree at 10,000 steps',
         image: require('@/assets/maps/forest/goal.png'),
       },
       { steps: 15_000, label: 'Waterfall', image: require('@/assets/maps/forest/far.png') },
@@ -91,7 +98,7 @@ export const THEMES: Record<string, MapTheme> = {
       { steps: 5_000, label: 'Coffee cart', image: require('@/assets/maps/city/mid.png') },
       {
         steps: 10_000,
-        label: 'Clock tower, the 10,000 step goal',
+        label: 'Clock tower at 10,000 steps',
         image: require('@/assets/maps/city/goal.png'),
       },
       { steps: 15_000, label: 'Stadium', image: require('@/assets/maps/city/far.png') },
@@ -114,7 +121,7 @@ export const THEMES: Record<string, MapTheme> = {
       { steps: 5_000, label: 'Surf shack', image: require('@/assets/maps/beach/mid.png') },
       {
         steps: 10_000,
-        label: 'Lighthouse, the 10,000 step goal',
+        label: 'Lighthouse at 10,000 steps',
         image: require('@/assets/maps/beach/goal.png'),
       },
       { steps: 15_000, label: 'Pier', image: require('@/assets/maps/beach/far.png') },
@@ -140,7 +147,7 @@ export const THEMES: Record<string, MapTheme> = {
       { steps: 5_000, label: 'Rope bridge', image: require('@/assets/maps/mountain/mid.png') },
       {
         steps: 10_000,
-        label: 'Summit flag, the 10,000 step goal',
+        label: 'Summit flag at 10,000 steps',
         image: require('@/assets/maps/mountain/goal.png'),
       },
       { steps: 15_000, label: 'Observatory', image: require('@/assets/maps/mountain/far.png') },
@@ -167,7 +174,7 @@ export const THEMES: Record<string, MapTheme> = {
       { steps: 5_000, label: 'Treasure chest', image: require('@/assets/maps/dungeon/mid.png') },
       {
         steps: 10_000,
-        label: 'Crystal altar, the 10,000 step goal',
+        label: 'Crystal altar at 10,000 steps',
         image: require('@/assets/maps/dungeon/goal.png'),
       },
       { steps: 15_000, label: 'Stairway out', image: require('@/assets/maps/dungeon/far.png') },
@@ -190,7 +197,7 @@ export const THEMES: Record<string, MapTheme> = {
       { steps: 5_000, label: 'Moon rover', image: require('@/assets/maps/space/mid.png') },
       {
         steps: 10_000,
-        label: 'Moon base, the 10,000 step goal',
+        label: 'Moon base at 10,000 steps',
         image: require('@/assets/maps/space/goal.png'),
       },
       { steps: 15_000, label: 'Radio telescope', image: require('@/assets/maps/space/far.png') },
@@ -214,7 +221,7 @@ export const THEMES: Record<string, MapTheme> = {
       { steps: 5_000, label: 'Giant clam', image: require('@/assets/maps/ocean/mid.png') },
       {
         steps: 10_000,
-        label: 'Sunken ship, the 10,000 step goal',
+        label: 'Sunken ship at 10,000 steps',
         image: require('@/assets/maps/ocean/goal.png'),
       },
       { steps: 15_000, label: 'Submarine', image: require('@/assets/maps/ocean/far.png') },
@@ -238,7 +245,7 @@ export const THEMES: Record<string, MapTheme> = {
       { steps: 5_000, label: 'Hideout', image: require('@/assets/maps/neon/mid.png') },
       {
         steps: 10_000,
-        label: 'Neon tower, the 10,000 step goal',
+        label: 'Neon tower at 10,000 steps',
         image: require('@/assets/maps/neon/goal.png'),
       },
       { steps: 15_000, label: 'Building site', image: require('@/assets/maps/neon/far.png') },

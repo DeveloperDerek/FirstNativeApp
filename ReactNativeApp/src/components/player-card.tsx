@@ -27,6 +27,8 @@ import { ThemedText } from '@/components/themed-text';
 import { sceneHeight, WalkingScene } from '@/components/walking-scene';
 import { Spacing } from '@/constants/theme';
 import type { Walker } from '@/track/StepTrack';
+import { useDayPhase } from '@/hooks/use-day-phase';
+import { lightTheme } from '@/track/lighting';
 import { getTheme } from '@/track/themes';
 
 const AVATAR_SCALE = 3; // whole number keeps the pixels crisp
@@ -76,6 +78,7 @@ export function PlayerCard({
   const { width } = useWindowDimensions();
   const router = useRouter();
   const { account } = useAuth();
+  const phase = useDayPhase();
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   // Bumped to read the card again (after Block / Unblock in a group)
   const [version, setVersion] = useState(0);
@@ -138,8 +141,9 @@ export function PlayerCard({
     });
   }
 
-  // THEIR theme, not the viewer's; unknown ids fall back to the village
-  const theme = getTheme(profile?.mapTheme);
+  // THEIR theme, not the viewer's; unknown ids fall back to the village.
+  // Lit by the viewer's clock, like their own map.
+  const theme = lightTheme(getTheme(profile?.mapTheme), phase);
   const ink = ready ? theme.ink : INK;
   const cardW = Math.min(width - 2 * Spacing.three, 360);
   const name = walker.isMe
