@@ -131,7 +131,7 @@ values (pg_temp.u(15), current_date - 30, 8000, now() - interval '31 days');
 select pg_temp.award(15);
 select is(pg_temp.earned_on(15, 'streak_7'), current_date - 1, 'G: a week at an 8,000 goal');
 select pg_temp.as_user(15);
-select public.set_daily_goal(12000, current_date);
+select public.set_daily_goal_at(12000, current_date, now());
 select pg_temp.award(15);
 select is(pg_temp.earned_on(15, 'streak_7'), current_date - 1, '...a higher goal from tomorrow changes nothing');
 select is(pg_temp.progress(15, 'streak_7'), 7::bigint, '...nor the best streak');

@@ -1,7 +1,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Alert, AppState } from 'react-native';
 
-import { getMyGoal, getMyStreak, type MyGoal, type MyStreak } from '@/api/goals';
+import type { MyGoal, MyStreak } from '@/api/goals';
 import { listMyQuests, type MyQuest } from '@/api/quests';
 import { syncDay } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
@@ -27,12 +27,10 @@ type StepsState = {
   error: string | null;
   /** Group quests that need me (running quests, results), for the banners. */
   quests: MyQuest[];
-  /** Your daily goal (today's, any change waiting, the last 7 days'); null until loaded */
+  /** The daily goal (today's and the last 7 days'); null until loaded */
   goal: MyGoal | null;
   /** Your streak, from the server; null until loaded */
   streak: MyStreak | null;
-  /** Reload the goal and streak (after changing the goal in Profile). */
-  refreshGoal: () => Promise<void>;
   /** Read, save and upload steps now (buttons, pull to refresh). */
   refresh: () => Promise<void>;
   /** The same, unless a refresh started in the last 60 seconds (coming back to the app). */
@@ -74,19 +72,6 @@ export function StepsProvider({ children }: { children: ReactNode }) {
       mounted.current = false;
     };
   }, []);
-
-  // The goal and streak, read from the server. Quiet on failure: Today
-  // falls back to 10,000 and no streak.
-  const loadGoal = useCallback(async () => {
-    if (!userId) return;
-    const [g, s] = await Promise.all([
-      getMyGoal().catch(() => null),
-      getMyStreak().catch(() => null),
-    ]);
-    if (!mounted.current || signedIn.current !== userId) return;
-    if (g) setGoal(g);
-    if (s) setStreak(s);
-  }, [userId]);
 
   // The work itself. Every state change comes after the first await.
   // One server call (syncDay) uploads, claims, and reads quests, goal and
@@ -203,7 +188,6 @@ export function StepsProvider({ children }: { children: ReactNode }) {
         quests,
         goal,
         streak,
-        refreshGoal: loadGoal,
         refresh,
         refreshIfStale,
         refreshQuests,

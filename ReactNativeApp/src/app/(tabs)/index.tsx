@@ -67,7 +67,7 @@ export default function TodayScreen() {
   // chosen on the Profile page.
   const { theme } = useMapTheme();
 
-  // Your goal for today (10,000 until you pick one); daily coins have
+  // Today's goal (10,000 for everyone); daily coins have
   // their own target, 7,000 to 10,000 and different each day
   // (step-tracker-decisions.txt, GOAL-2)
   const dailyGoal = goal?.today ?? DEFAULT_GOAL;
@@ -186,7 +186,6 @@ export default function TodayScreen() {
         <StepTrack
           walkers={pickShown(walkers, MAX_ON_TRACK)}
           theme={theme}
-          myGoal={dailyGoal}
           onSelect={(w) => setSelectedId(w.id)}
         />
       )}

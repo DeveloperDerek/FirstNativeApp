@@ -1,12 +1,12 @@
 -- step-tracker-goals-streaks.txt, section 5: goals, streaks, the daily
--- coin target, and that your own goal pays no coins. Run with
+-- coin target, and that a goal pays no coins. Run with
 -- `supabase test db`.
 --
 -- Days are counted back from the database's date (T = current_date),
 -- which is always "today" somewhere on Earth.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(48);
+select plan(49);
 
 insert into auth.users (id, email)
 select ('000000' || lpad(to_hex(n), 2, '0') || '-90a1-0000-0000-000000000000')::uuid,
@@ -43,22 +43,25 @@ create function pg_temp.daily_coins(who integer) returns text[] language sql as 
 $$;
 
 -- ---------------------------------------------------------------------
--- Goals (U1)
+-- Goals (U1). People can't pick their own any more (GOAL-15); the
+-- internal setter still gives past days other goals, as they had then.
 -- ---------------------------------------------------------------------
+select hasnt_function('public', 'set_daily_goal', array['integer', 'date'],
+                      'the app can''t set a goal any more');
 select pg_temp.as_user(1);
 select is(public.goal_on(pg_temp.u(1), current_date - 100), 10000, 'never changed: 10,000 for a past day');
 select is(public.goal_on(pg_temp.u(1), current_date + 100), 10000, '...and a future one');
-select is(public.set_daily_goal(5000, current_date), current_date + 1, '5,000 accepted, starting the day after the phone''s date');
-select is(public.set_daily_goal(20000, current_date), current_date + 1, '20,000 accepted');
-select throws_ok($$ select public.set_daily_goal(4500, current_date) $$, 'BAD_GOAL', 'below 5,000 refused');
-select throws_ok($$ select public.set_daily_goal(20500, current_date) $$, 'BAD_GOAL', 'above 20,000 refused');
-select throws_ok($$ select public.set_daily_goal(7250, current_date) $$, 'BAD_GOAL', 'not a multiple of 500 refused');
-select throws_ok($$ select public.set_daily_goal(8000, current_date + 5) $$, 'BAD_DAY',
+select is(public.set_daily_goal_at(5000, current_date, now()), current_date + 1, '5,000 accepted, starting the day after the phone''s date');
+select is(public.set_daily_goal_at(20000, current_date, now()), current_date + 1, '20,000 accepted');
+select throws_ok($$ select public.set_daily_goal_at(4500, current_date, now()) $$, 'BAD_GOAL', 'below 5,000 refused');
+select throws_ok($$ select public.set_daily_goal_at(20500, current_date, now()) $$, 'BAD_GOAL', 'above 20,000 refused');
+select throws_ok($$ select public.set_daily_goal_at(7250, current_date, now()) $$, 'BAD_GOAL', 'not a multiple of 500 refused');
+select throws_ok($$ select public.set_daily_goal_at(8000, current_date + 5, now()) $$, 'BAD_DAY',
                  'a date that is today nowhere refused');
 
 -- Two changes on the same day: the later wins, both kept
-select public.set_daily_goal(8000, current_date);
-select public.set_daily_goal(6000, current_date);
+select public.set_daily_goal_at(8000, current_date, now());
+select public.set_daily_goal_at(6000, current_date, now());
 select is(public.goal_on(pg_temp.u(1), current_date + 1), 6000, 'two changes in a day: the later one is the next day''s goal');
 select is((select count(*)::int from public.daily_goal_changes where user_id = pg_temp.u(1)), 4,
           'every change is kept');
@@ -93,7 +96,7 @@ select is((pg_temp.streak(2)->>'current')::int, 5, 'today below goal: back to ye
 
 -- A past day is judged by the goal you had then
 select pg_temp.as_user(2);
-select public.set_daily_goal(13000, current_date);
+select public.set_daily_goal_at(13000, current_date, now());
 select is((pg_temp.streak(2)->>'current')::int, 5, 'raising the goal (from tomorrow) doesn''t change past days');
 
 -- Not sharing

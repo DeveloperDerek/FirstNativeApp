@@ -197,10 +197,12 @@ suggested order.
 
   WHERE GOALS COME FROM
   - Goals are kept on the server for everyone (daily_goal_changes),
-    sharing or not: set_daily_goal doesn't need sharing, and the phone
-    keeps no copy of the goal history. So History judges every day by
-    the right goal after signing out and in, reinstalling, or a new
-    phone, for sharers and non-sharers alike.
+    sharing or not, and the phone keeps no copy of the goal history.
+    The goal is 10,000 for everyone since personal goals were removed
+    (step-tracker-decisions.txt, GOAL-15); older days keep the personal
+    goal they had. So History judges every day by the right goal after
+    signing out and in, reinstalling, or a new phone, for sharers and
+    non-sharers alike.
   - Without a connection: the views that need older goals show
     "Couldn't load your goals" with Retry, rather than judging days by
     the wrong goal. (The Week view keeps working from my_goal's 7 days,

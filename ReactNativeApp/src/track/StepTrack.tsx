@@ -207,13 +207,10 @@ function GoalFlag({ clock, waving }: { clock: SharedValue<number>; waving: boole
 export function StepTrack({
   walkers,
   theme,
-  myGoal,
   onSelect,
 }: {
   walkers: Walker[];
   theme: MapTheme;
-  /** Your own daily goal, marked on the road on your phone only (the flag stays at 10,000) */
-  myGoal?: number;
   /** Called when a character on the road is tapped */
   onSelect?: (walker: Walker) => void;
 }) {
@@ -418,31 +415,14 @@ export function StepTrack({
 
             {/* Distance markers, drawn straight onto the ground */}
             <View style={[styles.markers, { width, backgroundColor: theme.ground }]}>
-              {/* Your own goal, when it isn't the shared 10,000 and isn't
-                  already a tick (those get relabelled below) */}
-              {myGoal !== undefined && myGoal !== GOAL && myGoal <= max &&
-                !ticksFor(max).includes(myGoal) && (
-                <View
-                  style={[styles.tick, styles.myGoal, { left: centerFor(myGoal) - 24 }]}
-                  accessibilityLabel={`Your goal, ${myGoal.toLocaleString()} steps`}>
-                  <View style={[styles.myGoalMark, { backgroundColor: theme.button }]} />
-                  <ThemedText type="smallBold" style={[styles.tickLabel, { color: theme.ink }]}>
-                    MINE
-                  </ThemedText>
-                </View>
-              )}
               {ticksFor(max).map((v) => {
-                // "GOAL" at 10,000 only while that is your goal too
-                const isGoal = v === GOAL && (myGoal === undefined || myGoal === GOAL);
-                const isMine = myGoal !== undefined && myGoal !== GOAL && v === myGoal;
+                const isGoal = v === GOAL;
                 const color = theme.ink;
                 return (
                   <View key={v} style={[styles.tick, { left: centerFor(v) - 24 }]}>
                     <View style={[styles.tickMark, { backgroundColor: color }]} />
-                    <ThemedText
-                      type={isGoal || isMine ? 'smallBold' : 'small'}
-                      style={[styles.tickLabel, { color }]}>
-                      {isGoal ? 'GOAL' : isMine ? 'MINE' : formatSteps(v)}
+                    <ThemedText type={isGoal ? 'smallBold' : 'small'} style={[styles.tickLabel, { color }]}>
+                      {isGoal ? 'GOAL' : formatSteps(v)}
                     </ThemedText>
                   </View>
                 );
@@ -519,12 +499,5 @@ const styles = StyleSheet.create({
   tickLabel: {
     fontSize: 11,
     lineHeight: 16,
-  },
-  myGoal: {
-    zIndex: 1,
-  },
-  myGoalMark: {
-    width: 4,
-    height: 12,
   },
 });

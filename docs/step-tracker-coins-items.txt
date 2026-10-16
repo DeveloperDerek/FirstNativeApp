@@ -41,7 +41,8 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-1 to COIN-5)
       - Paid for each day your steps reach that day's coin target.
       - The target is 7,000 to 10,000 steps (in 500s), different for
         each player each day, fixed once shown (decision GOAL-2).
-      - It is NOT your personal daily goal. Your goal pays nothing.
+      - It is NOT the daily goal (10,000; personal goals were removed,
+        GOAL-15). The goal pays nothing.
       - Late uploads still pay: any day in the last 7 days counts.
       - Function: claim_daily_rewards()      reason: 'daily_goal'
 
