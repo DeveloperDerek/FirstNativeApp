@@ -14,7 +14,15 @@ import { Avatar, HEADROOM, PixelSprite } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
 import { ThemedText } from '@/components/themed-text';
 
-import { FrontLayer, SkyLayer, StreetLayer, useAmbientClock } from './ambient';
+import {
+  ClockHands,
+  Framed,
+  FrontLayer,
+  HorizonLayer,
+  SkyLayer,
+  StreetLayer,
+  useAmbientClock,
+} from './ambient';
 import type { Scenery } from './lighting';
 import { AMBIENT_SPRITES } from './lighting.generated';
 import {
@@ -292,18 +300,37 @@ export function StepTrack({
             {/* Village street + road + characters */}
             <View style={{ width, height: SCENE_H }}>
               <View style={styles.tiles} importantForAccessibility="no-hide-descendants">
-                {tiles.map((t) => (
-                  <Image
-                    key={t.left}
-                    source={theme.tiles[t.index]}
-                    style={{ position: 'absolute', left: t.left, width: TILE_W, height: TILE_H }}
-                    resizeMode="stretch"
-                    accessibilityElementsHidden
-                  />
-                ))}
+                {tiles.map((t, i) => {
+                  const style = { position: 'absolute', left: t.left, width: TILE_W, height: TILE_H } as const;
+                  const frames = scenery?.tileFrames;
+                  // Lit maps with a second frame (swaying, flickering) take turns between the two
+                  return frames ? (
+                    <Framed
+                      key={t.left}
+                      a={theme.tiles[t.index]}
+                      b={frames.sources[t.index]}
+                      mode={frames.mode}
+                      rate={frames.rate}
+                      seed={i}
+                      clock={clock}
+                      style={style}
+                    />
+                  ) : (
+                    <Image
+                      key={t.left}
+                      source={theme.tiles[t.index]}
+                      style={style}
+                      resizeMode="stretch"
+                      accessibilityElementsHidden
+                    />
+                  );
+                })}
               </View>
 
               {scenery && <StreetLayer scenery={scenery} clock={clock} tiles={tiles} />}
+              {scenery && viewport > 0 && (
+                <HorizonLayer scenery={scenery} clock={clock} scrollX={scrollX} viewport={viewport} />
+              )}
 
               {/* Each landmark's shadow on the road, under all the landmarks */}
               {scenery &&
@@ -325,22 +352,42 @@ export function StepTrack({
                   );
                 })}
 
-              {landmarks.map((l) => (
-                <Image
-                  key={l.steps}
-                  source={l.image}
-                  accessibilityLabel={l.label}
-                  resizeMode="stretch"
-                  style={[
-                    styles.landmark,
-                    {
-                      left: l.left,
-                      width: LANDMARK_W,
-                      height: LANDMARK_H,
-                    },
-                  ]}
-                />
-              ))}
+              {landmarks.map((l, i) => {
+                const place = { left: l.left, width: LANDMARK_W, height: LANDMARK_H };
+                const frames = scenery?.landmarkFrames[l.index];
+                return frames ? (
+                  <View
+                    key={l.steps}
+                    accessible
+                    accessibilityRole="image"
+                    accessibilityLabel={l.label}
+                    style={[styles.landmark, place]}>
+                    <Framed
+                      a={l.image}
+                      b={frames.source}
+                      mode={frames.mode}
+                      rate={frames.rate}
+                      seed={i + 0.5}
+                      clock={clock}
+                      style={{ position: 'absolute', left: 0, top: 0, width: LANDMARK_W, height: LANDMARK_H }}
+                    />
+                  </View>
+                ) : (
+                  <Image
+                    key={l.steps}
+                    source={l.image}
+                    accessibilityLabel={l.label}
+                    resizeMode="stretch"
+                    style={[styles.landmark, place]}
+                  />
+                );
+              })}
+
+              {/* A clock landmark shows the real time */}
+              {scenery?.clock &&
+                landmarks
+                  .filter((l) => l.index === 2)
+                  .map((l) => <ClockHands key={`clock-${l.steps}`} left={l.left} clock={scenery.clock!} />)}
 
               {scenery && (
                 <StreetLayer

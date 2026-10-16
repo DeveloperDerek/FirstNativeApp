@@ -1,0 +1,245 @@
+STEP TRACKER - MAP RESTYLE: THE OTHER 8 MAPS (BLUEPRINT)
+Gives forest, city, beach, mountain, dungeon, space, ocean and neon city
+the same "Pixel Art 2.5D" treatment the village got: lit art, day /
+sunset / night, shadows, depth and things that move.
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. Edit
+anything in it; it is read back before anything is built. The village
+version is done (commit 3b17665, branch updates-2026-10-15) and is the
+pattern for everything below.
+
+How to mark it up:
+  - Movements (section 3): change [KEEP] to [CUT] or [CHANGE: ...] on
+    any line, or add lines for movements you want that aren't listed.
+  - Decisions (section 4): write your pick after "Your pick:", or leave
+    it blank to go with the recommendation.
+  - Anything else: edit the text directly.
+
+======================================================================
+1. WHAT EVERY MAP GETS (THE VILLAGE RECIPE)
+======================================================================
+
+Built from each map's existing drawings; nothing is redrawn from
+scratch.
+
+  - Time of day: day, sunset (also used around sunrise) and night,
+    from the phone's clock. Same as the village.
+  - Lighting pass: outlines take a darker shade of their own color;
+    edges facing the light get a warm rim, the far side a cool shade;
+    colors a bit richer. Same as the village.
+  - Sky: a banded pixel gradient with the sun or moon, fixed to the
+    screen. Varies by map (see section 4).
+  - Depth layers: two hill or skyline strips behind the street that
+    slide slower than the road when you swipe. Shapes change per map.
+  - Shadows: buildings and landmarks cast shadows on the road; long at
+    sunset, short at midday. Same as the village.
+  - Characters: lit to match the scene, with a shadow at their feet.
+    Same as the village.
+  - Clearings: open ground at both ends of each tile so landmarks never
+    stand on buildings. Buildings are re-laid per map.
+  - Screen colors: header, ground and text colors follow the time of
+    day, with text contrast checked at 4.5:1 or better.
+
+Movement runs off one shared clock at 12 frames a second. It pauses
+when you leave the Today tab and stops entirely under Reduce Motion.
+
+======================================================================
+2. EACH MAP'S LOOK
+======================================================================
+
+Each map keeps its own buildings and landmarks. "Depth" is what slides
+behind the street when you swipe; "Clearing fix" is how its tiles get
+open ground for the landmarks.
+
+FOREST
+  Day:      soft green-gold light through the trees
+  Sunset:   amber light, long tree shadows
+  Night:    deep blue-green, moonlight on the treetops
+  Depth:    two rows of hazy pine silhouettes
+  Clearing: move edge pines inward
+
+CITY
+  Day:      clear blue sky
+  Sunset:   orange sky, windows start lighting up
+  Night:    navy sky, most windows lit
+  Depth:    a far skyline and a nearer skyline
+  Clearing: drop one building per tile
+
+BEACH
+  Day:      bright turquoise, sparkling sea
+  Sunset:   pink-orange sky, sun on the horizon line
+  Night:    dark sea, moon reflection on the water
+  Depth:    a distant headland and the sea band
+  Clearing: move edge palms and umbrellas inward
+
+MOUNTAIN
+  Day:      crisp pale blue, bright snow
+  Sunset:   alpenglow: peaks turn pink
+  Night:    starry sky, blue snow
+  Depth:    far snowy range and near foothills
+  Clearing: move edge pines and rocks inward
+
+DUNGEON
+  Day:      pale light through high grates
+  Sunset:   warmer torchlight
+  Night:    darkest; torches carry the light
+  Depth:    deeper arches in the gloom
+  Clearing: keep the wall; no arches or banners at tile ends
+
+SPACE
+  Day:      harsh white sun, sharp shadows
+  Sunset:   Earthrise glow on the horizon
+  Night:    no sun; base lights and starlight
+  Depth:    far crater ridges
+  Clearing: move edge domes inward
+
+OCEAN
+  Day:      sunbeams from the surface
+  Sunset:   warm amber water near the top
+  Night:    deep blue, glowing sea life
+  Depth:    distant reef and rock shelves
+  Clearing: move edge kelp and rocks inward
+
+NEON CITY
+  Day:      overcast gray, signs off
+  Sunset:   signs flicker on against an orange sky
+  Night:    full neon (today's look)
+  Depth:    far skyline with lit windows
+  Clearing: drop one building per tile
+
+======================================================================
+3. MOVEMENTS
+======================================================================
+
+Four to six per map. Everything is [KEEP] except cars in the city.
+"When" is the time of day it shows.
+
+FOREST
+  [KEEP]  Leaves drifting down ............................ day, sunset
+  [KEEP]  Birds over the treetops ......................... day, sunset
+  [KEEP]  Waterfall flowing (landmark) .................... all
+  [KEEP]  Pine tops swaying ............................... all
+          (two-frame sway, like a breeze)
+  [KEEP]  Fireflies ....................................... night
+  [KEEP]  Owl blinking in a tree .......................... night
+
+CITY
+  [KEEP]  Clouds drifting ................................. day, sunset
+  [KEEP]  Pigeons flapping across ......................... day
+  [KEEP]  Office windows switching on and off ............. sunset, night
+  [KEEP]  Clock tower hands ticking (landmark) ............ all
+          (shows the real time)
+  [KEEP]  Plane with a blinking light crossing high ....... night
+  [CUT]   Cars passing behind the characters .............. all
+          (cut: it would crowd the road people walk on)
+
+BEACH
+  [KEEP]  Waves rolling onto the shore .................... all
+  [KEEP]  Seagulls gliding ................................ day, sunset
+  [KEEP]  Sailboat crossing the horizon ................... day
+  [KEEP]  Lighthouse beam sweeping (landmark) ............. night
+  [KEEP]  Umbrellas fluttering ............................ day
+
+MOUNTAIN
+  [KEEP]  Light snowfall .................................. all
+  [KEEP]  Eagle circling .................................. day
+  [KEEP]  Summit flag waving (landmark) ................... all
+  [KEEP]  Clouds drifting past the peaks .................. day, sunset
+  [KEEP]  Aurora shimmering ............................... night
+
+DUNGEON
+  [KEEP]  Torch flames flickering ......................... all
+  [KEEP]  Dust floating in the grate light ................ day
+  [KEEP]  Water dripping from the ceiling ................. all
+  [KEEP]  Crystal altar pulsing (landmark) ................ all
+  [KEEP]  Treasure chest sparkle (landmark) ............... all
+  [KEEP]  Bats ............................................ night
+
+SPACE
+  [KEEP]  Twinkling stars ................................. all
+  [KEEP]  Shooting stars .................................. all
+  [KEEP]  Satellite crossing slowly ....................... all
+  [KEEP]  Antenna lights blinking ......................... all
+  [KEEP]  Steam venting at the launch pad (landmark) ...... all
+
+OCEAN
+  [KEEP]  Bubbles rising .................................. all
+  [KEEP]  Fish schools swimming by ........................ day, sunset
+  [KEEP]  Kelp swaying .................................... all
+  [KEEP]  Sunbeams shimmering ............................. day
+  [KEEP]  Glowing jellyfish drifting up ................... night
+
+NEON CITY
+  [KEEP]  Neon signs flickering ........................... sunset, night
+  [KEEP]  Bats ............................................ night
+  [KEEP]  Steam from vents ................................ all
+  [KEEP]  Crane light blinking (landmark) ................. all
+  [KEEP]  Rain with puddle ripples ........................ night
+          (every night, or only some nights: see 4e)
+
+======================================================================
+4. DECISIONS TO MAKE
+======================================================================
+
+Four maps have no ordinary sky, so day and night need their own
+meaning there.
+
+4a. Dungeon: what does night mean underground?
+    Recommendation: light from high grates by day, torches only at
+      night, so it still changes.
+    Other option:   the same torchlit look all day.
+    Your pick: Recommendation
+
+4b. Space: the sky is always black.
+    Recommendation: keep it black; day has a harsh sun, sunset an
+      Earthrise, night only base lights.
+    Other option:   a dim blue glow by day.
+    Your pick: Recommendation
+
+4c. Ocean: underwater day and night.
+    Recommendation: sunbeams by day, amber water at sunset, deep blue
+      with glowing sea life at night.
+    Other option:   the same blue all day, sea life only.
+    Your pick: Recommendation
+
+4d. Neon City: today's look is already night.
+    Recommendation: gray overcast by day with signs off; signs flicker
+      on at sunset.
+    Other option:   keep neon at all times; only the sky changes.
+    Your pick: Recommendation
+
+4e. Rain in Neon City.
+    Recommendation: some nights only, so it feels like weather.
+    Other option:   every night.
+    Your pick: Recommendation
+
+4f. Previews: two maps per preview (as in section 5), or all eight
+    previews at once?
+    Your pick: No preview
+
+======================================================================
+5. BUILD ORDER
+======================================================================
+
+Two maps at a time, starting with the ones closest to the village.
+Each pair is approved from a preview before it goes into the app.
+
+  1. Shared groundwork: the lighting script and movement layer handle
+     any map, not just the village, and movements become a per-map
+     list.
+  2. Forest and Beach: outdoor skies, nearest to the village.
+  3. Mountain and City: City's tiles need the most re-laying for
+     clearings.
+  4. Ocean and Space: the underwater and space versions of day and
+     night.
+  5. Neon City and Dungeon: the two that start out dark.
+
+For each pair:
+
+  1. Claude renders a preview image of both maps at day, sunset and
+     night.
+  2. You approve it or ask for changes.
+  3. Claude builds it into the app, checks it with tests, and you look
+     at it on your phone.
+  4. It's committed to that day's branch.
