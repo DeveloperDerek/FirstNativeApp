@@ -968,21 +968,6 @@ def line(x0, y0, x1, y1):
             y0 += sy
 
 
-def hand_sunflower(name):
-    layer = Layer()
-    layer.dots(hexc('#3d7f3d'), [(6, y) for y in range(3, 40)])
-    layer.dots(hexc('#5cb85c'), [(7, y) for y in range(3, 40)])
-    layer.part(ell(3.5, 22.5, 3, 1.6), hexc('#5cb85c'), hexc('#3d7f3d'), hexc('#2a5a2a'))
-    cx, cy = 6.5, -2.5
-    petals = ell(cx, cy, 4, 4)
-    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (0.7, 0.7), (-0.7, 0.7), (0.7, -0.7), (-0.7, -0.7)):
-        petals |= ell(cx + 3.6 * dx, cy + 3.6 * dy, 2, 2)
-    layer.part(petals, hexc('#f7c934'), hexc('#e0a020'), hexc('#8a5a1a'))
-    layer.part(ell(cx, cy, 2.6, 2.6), hexc('#7a4a2a'), hexc('#5a3a20'), hexc('#3a2a1a'))
-    layer.dots(hexc('#a8703a'), [(5, -4), (7, -3), (5, -2)])
-    layer.save(name)
-
-
 # Held across the body it would cover the face, so the rod leans up to
 # the right behind the head (the _back layer); only the grip is in front.
 def hand_fishing_rod(name):
@@ -1057,15 +1042,6 @@ def hand_guitar(name, color):
     layer.dots(OUTLINE, [(20, 37), (21, 37), (21, 38), (22, 38)])
     layer.dots(lighter(c), [(14, 29), (13, 30), (18, 33)])
     layer.save(name)
-
-
-def hand_surfboard(name):
-    # Stands beside the character, a little behind the head and arm
-    board = rect(1, -3, 6, 35) | ell(3.5, -3, 2.6, 4.8) | ell(3.5, 35, 2.6, 3)
-    back = Layer().part(board, hexc('#f4efe1'), hexc('#d8d0bc'))
-    back.dots(hexc('#2a9d8f'), [(x, y) for x, y in board if x in (3, 4) and back.px[(x, y)] != OUTLINE])
-    back.dots(hexc('#f08a3c'), [(x, y) for x, y in board if y in (2, 3) and back.px[(x, y)] != OUTLINE])
-    back.save(f'{name}_back')
 
 
 # ---------------------------------------------------------------- outfits (replace top and bottom)
@@ -1222,13 +1198,11 @@ def shop_collection():
     hand_wand('hand_wand', '#f2c94c')
     hand_lollipop('hand_lollipop', '#e85a9a')
     hand_lantern('hand_lantern')
-    hand_sunflower('hand_sunflower')
     hand_fishing_rod('hand_fishing_rod')
     hand_bug_net('hand_bug_net')
     hand_flag('hand_flag', '#3f6fd8')
     hand_shield('hand_shield', '#c0392b')
     hand_guitar('hand_guitar', '#d9883a')
-    hand_surfboard('hand_surfboard')
 
     outfit_sailor('outfit_sailor')
     outfit_tuxedo('outfit_tuxedo')

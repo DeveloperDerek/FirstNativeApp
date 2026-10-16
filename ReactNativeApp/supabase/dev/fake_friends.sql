@@ -59,7 +59,7 @@ begin
      '{"skin":"#e0a878","hairColor":"#d9534f","hair":"hair_ponytail","face":"face_wink","top":"top_jacket_green","bottom":"bottom_jeans_blue","shoes":"shoes_running_blue","hat":null,"glasses":"glasses_round","cape":null,"hand":"hand_flag","outfit":null,"pet":"pet_cat"}'::jsonb),
     ('f4ce0002-0000-4000-8000-000000000002', 'priya_walks', 'Priya Patel', 'friend', 'map_beach',
      12000, 10000, 104, 120, interval '25 minutes',
-     '{"skin":"#c68655","hairColor":"#2a1a1a","hair":"hair_long","face":"face_joy","top":"top_tee_white","bottom":"bottom_shorts_blue","shoes":"shoes_sandals","hat":"hat_flowers","glasses":null,"cape":null,"hand":"hand_surfboard","outfit":"outfit_dress","pet":"pet_mushroom"}'),
+     '{"skin":"#c68655","hairColor":"#2a1a1a","hair":"hair_long","face":"face_joy","top":"top_tee_white","bottom":"bottom_shorts_blue","shoes":"shoes_sandals","hat":"hat_flowers","glasses":null,"cape":null,"hand":"hand_fishing_rod","outfit":"outfit_dress","pet":"pet_mushroom"}'),
     ('f4ce0003-0000-4000-8000-000000000003', 'marcus_c', 'Marcus Chen', 'friend', 'map_neon',
      7000, 6000, 3, 20, interval '3 hours',
      '{"skin":"#f6c9a0","hairColor":"#2a1a1a","hair":"hair_short","face":"face_determined","top":"top_varsity","bottom":"bottom_track_red","shoes":"shoes_rocket","hat":"hat_headphones","glasses":null,"cape":null,"hand":"hand_guitar","outfit":null}'),
@@ -80,7 +80,7 @@ begin
      '{"skin":"#f6c9a0","hairColor":"#f2d16b","hair":"hair_twintails","face":"face_sleepy","top":"top_tee_white","bottom":"bottom_skirt_pink","shoes":"shoes_skates_pink","hat":null,"glasses":null,"cape":null,"hand":"hand_lollipop","outfit":"outfit_pajamas","pet":"pet_fox"}'),
     ('f4ce0010-0000-4000-8000-000000000010', 'nina_alvarez', 'Nina Alvarez', 'asks_me', 'map_forest',
      8000, 10000, 2, 8, interval '15 minutes',
-     '{"skin":"#c68655","hairColor":"#7a4a2a","hair":"hair_wavy","face":"face_smile","top":"top_sweater_yellow","bottom":"bottom_jeans_blue","shoes":"shoes_clogs_green","hat":null,"glasses":null,"cape":null,"hand":"hand_sunflower","outfit":null,"pet":"pet_orange_mushroom"}'),
+     '{"skin":"#c68655","hairColor":"#7a4a2a","hair":"hair_wavy","face":"face_smile","top":"top_sweater_yellow","bottom":"bottom_jeans_blue","shoes":"shoes_clogs_green","hat":null,"glasses":null,"cape":null,"hand":"hand_balloon","outfit":null,"pet":"pet_orange_mushroom"}'),
     ('f4ce0011-0000-4000-8000-000000000011', 'omar_h', 'Omar Haddad', 'i_asked', 'map_city',
      10000, 10000, 5, 8, interval '4 hours',
      '{"skin":"#a86b45","hairColor":"#2a1a1a","hair":"hair_spiky","face":"face_surprised","top":"top_hoodie_red","bottom":"bottom_pants_black","shoes":"shoes_hightop_black","hat":"hat_cap_red","glasses":null,"cape":null,"hand":"hand_bug_net","outfit":null}')
