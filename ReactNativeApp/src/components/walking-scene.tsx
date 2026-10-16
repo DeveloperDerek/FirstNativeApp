@@ -168,7 +168,6 @@ function useWalker({
     const dt = Math.min(0.05, (info.timeSincePreviousFrame ?? 0) / 1000);
     state.modify((s) => {
       'worklet';
-      const between = (r: number[]) => r[0] + Math.random() * (r[1] - r[0]);
       // Stroll, then stand a while; mostly onward, sometimes back. On
       // the spot, always onward.
       s.left -= dt;
@@ -179,9 +178,9 @@ function useWalker({
         s.walking = !s.walking;
         if (s.walking) {
           s.dir = Math.random() < 0.7 ? 1 : -1;
-          s.left = between(WALK_FOR);
+          s.left = WALK_FOR[0] + Math.random() * (WALK_FOR[1] - WALK_FOR[0]);
         } else {
-          s.left = between(STAND_FOR);
+          s.left = STAND_FOR[0] + Math.random() * (STAND_FOR[1] - STAND_FOR[0]);
           s.nextLook = 0.5;
           if (Math.random() < 0.2) emote.set({ icon: 1 + Math.floor(Math.random() * EMOTES.length), left: EMOTE_S });
         }
@@ -246,20 +245,30 @@ function useWalker({
       return s;
     });
 
+    // Set only what changed, so nothing redraws for nothing. Written out
+    // (no little helper functions): the React Compiler hoists those out
+    // of the worklet, and the UI thread can't call them.
     const s = state.get();
-    const set = (v: SharedValue<number>, n: number) => {
-      if (v.get() !== n) v.set(n);
-    };
-    set(x, Math.round(s.x - s.cam));
-    set(cam, Math.round(s.cam));
-    set(frame, s.walking ? Math.floor(s.walked / stride) % WALK_FRAMES : 0);
-    set(look, s.look);
-    set(blink, s.shut > 0 ? 1 : 0);
-    set(petX, Math.round(s.petX - s.cam));
-    set(petFlip, s.petDir);
-    set(petFrame, s.petMoving ? Math.floor(s.petWalked / stride) % 2 : 0);
-    if (dust.get().some((p) => p.age < DUST_S)) {
-      dust.set(dust.get().map((p) => ({ x: p.x, age: p.age + dt })));
+    const nx = Math.round(s.x - s.cam);
+    if (x.get() !== nx) x.set(nx);
+    const ncam = Math.round(s.cam);
+    if (cam.get() !== ncam) cam.set(ncam);
+    const nframe = s.walking ? Math.floor(s.walked / stride) % WALK_FRAMES : 0;
+    if (frame.get() !== nframe) frame.set(nframe);
+    if (look.get() !== s.look) look.set(s.look);
+    const nblink = s.shut > 0 ? 1 : 0;
+    if (blink.get() !== nblink) blink.set(nblink);
+    const npet = Math.round(s.petX - s.cam);
+    if (petX.get() !== npet) petX.set(npet);
+    if (petFlip.get() !== s.petDir) petFlip.set(s.petDir);
+    const npetFrame = s.petMoving ? Math.floor(s.petWalked / stride) % 2 : 0;
+    if (petFrame.get() !== npetFrame) petFrame.set(npetFrame);
+    const puffs = dust.get();
+    if (puffs[0].age < DUST_S || puffs[1].age < DUST_S) {
+      dust.set([
+        { x: puffs[0].x, age: puffs[0].age + dt },
+        { x: puffs[1].x, age: puffs[1].age + dt },
+      ]);
     }
     const e = emote.get();
     if (e.left > 0) emote.set({ icon: e.left - dt > 0 ? e.icon : 0, left: e.left - dt });

@@ -99,15 +99,19 @@ export function WalkingAvatar({
     };
   }, [s]);
 
-  const at = (pick: (f: (typeof FRAMES)[number]) => number) => {
-    'worklet';
-    return [{ translateY: pick(FRAMES[pose.frame.get()] ?? FRAMES[0]) * s }];
-  };
-  const body = useDerivedValue(() => at((f) => f.bob));
-  const armL = useDerivedValue(() => at((f) => f.bob + f.armL));
-  const armR = useDerivedValue(() => at((f) => f.bob + f.armR));
-  const legL = useDerivedValue(() => at((f) => f.legL));
-  const legR = useDerivedValue(() => at((f) => f.legR));
+  // Each piece reads its frame's offsets inline: a helper taking a picker
+  // function gets the picker hoisted out of the worklet by the compiler
+  const body = useDerivedValue(() => [{ translateY: (FRAMES[pose.frame.get()] ?? FRAMES[0]).bob * s }]);
+  const armL = useDerivedValue(() => {
+    const f = FRAMES[pose.frame.get()] ?? FRAMES[0];
+    return [{ translateY: (f.bob + f.armL) * s }];
+  });
+  const armR = useDerivedValue(() => {
+    const f = FRAMES[pose.frame.get()] ?? FRAMES[0];
+    return [{ translateY: (f.bob + f.armR) * s }];
+  });
+  const legL = useDerivedValue(() => [{ translateY: (FRAMES[pose.frame.get()] ?? FRAMES[0]).legL * s }]);
+  const legR = useDerivedValue(() => [{ translateY: (FRAMES[pose.frame.get()] ?? FRAMES[0]).legR * s }]);
   const head = useDerivedValue(() => [
     { translateX: pose.look.get() * s },
     { translateY: (FRAMES[pose.frame.get()] ?? FRAMES[0]).bob * s },
