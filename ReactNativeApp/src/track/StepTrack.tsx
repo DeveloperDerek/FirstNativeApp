@@ -228,7 +228,7 @@ export function StepTrack({
   /** Called when a character on the road is tapped */
   onSelect?: (walker: Walker) => void;
   header?: ReactNode;
-  /** Your daily goal: a star on the road and on the minimap */
+  /** Your daily goal: a star on the road */
   myGoal?: number;
   /** Your place in the whole ranking (the road may show only the top) */
   myPlace?: { place: number; of: number };
@@ -487,7 +487,6 @@ export function StepTrack({
             walkers={walkers}
             max={max}
             theme={theme}
-            myGoal={myGoal}
             place={myPlace}
             scrollX={scrollX}
             width={viewport}

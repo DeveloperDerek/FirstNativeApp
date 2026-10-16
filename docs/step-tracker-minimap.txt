@@ -9,8 +9,9 @@ describes what was built, where, and how to check it. The decisions
 are recorded in section 8.
 
 Restyled the same day to follow a reference design (minimap.jpg, not
-committed): a white pill with a soft grey track and a dashed line,
-round heads, and ringed milestones. Section 2 describes the restyle;
+committed): a pill with a track and a dashed line, round heads, and a
+ringed milestone. Then toned into each map's own colors, with the
+personal goal left to the road and the header. Section 2 describes the restyle;
 sections 4 to 7 still describe the code, with the differences noted in
 section 2.
 
@@ -57,27 +58,30 @@ One strip, the full width of the screen, that never scrolls:
     ( ---(D)----------(  ●  )----------  ┃  ---------  ┃  ---- )
                                        [8k]         [10k]
 
-  a. THE PILL. A white rounded pill (12 points in from each side of the
-     screen, 64 tall) with a soft shadow, holding a light grey rounded
-     track. The same in every map: it reads on any ground color.
+  a. THE PILL. A rounded band (12 points in from each side of the
+     screen, 64 tall) holding a rounded track, both a faint tint of the
+     map's ink color over its ground: slightly darker on light maps,
+     slightly lighter on dark ones. No shadow, no white: it reads as
+     part of the ground. Every color in the minimap comes from the
+     map's ground, ink and button colors (which change with the time
+     of day on lit maps).
 
   b. THE LINE. A dashed line along the middle of the track, from 0 to
      the road's end (the same scaleMax as the road). The dashes behind
      you are darker, so the line shows how far you've come.
 
-  c. MILESTONES, as rings on the line with a colored line through the
-     whole pill and a small white tag under it ("8k", "10k"):
-       - YOUR daily goal: a green ring with a star, gold once reached,
-         the ring filled pale green
-       - the 10,000 flag: a cyan ring with the road's pixel flag. Left
-         out when your goal is 10,000 (the goal ring is there)
-     Landmarks every 5,000 are no longer marked; the road shows them.
+  c. THE FLAG. The 10,000 flag as a ring on the line (the road's pixel
+     flag inside, on the ground color), a thin line through the band
+     and "10k" under it. Your personal goal is not on the minimap: the
+     header shows it, and the road has its star. Landmarks every 5,000
+     are not marked either; the road shows them.
 
   d. HEADS. Each person's head (their real hair, face, glasses, hat,
-     still pixel art) in a white circle on the line at their steps.
+     still pixel art) in a circle of the ground color on the line at
+     their steps.
      Where heads would overlap, they stack upward (up to three rows,
      like the road's lanes), front row on the line. Your head is always
-     on the line, in front, with an orange ring around it.
+     on the line, in front, ringed in the map's accent (button) color.
      (Replaces the "+2" groups of the first draft.)
 
   e. THE VIEWPORT. A soft, slightly darker rounded window on the track
@@ -161,15 +165,16 @@ One strip, the full width of the screen, that never scrolls:
         road's x for those steps (centerFor(steps) - viewport / 2),
         and set userScrolled so the road stops auto-following.
       - The daily goal is passed in from Today (index.tsx already has
-        it as dailyGoal) as a new optional prop, myGoal.
+        it as dailyGoal) as a new optional prop, myGoal, for the road's
+        goal star. The minimap doesn't use it.
 
 ======================================================================
 5. ACCESSIBILITY
 ======================================================================
 
   - The minimap is one element for screen readers, read as a summary:
-    "Today's road: you are at 6,200 steps, 1,800 to your goal and 3,800
-    to the flag. 2nd of 5." In solo, without the ranking.
+    "Today's road. You're at 6,200 steps, 3,800 to the 10,000 flag,
+    2nd of 5." In solo, without the ranking.
   - It is "adjustable": swiping up or down jumps the road to the next
     or previous milestone, so the map can be explored without dragging.
   - The icons, markers and labels inside are hidden from screen
@@ -198,7 +203,6 @@ One strip, the full width of the screen, that never scrolls:
 
   - npm test: the new minimap tests pass with the old ones.
   - Solo, 0 steps: only your icon, at the left end; nothing filled.
-  - Solo, past your goal: the fill is gold and the star is filled.
   - A group where someone has 23,000: the bar ends at 25,000, labels
     every 5k, and the 10,000 flag moves left on the bar (the bar is
     the whole road).
@@ -221,7 +225,8 @@ One strip, the full width of the screen, that never scrolls:
   2. Milestones: the pixel diamonds, flag and star (not tiny landmarks).
   3. Tapping an icon scrolls the road to them; profiles open from the
      road as before.
-  4. Your daily goal is a star on the bar.
+  4. Your daily goal was a star on the bar; after the restyle it was
+     taken off the minimap (the road and the header show it).
   5. The road gets the goal star too: on its distance markers, with a
      "8k goal" label. It replaces a tick it lands on, and the labels
      of ticks within 700 steps of it give way so they don't overlap.
