@@ -786,18 +786,18 @@ export function ClockHands({ left, clock }: { left: number; clock: { cx: number;
   }, []);
   const minutes = now.getMinutes();
   const hours = (now.getHours() % 12) + minutes / 60;
+  // One set for both hands: they share the centre pixel (and overlap at
+  // times like 12:00), and a repeated pixel would repeat a React key
+  const pts = new Set<string>();
   const hand = (angle: number, length: number) => {
-    const pts = new Set<string>();
     for (let i = 0; i <= length * 2; i++) {
       const r = i / 2;
       pts.add(`${Math.round(clock.cx + Math.sin(angle) * r)},${Math.round(clock.cy - Math.cos(angle) * r)}`);
     }
-    return [...pts].map((p) => p.split(',').map(Number));
   };
-  const pixels = [
-    ...hand((minutes / 60) * 2 * Math.PI, clock.r - 1),
-    ...hand((hours / 12) * 2 * Math.PI, Math.max(2, clock.r - 3)),
-  ];
+  hand((minutes / 60) * 2 * Math.PI, clock.r - 1);
+  hand((hours / 12) * 2 * Math.PI, Math.max(2, clock.r - 3));
+  const pixels = [...pts].map((p) => p.split(',').map(Number));
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none" accessibilityElementsHidden>
       {pixels.map(([x, y]) => (
