@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { changeUsername, RegisterError } from '@/api/register';
+import { changeUsername } from '@/api/register';
 import { useAuth } from '@/auth/AuthProvider';
 import { cleanUsernameInput, isValidUsername } from '@/auth/register';
 import { signOut } from '@/auth/signIn';
@@ -33,7 +33,7 @@ export default function NewUsernameScreen() {
       await changeUsername(username);
       await reloadAccount();
     } catch (e) {
-      setError(e instanceof RegisterError ? e.message : errorMessage(e));
+      setError(errorMessage(e));
     } finally {
       setSaving(false);
     }

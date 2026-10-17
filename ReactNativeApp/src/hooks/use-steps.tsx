@@ -9,12 +9,11 @@ import { dayRange, getSteps, type PermissionResult, requestStepPermission } from
 import { useAchievementNotices } from '@/hooks/use-achievement-notices';
 import { useGoalReminders } from '@/hooks/use-goal-reminders';
 import { useWallet } from '@/hooks/use-wallet';
+import { errorMessage } from '@/lib/error-message';
 import { singleFlight } from '@/lib/single-flight';
 import { syncQuestSteps } from '@/quests/sync';
 import { HISTORY_DAYS } from '@/storage/step-log';
 import { loadSteps, saveManySteps, type StepLog } from '@/storage/stepStore';
-
-export { HISTORY_DAYS };
 
 /** Automatic refreshes are skipped this soon after the last one started. */
 const QUIET_MS = 60_000;
@@ -112,7 +111,7 @@ export function StepsProvider({ children }: { children: ReactNode }) {
       const upload = sharing ? entries : [];
       const synced = await syncDay(upload).catch((e) => {
         if (!upload.length) return null;
-        throw new Error(`Couldn't sync steps: ${e instanceof Error ? e.message : String(e)}`);
+        throw new Error(`Couldn't sync steps: ${errorMessage(e)}`);
       });
       if (!stillMine() || !synced) return;
       setGoal(synced.goal);
@@ -126,12 +125,12 @@ export function StepsProvider({ children }: { children: ReactNode }) {
       // just uploaded. Today's steps are already saved above.
       if (sharing && entries.length) {
         const list = await syncQuestSteps(synced.quests).catch((e) => {
-          throw new Error(`Couldn't send quest steps: ${e instanceof Error ? e.message : String(e)}`);
+          throw new Error(`Couldn't send quest steps: ${errorMessage(e)}`);
         });
         if (stillMine()) setQuests(list);
       }
     } catch (e) {
-      if (stillMine()) setError(e instanceof Error ? e.message : String(e));
+      if (stillMine()) setError(errorMessage(e));
     } finally {
       if (stillMine()) setLoading(false);
     }

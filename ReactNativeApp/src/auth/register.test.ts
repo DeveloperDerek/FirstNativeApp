@@ -7,12 +7,10 @@ import { checkName } from './name-rules.ts';
 import {
   ageOn,
   cleanEmail,
-  cleanName,
   cleanUsernameInput,
   currentLegalDocs,
   isoDayToDate,
   isValidEmail,
-  isValidDisplayName,
   isValidUsername,
   nameProblem,
   registerErrorMessage,
@@ -65,17 +63,19 @@ describe('usernames (step-tracker-register.txt, section 3)', () => {
 
 describe('display names', () => {
   test('1 to 30 characters, emoji and accents allowed', () => {
-    assert.ok(isValidDisplayName('Bé 🐝'));
-    assert.ok(isValidDisplayName('x'.repeat(30)));
-    assert.ok(!isValidDisplayName('x'.repeat(31)));
-    assert.ok(!isValidDisplayName('   '));
-    assert.ok(!isValidDisplayName('Ana\nLee'));
-    assert.ok(isValidDisplayName(' ' + 'x'.repeat(30) + ' '));
+    const ok = (name: string) => checkName(name, 'display').ok;
+    assert.ok(ok('Bé 🐝'));
+    assert.ok(ok('x'.repeat(30)));
+    assert.ok(!ok('x'.repeat(31)));
+    assert.ok(!ok('   '));
+    assert.ok(!ok('Ana\nLee'));
+    assert.ok(ok(' ' + 'x'.repeat(30) + ' '));
   });
 
-  test('cleanName is what the server saves', () => {
-    assert.equal(cleanName('  Ana\u00a0Lee ', 'display'), 'Ana Lee');
-    assert.equal(cleanName('y'.repeat(16), 'group'), null);
+  test('the cleaned name is what the server saves', () => {
+    const clean = checkName('  Ana\u00a0Lee ', 'display');
+    assert.equal(clean.ok && clean.name, 'Ana Lee');
+    assert.equal(checkName('y'.repeat(16), 'group').ok, false);
   });
 
   test('problems in words', () => {

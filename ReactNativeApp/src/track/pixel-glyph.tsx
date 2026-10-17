@@ -14,8 +14,6 @@ export const STAR = [
   '.OO.OO.',
 ];
 
-export const DIAMOND = ['.O.', 'OFO', '.O.'];
-
 // A pole with a pennant at the top
 export const FLAG = ['OFFF', 'OFF.', 'OF..', 'O...', 'O...', 'O...', 'O...'];
 

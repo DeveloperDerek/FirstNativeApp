@@ -2,7 +2,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 
-import { RegisterError } from '@/api/register';
 import { NOTE_MAX, REPORT_REASONS, type ReportKind, reportGroup, reportUser } from '@/api/reports';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
@@ -42,7 +41,7 @@ export default function ReportScreen() {
       // Nothing promised about hours or outcome; the person isn't told who
       Alert.alert('Thanks', 'We review every report.', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (e) {
-      setError(e instanceof RegisterError ? e.message : errorMessage(e));
+      setError(errorMessage(e));
     } finally {
       setSending(false);
     }

@@ -44,6 +44,7 @@ import {
   scaleMax,
   ticksFor,
 } from './scale';
+import { LANDMARK_H, LANDMARK_W, ROAD_BASE, ROAD_H, TILE_H, TILE_W } from './sizes';
 import type { MapTheme } from './themes';
 
 export type Walker = {
@@ -60,12 +61,7 @@ const SCALE = 2; // avatar pixel scale (whole number)
 const SPRITE_W = 32 * SCALE;
 const LABEL_H = 18;
 
-// Map art. Sizes match the exports in assets/maps (drawn at 256 x 80,
-// shown at 2 points per pixel, the same pixel size as the characters).
-const TILE_W = 512;
-const TILE_H = 160;
-const ROAD_H = 48; // bottom 24 drawing rows are road
-const ROAD_BASE = 6; // feet sit this far above the bottom
+// Map art (sizes in ./sizes)
 const LANE_OFFSET = 14; // each lane stands a bit further back
 const MAX_LANES = 3; // 3 x 14 fits inside the 48-point road
 // Characters further back also step a little to the side, so two people
@@ -75,8 +71,6 @@ const LANE_SHIFT = [0, 22, -22];
 // Landmarks stand every 5,000 steps
 const LANDMARK_EVERY = 5_000 * PX_PER_STEP;
 
-const LANDMARK_W = 128;
-const LANDMARK_H = 144;
 // Landmarks stand on the road and reach above the street art, so the
 // scene is tall enough for them; the extra space at the top is sky.
 const SCENE_H = Math.max(TILE_H, ROAD_H + LANDMARK_H);

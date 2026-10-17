@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 
+import { SPRITE_H, SPRITE_W } from './Avatar';
 import { wornLayers } from './catalog';
 import { findPet, PET_SIZE } from './pets';
 import { loadAlpha, type SpriteAlpha } from './sprite-alpha';
 import type { AvatarConfig } from './types';
 
-// Sizes in sprite pixels, as in Avatar.tsx
-const SPRITE_W = 32;
-const SPRITE_H = 56;
 /** The pet stands one row above the bottom of the character's sprite. */
 const PET_BOTTOM_ROW = SPRITE_H - 2;
 /**

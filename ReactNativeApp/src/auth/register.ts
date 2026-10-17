@@ -2,7 +2,7 @@
 // profile") that don't need the phone, so they can be tested with
 // `npm test`. The server checks all of these again.
 
-import { checkName, type NameCheck, type NameKind, NAME_MAX } from './name-rules.ts';
+import { type NameCheck, type NameKind, NAME_MAX } from './name-rules.ts';
 import type { LegalDoc } from './route.ts';
 
 /** Trimmed and lower-cased before sending. */
@@ -38,15 +38,6 @@ export function cleanUsernameInput(raw: string): string {
 }
 
 export const isValidUsername = (username: string) => /^[a-z0-9_]{3,20}$/.test(username);
-
-/** Display names: the shared name rules (src/auth/name-rules.ts). Emoji and accents are fine. */
-export const isValidDisplayName = (name: string) => checkName(name, 'display').ok;
-
-/** What the server will save for this name, or null if it will refuse it. */
-export function cleanName(name: string, kind: NameKind): string | null {
-  const result = checkName(name, kind);
-  return result.ok ? result.name : null;
-}
 
 /** Why a name can't be used, in words; null when it can (the word list is checked by the server). */
 export function nameProblem(check: NameCheck, kind: NameKind): string | null {

@@ -18,5 +18,3 @@ export function dayRange(daysAgo = 0) {
   end.setDate(end.getDate() + 1);
   return { start, end };
 }
-
-export const todayRange = () => dayRange(0);

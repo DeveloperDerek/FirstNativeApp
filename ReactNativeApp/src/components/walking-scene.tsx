@@ -18,21 +18,14 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { PixelSprite } from '@/avatar/Avatar';
+import { PixelSprite, SPRITE_H, SPRITE_W } from '@/avatar/Avatar';
 import { type PetEdges, usePetEdge } from '@/avatar/pet-spot';
 import { findPet, type Pet, PET_SIZE } from '@/avatar/pets';
 import type { AvatarConfig } from '@/avatar/types';
 import { WALK_FRAMES, WalkingAvatar } from '@/avatar/WalkingAvatar';
+import { LANDMARK_H, LANDMARK_W, ROAD_BASE, ROAD_H, TILE_H, TILE_W } from '@/track/sizes';
 import type { MapTheme } from '@/track/themes';
 
-const TILE_W = 512; // same sizes as StepTrack
-const TILE_H = 160;
-const ROAD_H = 48;
-const LANDMARK_W = 128;
-const LANDMARK_H = 144;
-const ROAD_BASE = 6; // feet sit this far above the bottom, as on the map
-const SPRITE_W = 32; // the character's sprite, in sprite pixels
-const SPRITE_H = 56;
 const HOP_MS = 180;
 const STEP_MS = 160; // one frame of the walk
 // Sprite pixels the ground moves each frame, so the feet don't slide
@@ -47,7 +40,7 @@ const STAND_FOR = [1.5, 4];
 
 /** Tall enough for the character (with headroom) and a landmark on the road. */
 export function sceneHeight(scale: number) {
-  return Math.max(56 * scale + 18, ROAD_H + LANDMARK_H);
+  return Math.max(SPRITE_H * scale + 18, ROAD_H + LANDMARK_H);
 }
 
 /**
