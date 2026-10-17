@@ -1,0 +1,303 @@
+STEP TRACKER - CODE-QUALITY AUDIT: PROPOSED CHANGES
+Date: 2026-10-17
+Scope: ReactNativeApp/src (180 files), scripts/, package.json, app config
+
+No files were modified by the audit. Paths are relative to ReactNativeApp/.
+
+Before starting: commit the uncommitted work in friends.tsx, avatar.tsx,
+Avatar.tsx, pet-spot.ts, walking-scene.tsx and use-map-theme.tsx first.
+Several changes below touch those files.
+
+
+==========================================================================
+PART A - DEFINITE REDUNDANCIES (ranked)
+==========================================================================
+
+--------------------------------------------------------------------------
+A1. The same database query runs twice at sign-in            Impact: MEDIUM
+--------------------------------------------------------------------------
+Where:
+  MapThemeProvider, src/hooks/use-map-theme.tsx (sign-in effect)
+
+What is redundant:
+  On sign-in it calls loadMyItems(userId), which runs
+  listOwnedItemsInOrder() (user_items). In parallel it calls
+  listOwnedItems(), a wrapper around the same query
+  (src/api/coins.ts). The same rows are read twice in parallel.
+
+Overlaps with:
+  src/avatar/my-items.ts  loadMyItems()
+
+Change:
+  At sign-in, build the owned set from the loadMyItems result:
+    loadMyItems(userId).then(i => setOwned({ userId, ids: new Set(i.owned) }))
+  Fall back to listOwnedItems() only if that call fails.
+  Leave refreshOwned() unchanged (app resume, after purchases).
+
+Risk:
+  Low. loadMyItems fails as a whole if listShopItemIds() fails, so the
+  fallback is needed to keep maps unlocking.
+
+--------------------------------------------------------------------------
+A2. Date helpers are written several times          Impact: MEDIUM-HIGH
+--------------------------------------------------------------------------
+Copies:
+  Local Date -> 'YYYY-MM-DD'
+    src/storage/step-log.ts     dayKey
+    src/reminders/plan.ts       localDay
+    src/auth/register.ts        toIsoDay
+  'YYYY-MM-DD' -> local Date
+    src/history/history.ts      parseDay
+    src/auth/register.ts        isoDayToDate
+  'YYYY-MM-DD' -> UTC ms
+    src/history/history.ts      toUtc
+    src/activity/activity.ts    parse
+    src/achievements/achievements.ts  inline in formatEarnedOn
+  Time as "3:00 PM"
+    src/quests/banners.ts       clock
+    src/components/quest-card.tsx  clock
+    src/app/propose-quest.tsx   inline
+
+Why:
+  The comment in plan.ts says the copy keeps the file "free of imports"
+  for npm test. activity.ts and register.ts already use relative .ts
+  imports that node --test runs fine, so that reason no longer holds.
+
+Change:
+  Add one pure module, src/lib/day.ts:
+    dayKey, parseDay, dayToUtc, clockTime
+  Import it with relative .ts paths from the pure modules. Keep the old
+  export names as re-exports for now so call sites don't all change at
+  once.
+
+Risk:
+  Low if each function is moved exactly as written. Don't merge the
+  local and UTC versions with each other; they behave differently on
+  purpose.
+
+--------------------------------------------------------------------------
+A3. Server error codes -> messages, done four ways            Impact: MEDIUM
+--------------------------------------------------------------------------
+Where:
+  src/api/coins.ts      coinErrorMessage      substring match + fallback
+  src/api/quests.ts     questErrorMessage     substring match, falls back
+                                              to the raw message
+  src/auth/register.ts  registerErrorMessage  exact switch, reached via
+                                              rethrow / RegisterError in
+                                              src/api/register.ts
+  src/api/mapTheme.ts   saveMapTheme          inline includes('ITEM_NOT_OWNED')
+
+Also:
+  rethrow lives in api/register.ts but is used by groups.ts, profile.ts
+  and reports.ts, so its location is misleading.
+
+Change:
+  One helper, serverMessage(e, table, fallback), in src/lib/. Keep one
+  message table per domain. Move rethrow / RegisterError next to it.
+
+Risk:
+  Medium. Exact-match and substring-match versions don't behave the same
+  way. Keep each module's current matching mode, or confirm that Postgres
+  RAISE messages are always the bare code before unifying.
+
+--------------------------------------------------------------------------
+A4. Avatar layer order written out three times               Impact: MEDIUM
+--------------------------------------------------------------------------
+Where:
+  src/avatar/Avatar.tsx    Avatar      13 <Layer>s, back to front
+  src/avatar/catalog.ts    wornLayers  same list without tints
+                                       (used by pet-spot.ts)
+  src/avatar/Avatar.tsx    HeadIcon    hand-picked subset
+
+Why it matters:
+  If you add a slot to Avatar but forget wornLayers, the pet is placed
+  through the new layer without any error.
+
+Change:
+  Make wornLayers return { source, tint }[] and render Avatar from it.
+  pet-spot maps .source. Leave WalkingAvatar alone; it splits layers
+  into pieces on purpose.
+
+Risk:
+  Low. Output should be identical; compare a screenshot of the
+  customize screen.
+
+--------------------------------------------------------------------------
+A5. Sprite and scene sizes declared again in other files  Impact: LOW-MEDIUM
+--------------------------------------------------------------------------
+Sprite size:
+  SPRITE_W / SPRITE_H are exported from Avatar.tsx but declared again in
+    src/avatar/pet-spot.ts
+    src/components/walking-scene.tsx
+  pet-spot already depends on Avatar.tsx through sprite-alpha.ts, so
+  importing them adds no new dependency.
+
+Scene sizes:
+  TILE_W, TILE_H, ROAD_H, ROAD_BASE, LANDMARK_W, LANDMARK_H appear in
+  both walking-scene.tsx and src/track/StepTrack.tsx. The code comments
+  even say "same sizes as StepTrack".
+
+Change:
+  Import sprite sizes from Avatar.tsx. Export the scene sizes once (e.g.
+  src/track/scale.ts or a new src/track/sizes.ts).
+
+Risk:
+  None while the values are identical, which they are today.
+
+--------------------------------------------------------------------------
+A6. Leaderboard rows -> player-card data in three places  Impact: LOW-MEDIUM
+--------------------------------------------------------------------------
+Where:
+  The same LeaderboardRow -> Walker mapping
+  (name: display_name || 'Player', steps: Number(total_steps)) in
+    src/app/(tabs)/index.tsx
+    src/app/(tabs)/friends.tsx
+    src/app/(tabs)/groups/[id].tsx
+
+Related repetition:
+  - Number(total_steps) "bigint arrives as a number or string" appears
+    five times, including twice in src/components/leaderboard.tsx.
+  - stepsLabel={period === 'today' ? 'Today' : 'Last 7 days'} appears
+    twice.
+  - Period labels are written in both friends.tsx (VIEWS) and
+    leaderboard.tsx (PERIODS).
+
+Change:
+  Convert total_steps to a number once, in friendsLeaderboard /
+  groupLeaderboard (as getMyHistoryByMonth already does). Add a
+  rowToWalker(row, myId) helper and export PERIODS.
+
+Risk:
+  Low. The type already says number; this makes it true.
+
+--------------------------------------------------------------------------
+A7. Unused code, files and dependencies                         Impact: LOW
+--------------------------------------------------------------------------
+Unused code:
+  - src/components/hint-row.tsx           Expo template leftover
+  - src/components/ui/collapsible.tsx     Expo template leftover
+  - AnimatedIcon in src/components/animated-icon.tsx, plus the
+    keyframes only it uses and possibly assets/images/logo-glow.png.
+    KEEP AnimatedSplashOverlay in the same file (_layout.tsx uses it).
+  - todayRange in src/health/index.ts
+  - DIAMOND in src/track/pixel-glyph.tsx
+  - export { HISTORY_DAYS } in src/hooks/use-steps.tsx (everything
+    imports it from step-log)
+  - isValidDisplayName and cleanName in src/auth/register.ts (only tests
+    use them)
+
+WARNING:
+  scripts/reset-project.js and the "reset-project" npm script are
+  Expo's template script. Running it moves src/ out of the way.
+  Delete both.
+
+Dependencies with no references:
+  - expo-glass-effect
+  - expo-web-browser
+  - expo-symbols (only used by the dead collapsible.tsx)
+  Run `npx expo-doctor` after removing them.
+
+Checked and KEPT (not unused):
+  - expo-linking, react-native-screens, react-native-nitro-modules,
+    expo-asset, expo-system-ui, expo-dev-client: peer dependencies,
+    config or build needs
+  - ws: needed for `expo start --tunnel` (commit 78cc4b9)
+  - src/auth/name-tests-sql.ts: used by scripts/gen-name-tests.ts
+  - src/health/steps.ts: type stub for the .ios / .android files
+  - src/app/auth/*: deep-link routes
+
+--------------------------------------------------------------------------
+A8. Error-to-text code that errorMessage() already handles      Impact: LOW
+--------------------------------------------------------------------------
+  - src/hooks/use-steps.tsx (3 places) writes
+      e instanceof Error ? e.message : String(e)
+    by hand; that is exactly errorMessage(e).
+  - src/app/new-username.tsx and src/app/report.tsx use
+      e instanceof RegisterError ? e.message : errorMessage(e)
+    RegisterError is an Error, so both branches return the same thing.
+    Use plain errorMessage(e).
+
+Risk:
+  None. No behaviour change.
+
+--------------------------------------------------------------------------
+A9. Repeated network requests on individual screens   Impact: LOW-MEDIUM
+--------------------------------------------------------------------------
+  - src/app/(tabs)/friends.tsx: load depends on period, so switching the
+    Today / Last 7 days / Activity pills also reloads listFriendships()
+    and the notification counts. Split the leaderboard fetch from the
+    friendships fetch.
+  - src/app/shop.tsx: load calls refreshBalance() (getBalance) and
+    getShopRefreshAt(). Both read the same wallets row. Use one
+    select('balance, last_shop_refresh_at').
+  - src/app/(tabs)/index.tsx: loadBoard runs listMyGroups() again on
+    every mode switch.
+  - src/app/(tabs)/groups/[id].tsx sendSteps: refreshSteps() already
+    updates the quest list, then loadQuest() calls refreshQuests()
+    (my_quests) again.
+
+Risk:
+  Low each. Check that the lists still refresh after accept, decline
+  or purchase.
+
+
+==========================================================================
+PART B - POSSIBLE IMPROVEMENTS (judgment calls)
+==========================================================================
+
+B1. Twelve app-resume listeners, each making its own requests
+    Impact: MEDIUM (network and battery)
+  12 files register AppState.addEventListener('change', ...active...).
+  One resume triggers:
+    - account_status and the profile (AuthProvider)
+    - mark_seen
+    - push registration
+    - notification_counts
+    - user_items
+    - claim_checkin, plus a balance read if coins were granted
+    - sync_day (and my_quests) when the last sync is over 60s old
+    - friends_activity when that view is open
+  A useOnForeground(cb) hook is a safe cleanup of the repeated listener
+  code. Combining requests into one RPC would need server changes, so
+  measure first.
+
+B2. "Newest answer for this account wins" state, written ~5 times
+  Wallet, notification counts, activity, map theme, player card. A
+  shared helper is possible, but each copy has small deliberate
+  differences. Recommendation: leave as is.
+
+B3. Repeated screen boilerplate
+  - The red error card (<Section><ThemedText themeColor="danger">)
+    appears in 5 screens; a small <ErrorCard> component is cheap.
+  - The pullToRefresh wrapper appears in 6 screens; a hook adds little.
+
+B4. Formatting in the API layer
+  timeAgo is in src/api/players.ts but is formatting; move it to lib/.
+  friends.tsx updatedText is a second relative-time formatter with a
+  different style on purpose.
+
+B5. Small repeats
+  - Group-name validation (checkName + nameProblem) in both group
+    screens.
+  - Invalid-username message has two wordings:
+    '3 to 20 letters, numbers or _' and 'Usernames are 3-20 characters...'
+  - profile.tsx parses app_metadata.providers twice.
+
+B6. Wallet balance reads
+  The initial getBalance effect in use-wallet.tsx duplicates
+  refreshBalance. Having claim_checkin return the new balance (a server
+  change) would save one round trip per granted check-in.
+
+
+==========================================================================
+SUGGESTED ORDER
+==========================================================================
+1. No behaviour change:            A7 (delete reset-project.js
+                                   especially), A8, A5
+2. Small risk, removes the most
+   drift:                          A2 (date module), A4 (layer list), A6
+3. Saves network requests:         A1, A9
+4. Needs care with matching modes: A3
+5. Optional:                       Part B
+
+After each step: npx expo lint, npx tsc --noEmit, npm test.
