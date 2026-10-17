@@ -12,10 +12,10 @@ import {
   earnedList,
   findAchievement,
   formatEarnedOn,
-  lockText,
   type NewAchievement,
   progressText,
   ShowingNow,
+  unlockedBy,
   unlockMessage,
 } from './achievements.ts';
 
@@ -195,12 +195,12 @@ test('ids on screen are not shown again until the message closes', () => {
   );
 });
 
-test('the lock text names the right achievement', () => {
-  assert.equal(lockText('shoes_winged'), 'Earn A million steps to unlock');
-  assert.equal(lockText('cape_ember'), 'Earn A month in a row to unlock');
-  assert.equal(lockText('hat_laurel'), 'Earn 100 days in a row to unlock');
-  assert.equal(lockText('pet_mimic'), 'Earn First quest won to unlock');
-  assert.equal(lockText('shoes_gold'), null);
+test('each reward item comes from the right achievement', () => {
+  assert.equal(unlockedBy('shoes_winged')?.name, 'A million steps');
+  assert.equal(unlockedBy('cape_ember')?.name, 'A month in a row');
+  assert.equal(unlockedBy('hat_laurel')?.name, '100 days in a row');
+  assert.equal(unlockedBy('pet_mimic')?.name, 'First quest won');
+  assert.equal(unlockedBy('shoes_gold'), undefined);
 });
 
 // The server and the app each keep a list; these keep them the same.

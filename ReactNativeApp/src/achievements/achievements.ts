@@ -84,12 +84,6 @@ export function unlockedBy(itemId: string): Achievement | undefined {
   return ACHIEVEMENTS.find((a) => a.reward?.item === itemId);
 }
 
-/** Customize's note on a reward item not earned yet. */
-export function lockText(itemId: string): string | null {
-  const a = unlockedBy(itemId);
-  return a ? `Earn ${a.name} to unlock` : null;
-}
-
 // ---------------------------------------------------------------- the list
 
 /** What my_achievements() returns. */

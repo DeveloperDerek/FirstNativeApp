@@ -6,7 +6,8 @@ import { type AvatarConfig, DEFAULT_AVATAR } from './types';
 // To add an item: drop the 32 x 56 PNG in assets/avatar/ and add a line.
 // An item that isn't free needs its shop_items row deployed first: one with
 // no row is free to wear. A reward item (earned, never sold) is also listed
-// in src/achievements/achievements.ts, which keeps it locked in Customize.
+// in src/achievements/achievements.ts, which keeps it out of Customize
+// until it's earned.
 
 export type Slot =
   | 'face'
