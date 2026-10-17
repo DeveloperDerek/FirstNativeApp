@@ -1264,8 +1264,7 @@ def shop_collection():
 
 
 # ================================================================ item sets
-# Themed looks sold piece by piece (a hat, an outfit or top, something to
-# hold), each finishing with items the shop already has: cowboy boots,
+# Themed looks sold piece by piece (a hat, an outfit or top), each finishing with items the shop already has: cowboy boots,
 # the eyepatch, the knight's armor, shield and sword, sandals.
 # Walking: long coats stop above row 42, where the legs start to lift
 # on their own, and nothing but a sleeve reaches the arm columns (0-10
@@ -1298,16 +1297,6 @@ def cowboy_vest(layer, c):
     layer.dots(WHITE, [(14, 27)])
 
 
-def hand_lasso(name):
-    rope = hexc('#e2bc78')
-    layer = Layer().part(ring(6, 40, 5, 4.2, 2.4), rope, darker(rope, 0.8))
-    layer.dots(darker(rope, 0.75), [(x, y) for x, y in ring(6, 40, 3.8, 3, 1)
-                                    if layer.px.get((x, y)) == rope])  # the coils
-    tail = line(9, 36, 12, 46)
-    layer.dots(darker(rope, 0.6), tail).dots(rope, [(x - 1, y) for x, y in tail[2:]])
-    layer.flip().save(name)
-
-
 # ---------------------------------------------------------------- chef
 def hat_chef(name):
     white = hexc('#f7f7f4')
@@ -1334,14 +1323,6 @@ def outfit_chef(name):
     layer.part(apron, WHITE, hexc('#dcdcd6'))
     layer.dots(hexc('#9aa3b5'), [(x, 33) for x in range(12, 20)])  # apron string
     layer.save(name)
-
-
-def hand_spatula(name):
-    layer = Layer().part(rect(7, 30, 8, 39), hexc('#a0683a'), hexc('#7a4a2a'))
-    layer.part(rect(5, 21, 10, 29), STEEL, darker(STEEL, 0.82))
-    layer.dots(darker(STEEL, 0.62), [(x, y) for x in (6, 8) for y in range(23, 28)])  # slots
-    layer.dots(WHITE, [(6, 22)])
-    layer.flip().save(name)
 
 
 # ---------------------------------------------------------------- pirate
@@ -1374,19 +1355,6 @@ def outfit_pirate(name):
     leather = hexc('#4a3020')
     layer.dots(leather, [(x, 36) for x in range(11, 21)]).dots(GOLD, [(15, 36), (16, 36)])
     layer.save(name)
-
-
-def hand_spyglass(name):
-    brass = hexc('#c9a24a')
-    # Held out to the side and tipped up, narrowing toward the far end
-    tube = set()
-    for x in range(1, 11):
-        top = 33 - (10 - x) // 3
-        tube |= {(x, y) for y in range(top, top + (4 if x < 6 else 3))}
-    layer = Layer().part(tube, brass, darker(brass, 0.8))
-    layer.dots(darker(brass, 0.6), [(6, 32), (6, 33), (6, 34)])  # where the tubes slide together
-    layer.dots(hexc('#9fd4f0'), [(1, 32), (1, 33)])  # the lens, catching the light
-    layer.flip().save(name)
 
 
 # ---------------------------------------------------------------- knight
@@ -1466,15 +1434,12 @@ def hat_viking(name):
 def item_sets():
     hat_cowboy('hat_cowboy', '#8a5a32')
     top('top_cowboy_vest', '#e9dcc0', cowboy_vest)
-    hand_lasso('hand_lasso')
 
     hat_chef('hat_chef')
     outfit_chef('outfit_chef')
-    hand_spatula('hand_spatula')
 
     hat_pirate('hat_pirate')
     outfit_pirate('outfit_pirate')
-    hand_spyglass('hand_spyglass')
 
     hat_knight('hat_knight')
 

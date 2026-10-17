@@ -346,10 +346,6 @@ export const CATALOG: Record<Slot, Item[]> = {
     { id: 'hand_flag', label: 'Flag', image: require('@/assets/avatar/hand_flag.png') },
     { id: 'hand_shield', label: 'Big shield', image: require('@/assets/avatar/hand_shield.png') },
     { id: 'hand_guitar', label: 'Guitar', image: require('@/assets/avatar/hand_guitar.png') },
-    // Item sets
-    { id: 'hand_lasso', label: 'Lasso', image: require('@/assets/avatar/hand_lasso.png') },
-    { id: 'hand_spatula', label: 'Spatula', image: require('@/assets/avatar/hand_spatula.png') },
-    { id: 'hand_spyglass', label: 'Spyglass', image: require('@/assets/avatar/hand_spyglass.png') },
   ],
   // One-piece outfits: drawn instead of the top and bottom
   outfit: [

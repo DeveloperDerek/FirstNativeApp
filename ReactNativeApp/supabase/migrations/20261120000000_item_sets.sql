@@ -7,15 +7,12 @@ insert into public.shop_items (id, price) values
   -- Cowboy (+ shoes_cowboy)
   ('hat_cowboy',             900),
   ('top_cowboy_vest',        700),
-  ('hand_lasso',             700),
   -- Chef
   ('hat_chef',               700),
   ('outfit_chef',           1500),
-  ('hand_spatula',           400),
   -- Pirate (+ glasses_eyepatch, shoes_boots_brown)
   ('hat_pirate',            1000),
   ('outfit_pirate',         2000),
-  ('hand_spyglass',          800),
   -- Knight (+ outfit_knight, hand_sword, hand_shield)
   ('hat_knight',            1200),
   -- Astronaut (+ hand_flag)
