@@ -1,0 +1,424 @@
+STEP TRACKER - CHEERS (BLUEPRINT)
+Let people send a friend or group mate a quick cheer ("Keep going!",
+"Goal crushed!") with one tap, and let the other person see it on
+their road and cheer back.
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. It
+describes what a cheer is, who can send one to whom, the limits, what
+the person receiving it sees, and the choices to make before building.
+
+Builds on what the app already has: friends and groups, the player
+card (src/components/player-card.tsx), blocking and can_see()
+(20261104000000_blocking.sql), push notifications sent from the
+database (20261102000000_push_notifications.sql), the Notifications
+setting on Profile, and the character on the Today road.
+
+======================================================================
+1. THE IDEA IN ONE MINUTE
+======================================================================
+
+  - Open a friend's or group mate's player card and tap "Cheer". Pick
+    one of six pixel-art stickers. Done.
+  - They get a push, "@sam cheered you: Keep going!", and the next
+    time they open Today, the sticker pops up above their character
+    on the road, with Sam's name.
+  - One tap to cheer back.
+  - Only set stickers, never typed text. Nothing new to moderate, and
+    it stays safe for 13-17 year olds (step-tracker-safety.txt).
+  - One cheer per person every 20 hours. Cheers are a nice moment,
+    not a chat, and they can't be used to spam someone.
+  - Cheers pay no coins, to either person (section 6).
+  - Built in three phases. Phase 1 is the whole feature on its own;
+    Phases 2 and 3 make it quicker to use and add to it.
+
+======================================================================
+2. THE STICKERS
+======================================================================
+
+  Six to start. Each one is a small pixel-art sticker in the same style
+  as the characters (no system emoji in the app itself), plus a short
+  line of text. The database stores only the sticker's id.
+
+    id             text              push emoji
+    nice_walk      Nice walk!        👏
+    keep_going     Keep going!       💪
+    on_fire        On fire!          🔥
+    goal_crushed   Goal crushed!     🏆
+    lets_walk      Let's walk!       👟
+    proud          Proud of you!     ⭐
+
+  - Friendly only. Fitbit has "taunts" too; leave them out. Between
+    teens and strangers in groups, a taunt is too easy to read badly.
+  - The list of ids is a check in the database, so adding a sticker is
+    a migration plus its art, and an old app version that doesn't know
+    a new id shows it as "nice_walk" instead of breaking.
+  - The emoji is only for the push text, which can't show pixel art.
+
+======================================================================
+3. WHO CAN CHEER WHOM
+======================================================================
+
+  You can cheer someone when ALL of these are true at that moment:
+  - You are both active accounts and neither has blocked the other
+    (can_see()).
+  - You are friends (is_friend()) OR you are both members of the same
+    group (shares_group()).
+  - You have BOTH agreed to share your steps. Friends and Groups are
+    already closed until you do (sharing-required.tsx); a cheer
+    should not reach someone who hasn't opened those either. The
+    database has has_sharing_consent() for the caller only, so it
+    needs a server-only version that takes a person, like
+    notification_counts_for().
+  - It's not you.
+  - You haven't cheered them in the last 20 hours (section 5).
+  - You haven't sent 30 cheers in the last 24 hours (section 5).
+
+  When a send is refused because of the first three rules, the answer
+  is the same NOT_ALLOWED in every case, the way can_see() never says
+  WHY you can't see someone. Being told "they blocked you" or "they
+  turned off sharing" is not something a cheer should reveal.
+
+  Group mates who aren't friends CAN cheer each other (decision
+  CHEER-2). Group quests are where most of the teamwork happens, and
+  a set sticker gives a stranger nothing to misuse. Blocking removes
+  it in one tap.
+
+======================================================================
+4. PHASE 1 - SEND, RECEIVE, CHEER BACK (START HERE)
+======================================================================
+
+  THE DATABASE
+  - A "cheers" table, one row per cheer:
+      id          number, made by the database
+      from_id     the sender (deleted with their account)
+      to_id       the person cheered (deleted with their account)
+      sticker     one of the ids in section 2
+      created_at  when it was sent
+      seen_at     when the person cheered saw it on Today, or empty
+      pushed      whether a push was sent for it (for the push limit)
+  - Read rule: you can read rows you sent or received, nothing else.
+  - The app can never insert, change or delete rows directly. It
+    goes through three functions:
+
+    send_cheer(person, sticker)
+      Checks every rule in section 3 and the limits in section 5,
+      then saves the cheer. Takes lock_pair() first, so two taps (or
+      two phones) at the same moment can't both get through the
+      20-hour rule. Answers with when the next cheer to that person
+      is allowed, or one of:
+        NOT_ALLOWED    any rule in section 3 (never says which)
+        TOO_SOON       you cheered them in the last 20 hours
+        DAILY_LIMIT    30 sent in the last 24 hours
+        NOT_SHARING    you haven't agreed to share your steps
+        BAD_STICKER    not an id from section 2
+
+    cheer_status(person)
+      For the player card: can I cheer them right now, and if not
+      because of the 20 hours, when can I. Gives NOT_ALLOWED the same
+      way send_cheer does, so the card just hides the button.
+
+    my_cheers()
+      Cheers you received in the last 24 hours, newest first, with
+      each sender's username and display name. Leaves out anyone you
+      can't see now (can_see()), so a sender who was blocked or
+      paused after cheering disappears from the list. Also says, for
+      each one, whether you can cheer them back right now.
+
+    mark_cheers_seen(up_to_id)
+      Sets seen_at on your received cheers up to that id. Only your
+      own rows.
+
+  SENDING (THE PLAYER CARD)
+  - The card gets a "Cheer" button next to Close, for anyone but you,
+    wherever the card opens from (Friends, a group, or tapping a
+    character on the Today road),
+    shown only when cheer_status() says it's allowed. It loads with
+    the rest of the card (loadPlayerProfile in src/api/players.ts,
+    and the group version), and a failed check just hides the button.
+  - Tapping it shows the six stickers in a small grid. Tap one: it
+    sends, the sticker does a short bounce, and the button turns into
+    "Cheered" (disabled). No confirm step: a cheer can't do harm.
+  - Already cheered: the button shows "Cheered" with "again in 6h"
+    under it.
+  - TOO_SOON or DAILY_LIMIT from the server (another phone got there
+    first): show the same "Cheered" state, or "You've sent a lot of
+    cheers today" for the daily limit. No alert box.
+  - Any other failure: "Couldn't send. Try again." under the grid,
+    and the grid stays open.
+
+  RECEIVING (TODAY)
+  - Today asks my_cheers() when it loads and when the app comes back
+    to the foreground, alongside the step refresh, keeping only the
+    newest answer for the signed-in account (the same rule as the
+    tab badges, step-tracker-notifications.txt section 2).
+  - Unseen cheers pop up one after another above YOUR character on
+    the road: the sticker in a little speech bubble with "@sam" under
+    it, about 2 seconds each, at most 5 (then "+3 more"). Then
+    mark_cheers_seen() with the newest id shown. If that call fails,
+    they simply show again next time.
+  - A small chip under the step count, "3 cheers", opens the Cheers
+    sheet while any cheers from the last 24 hours exist. Hidden when
+    there are none.
+  - The Cheers sheet: one row each, sticker, name, "2h ago", and a
+    "Cheer back" button (disabled with "Cheered" when the 20 hours
+    say no). Cheer back opens the same sticker grid. Tapping a name
+    opens their player card.
+  - Signed out, or not sharing your steps: no chip, no bubbles.
+
+  THE PUSH
+  - Sent by the database, like friend requests: a trigger after each
+    new cheer calls a server-only push_cheer(), wrapped so a failed
+    push never stops the cheer being saved (like on_friend_request).
+  - Before sending, push_cheer() checks again at that moment:
+      - the person cheered can still see the sender (active, not
+        blocked either way)
+      - the Notifications setting is on, AND the new "Cheers" setting
+        is on (below)
+      - fewer than 10 cheer pushes to this person in the last 24
+        hours (section 5); past that, the cheer is saved quietly and
+        shows on Today
+      - not night time where the phone is (below)
+  - Text:  title "@sam cheered you"   body "Keep going! 💪"
+  - No sound. A cheer is nice to see, not worth a ding.
+  - The app icon number: the push carries the SAME total the friend
+    request push uses (friend requests waiting). Cheers are not
+    counted in it; they don't need an action. Leaving "badge" out
+    would be fine on iPhone too, but sending the real total keeps the
+    number right.
+  - Tapping it opens Today with the Cheers sheet open.
+
+  NO PUSHES AT NIGHT
+  - The server doesn't know anyone's time zone (recommendations 3d
+    is still open). The cheap fix: the app sends the phone's time zone
+    with register_push_device(), which it already calls on every
+    launch, and push_devices keeps it per device.
+  - A cheer push to a device where it's between 9 PM and 8 AM is
+    skipped. The cheer still shows on Today in the morning.
+  - A device with no time zone saved (older app version) gets the
+    push as now.
+
+  SETTINGS (PROFILE, UNDER NOTIFICATIONS)
+  - "Cheers" on/off, default on. It turns off cheer PUSHES only.
+    Cheers still arrive and show on Today. It goes in
+    notification_settings as its own column, with its own setter
+    like set_push_enabled().
+  - The main Notifications switch turning off also stops cheer pushes.
+  - There is no "don't let people cheer me" switch in Phase 1 (decision
+    CHEER-4). Blocking covers a person; the push setting covers the
+    noise.
+
+  CLEANING UP
+  - Cheers older than 30 days are deleted by a nightly job (pg_cron,
+    like push-cleanup). Nothing reads them after 24 hours in Phase 1;
+    the extra days are for Phase 3's counts and for looking into a
+    problem.
+  - block_user() deletes every cheer between the two people, both
+    directions, in the same step.
+  - Account deletion: the rows go with the account (on delete
+    cascade).
+  - Removing a friend, or leaving the group you shared: old cheers stay
+    (they were fine when sent), but you can't send new ones, and
+    my_cheers() still shows them for the rest of the 24 hours. Small,
+    and not worth special code.
+
+======================================================================
+5. LIMITS (AND WHY THESE NUMBERS)
+======================================================================
+
+  ONE CHEER PER PERSON EVERY 20 HOURS
+  - 20 hours, not "per day", because there is no single day: the phone
+    counts days in its own time and the server in its own (recommend-
+    ations 3d). A rolling 20 hours means "about once a day" for
+    everyone, with no midnight reset to argue about, and lets someone
+    who cheers at 9 PM do it again at 6 PM the next day.
+  - Counted per direction: Sam cheering you doesn't stop you cheering
+    Sam back.
+
+  30 CHEERS SENT IN 24 HOURS
+  - Well above what one person cheering their friends and group mates
+    once each would send, and low enough that a script or a bored
+    person can't cheer a whole big group again and again.
+
+  10 CHEER PUSHES RECEIVED IN 24 HOURS
+  - Someone popular in three big groups could get 30 pings a day.
+    After 10, cheers are saved quietly and wait on Today.
+
+  All three are checked on the server only; the app shows what the
+  server said. All three are kept as numbers in one place in the
+  migration, easy to change.
+
+======================================================================
+6. CHOICES MADE (EASY TO CHANGE)
+======================================================================
+
+  CHEER-1  Set stickers only, never typed text.
+    Why:  nothing to moderate or report, safe for teens, and it fits
+    the game. A typed message is a chat, which is its own big job.
+
+  CHEER-2  Friends AND group mates can cheer each other.
+    Why:  groups are where people walk together. A set sticker is
+    harmless from a stranger, and blocking is one tap.
+    Other option: friends only. Simpler to explain, but quieter.
+
+  CHEER-3  No coins for sending or receiving.
+    Why:  coins for cheers can be farmed with a second account (cheer
+    each other every day), and coin rewards make cheers feel like a
+    chore. The coin economy is balanced around steps
+    (step-tracker-coins-items.txt).
+    Other option: an achievement later (Phase 3), which pays an item
+    once, not coins every day.
+
+  CHEER-4  No "who can cheer me" setting in Phase 1.
+    Why:  blocking and the push setting cover the real cases. Add
+    "Friends only / Friends and groups / No one" if people ask.
+
+  CHEER-5  One cheer per person every 20 hours; 30 sent and 10 pushes
+           received per 24 hours.
+    Why:  section 5.
+
+  CHEER-6  No tab badge for cheers.
+    Why:  a badge means "something needs you" (notifications
+    blueprint, section 5). Cheers are to enjoy, not to act on. The
+    bubbles on Today and the chip are enough.
+
+  CHEER-7  No sound, and no pushes from 9 PM to 8 AM in the phone's
+           time.
+    Why:  a small nice thing should never wake a teenager up.
+
+  CHEER-8  No taunts. Friendly stickers only.
+
+  When these are settled, copy them into step-tracker-decisions.txt
+  as a new section, like the other blueprints.
+
+======================================================================
+7. PHASE 2 - QUICKER TO SEND
+======================================================================
+
+  - Cheer from the ranking: a small sticker button at the end of each
+    leaderboard row (friends and group). Group rows already swipe to
+    remove members for the owner, so it must be a button, not a
+    swipe. The rows need cheer_status for each person, so the
+    leaderboard functions add a "can cheer" field instead of one call
+    per row.
+  - A suggested sticker, picked from what the card already shows:
+      reached their goal today          Goal crushed!
+      streak of 7 days or more          On fire!
+      after 5 PM and under half         Keep going!
+      otherwise                         Nice walk!
+    The grid opens with it highlighted; one more tap sends. Pure
+    function, unit tested, using only what the person is already
+    allowed to see.
+  - Live updates while the app is open: listen for new rows in
+    cheers sent to you (the read rule already limits it to yours) and
+    show the bubble right away. Ask my_cheers() again on every
+    reconnect, the same as the notification counts.
+
+======================================================================
+8. PHASE 3 - OPTIONAL
+======================================================================
+
+  - Cheer the whole party: on a group quest card, one button that
+    cheers every member you can still cheer. Counts as one cheer
+    each, so the limits still hold.
+  - Cheers on the player card: "42 cheers received" (from a running
+    total per person, since rows are deleted after 30 days).
+  - Achievements: "Cheerleader" (cheered on 7 different days) and
+    "Fan club" (cheered by 10 different people), each paying a reward
+    item once (step-tracker-achievements.txt).
+  - Seasonal stickers for events, if events happen (a pumpkin for
+    October).
+
+======================================================================
+9. TRICKY CASES
+======================================================================
+
+  - Two taps, or two phones, at once: lock_pair() means only one cheer
+    is saved; the other gets TOO_SOON and shows "Cheered".
+  - Cheer, then the sender blocks the person (or the other way): the
+    rows are deleted at once; if the person cheered had the bubble
+    waiting, it's gone.
+  - Sender's account paused or hidden after cheering: my_cheers()
+    leaves them out (can_see()); push_cheer() checks again before
+    sending, so a push still in the queue isn't sent.
+  - The person cheered turns sharing off: they can't be cheered and
+    don't see the chip; their old cheers come back if they turn it on
+    within the 24 hours.
+  - Cheered from a group, then one of you leaves the group and you
+    aren't friends: no new cheers. "Cheer back" in the sheet is
+    disabled, because my_cheers() says it's not allowed.
+  - A shared phone and an account switch: the bubbles and the chip
+    belong to the signed-in account; an answer for the previous
+    account is thrown away (the notifications rule).
+  - An old app that doesn't know a new sticker: shows "nice_walk".
+  - A push arrives for a cheer that was then deleted (blocked):
+    tapping it opens Today, which simply doesn't show it.
+  - Push failed or the phone was off: the cheer is still on Today.
+  - Cheering someone you can only see through a group card (not a
+    friend, not sharing history): allowed (CHEER-2); the card shows
+    nothing more about them than it does today.
+
+======================================================================
+10. TESTS
+======================================================================
+
+  Database (supabase/tests/database)
+  - Every rule in section 3: friend, group mate, neither, blocked
+    either way, paused, not sharing (either person), yourself. Every
+    refusal from section 3 gives the same NOT_ALLOWED.
+  - 20 hours per direction, 30 sent, bad sticker id.
+  - Read rules: can't read other people's cheers; can't insert,
+    change or delete rows directly, only through the functions.
+  - mark_cheers_seen() touches only your own rows.
+  - block_user() deletes cheers both ways; account deletion removes
+    them.
+  - push_cheer(): skipped when either push setting is off, when
+    blocked, past 10 pushes, and at night in the device's time zone;
+    can't be called from the app.
+  - The nightly cleanup deletes only rows older than 30 days.
+
+  Concurrency (supabase/tests/concurrency)
+  - Two send_cheer() calls for the same pair at the same moment: one
+    row.
+
+  App
+  - Unit tests: the sticker list (every id has text, art and an emoji;
+    an unknown id falls back), and the Phase 2 suggestion.
+  - On a real iPhone: push arrives with the right text and no sound,
+    tapping it opens the Cheers sheet, nothing arrives at night, the
+    icon number doesn't change.
+  - Dev scripts: let the fake friends send cheers, so the bubbles and
+    the sheet can be seen without a second phone.
+
+======================================================================
+11. BUILD ORDER CHECKLIST
+======================================================================
+
+  Phase 1
+    [ ] Sticker art (six pixel-art stickers) and the sticker list
+    [ ] Migration: cheers table, read rule, has-sharing-consent for a
+        person, send_cheer, cheer_status, my_cheers, mark_cheers_seen
+    [ ] block_user() deletes cheers between the pair
+    [ ] Nightly cleanup of cheers older than 30 days
+    [ ] Time zone saved with register_push_device()
+    [ ] "Cheers" column in notification_settings and its setter
+    [ ] push_cheer() and its trigger (rechecks, 10-a-day limit, night)
+    [ ] Player card: Cheer button, sticker grid, Cheered state
+    [ ] Today: bubbles above your character, the chip, the sheet,
+        Cheer back, mark seen
+    [ ] Tapping the push opens the sheet
+    [ ] Profile: "Cheers" switch under Notifications
+    [ ] Database and concurrency tests; dev fake friends send cheers
+    [ ] Real-device push check (iPhone first, then Android)
+    [ ] Copy the decisions into step-tracker-decisions.txt
+
+  Phase 2
+    [ ] "Can cheer" in the leaderboard functions; button on each row
+    [ ] Suggested sticker (pure function, unit tested)
+    [ ] Live updates for new cheers, refetch on reconnect
+
+  Phase 3 (optional)
+    [ ] Cheer the whole party from a quest card
+    [ ] Cheers received total on the player card
+    [ ] Cheerleader and Fan club achievements
+    [ ] Seasonal stickers
