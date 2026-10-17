@@ -5,12 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { unlockedBy } from '@/achievements/achievements';
 import { saveAvatar } from '@/api/avatar';
-import { coinErrorMessage, listOwnedItemsInOrder, listShopItemIds } from '@/api/coins';
-import { getItemOrder, saveItemOrder } from '@/api/itemOrder';
+import { coinErrorMessage } from '@/api/coins';
+import { saveItemOrder } from '@/api/itemOrder';
 import { useAuth } from '@/auth/AuthProvider';
 import { ItemIcon } from '@/avatar/ItemIcon';
 import { CATALOG, findItem, OPTIONAL_SLOTS, type Slot, wear } from '@/avatar/catalog';
 import { applyItemOrder, mergeRowOrder } from '@/avatar/item-order';
+import { cachedItems, loadMyItems, type MyItems, setCachedItems } from '@/avatar/my-items';
 import { Pet } from '@/avatar/Pet';
 import { findPet, PETS } from '@/avatar/pets';
 import { type AvatarConfig, DEFAULT_AVATAR, HAIR_COLORS, SKIN_TONES } from '@/avatar/types';
@@ -183,27 +184,25 @@ export default function AvatarEditorScreen() {
   const [avatar, setAvatar] = useState<AvatarConfig>(profile?.avatar ?? DEFAULT_AVATAR);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [items, setItems] = useState<{
-    inShop: Set<string>;
-    owned: string[];
-    order: string[];
-  } | null>(null);
+  // The lists from the last load (usually at sign-in), so the rows show at once
+  const [items, setItems] = useState<MyItems | null>(() =>
+    session ? cachedItems(session.user.id) : null
+  );
   const [dragging, setDragging] = useState(false);
 
-  // Load which items need owning, and the owned ones: only what the user
-  // can wear is shown (reward items only once earned). Reloads when returning
-  // from the Shop so new purchases appear.
+  // Which items need owning, and the owned ones: only what the user can
+  // wear is shown (reward items only once earned). Loaded again each time
+  // the editor opens or comes back into view, behind the kept lists, so an
+  // achievement's item appears; the error only shows with nothing to show.
   useFocusEffect(
     useCallback(() => {
       if (!session) return;
-      Promise.all([
-        listShopItemIds(),
-        listOwnedItemsInOrder(),
-        // Only the arrangement: without it items show in their default order
-        getItemOrder(session.user.id).catch(() => []),
-      ])
-        .then(([inShop, owned, order]) => setItems({ inShop, owned, order }))
-        .catch(() => setError("Couldn't load your items. Try again."));
+      const userId = session.user.id;
+      loadMyItems(userId)
+        .then(setItems)
+        .catch(() => {
+          if (!cachedItems(userId)) setError("Couldn't load your items. Try again.");
+        });
     }, [session])
   );
 
@@ -226,6 +225,7 @@ export default function AvatarEditorScreen() {
     const order = mergeRowOrder(items.order, rowIds);
     if (order.join() === items.order.join()) return;
     setItems({ ...items, order });
+    setCachedItems(session.user.id, { ...items, order });
     saveItemOrder(session.user.id, order).catch(() =>
       setError("Couldn't save the new order. Try again.")
     );
