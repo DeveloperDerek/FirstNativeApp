@@ -1,4 +1,4 @@
-import { type LeaderboardRow, myToday, type Period } from '@/api/steps';
+import { type LeaderboardRow, myToday, type Period, toLeaderboardRows } from '@/api/steps';
 import { supabase } from '@/lib/supabase';
 
 export type PublicProfile = {
@@ -82,5 +82,5 @@ export async function friendsLeaderboard(period: Period): Promise<LeaderboardRow
     my_today: myToday(),
   });
   if (error) throw error;
-  return data;
+  return toLeaderboardRows(data);
 }

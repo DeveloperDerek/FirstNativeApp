@@ -85,7 +85,7 @@ export async function measurePetEdge(config: AvatarConfig, petId: string): Promi
   const petTop = (petSprite && topRow(petSprite)) ?? 0;
   const top = PET_BOTTOM_ROW - (PET_SIZE - 1) + petTop;
 
-  const sprites = await Promise.all(wornLayers(config).map(cachedAlpha));
+  const sprites = await Promise.all(wornLayers(config).map((l) => cachedAlpha(l.source)));
   const edges = { left: PET_EDGE, right: PET_EDGE_RIGHT };
   for (const sprite of sprites) {
     const left = sprite ? leftmostColumn(sprite, top, PET_BOTTOM_ROW) : null;

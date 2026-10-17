@@ -1,5 +1,5 @@
 import { rethrow } from '@/api/register';
-import { type LeaderboardRow, myToday, type Period } from '@/api/steps';
+import { type LeaderboardRow, myToday, type Period, toLeaderboardRows } from '@/api/steps';
 import { supabase } from '@/lib/supabase';
 
 export type Group = { id: string; name: string; owner_id: string; invite_code: string };
@@ -97,5 +97,5 @@ export async function groupLeaderboard(groupId: string, period: Period): Promise
     my_today: myToday(),
   });
   if (error) throw error;
-  return data;
+  return toLeaderboardRows(data);
 }

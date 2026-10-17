@@ -48,3 +48,7 @@ export type LeaderboardRow = {
   avatar: unknown;
   total_steps: number;
 };
+
+/** The leaderboard functions' rows, with total_steps as a number (bigint arrives as a number or string). */
+export const toLeaderboardRows = (data: (Omit<LeaderboardRow, 'total_steps'> & { total_steps: number | string })[]) =>
+  data.map((r): LeaderboardRow => ({ ...r, total_steps: Number(r.total_steps) }));

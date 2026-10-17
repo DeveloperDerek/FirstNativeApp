@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Section } from '@/components/ui/section';
 import { Spacing } from '@/constants/theme';
+import { clockTime } from '@/lib/day';
 import { errorMessage } from '@/lib/error-message';
 import { coinsEach, OVERSHOOT, QUEST_TYPES, questGoal, type QuestTypeId } from '@/quests/rules';
 
@@ -22,7 +23,7 @@ const QUARTER = 15 * 60_000;
  */
 function startOptions(now = new Date()): StartOption[] {
   const fmt = (d: Date) => {
-    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const time = clockTime(d);
     return d.toDateString() === now.toDateString() ? `Today ${time}` : `Tomorrow ${time}`;
   };
   const inHours = (h: number) =>

@@ -2,6 +2,8 @@
 // profile") that don't need the phone, so they can be tested with
 // `npm test`. The server checks all of these again.
 
+import { dayKey, parseDay } from '../lib/day.ts';
+
 import { type NameCheck, type NameKind, NAME_MAX } from './name-rules.ts';
 import type { LegalDoc } from './route.ts';
 
@@ -77,21 +79,10 @@ export function usernameCandidates(base: string, random = Math.random): string[]
 }
 
 /** A date picked on the phone as the server's 'YYYY-MM-DD' (the local calendar day). */
-export function toIsoDay(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+export const toIsoDay = dayKey;
 
-/**
- * A 'YYYY-MM-DD' from the server as a local date. (new Date('1990-05-01')
- * would be UTC midnight: April 30 in the US.)
- */
-export function isoDayToDate(day: string): Date {
-  const [y, m, d] = day.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
+/** A 'YYYY-MM-DD' from the server as a local date. */
+export const isoDayToDate = parseDay;
 
 /** Whole years old on `today` (the birthday itself counts). */
 export function ageOn(birthDay: string, today = new Date()): number {

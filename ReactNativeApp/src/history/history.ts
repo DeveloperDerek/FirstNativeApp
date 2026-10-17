@@ -1,10 +1,14 @@
 // Longer History (step-tracker-history-reminders.txt, part A): the
 // periods, putting the phone's and the server's days together, and the
-// stats. No imports, so `npm test` can check them.
+// stats. Pure, so `npm test` can check them.
 //
 // Days are 'YYYY-MM-DD' strings for the phone's own calendar (dayKey), so
 // the arithmetic here works in UTC on purpose: no time zone or daylight
 // saving change can move a day.
+
+import { dayToUtc, parseDay } from '../lib/day.ts';
+
+export { parseDay };
 
 export type HistoryView = 'week' | 'month' | 'year';
 
@@ -39,21 +43,11 @@ export type HistoryStats = {
 export const PHONE_DAYS = 7;
 
 const DAY_MS = 86_400_000;
-const toUtc = (day: string) => {
-  const [y, m, d] = day.split('-').map(Number);
-  return Date.UTC(y, m - 1, d);
-};
 const fromUtc = (t: number) => new Date(t).toISOString().slice(0, 10);
 
-export const addDays = (day: string, n: number) => fromUtc(toUtc(day) + n * DAY_MS);
-export const daysBetween = (from: string, to: string) => Math.round((toUtc(to) - toUtc(from)) / DAY_MS);
+export const addDays = (day: string, n: number) => fromUtc(dayToUtc(day) + n * DAY_MS);
+export const daysBetween = (from: string, to: string) => Math.round((dayToUtc(to) - dayToUtc(from)) / DAY_MS);
 export const monthOf = (day: string) => `${day.slice(0, 7)}-01`;
-
-/** A 'YYYY-MM-DD' day as a local Date, for showing it. */
-export function parseDay(day: string): Date {
-  const [y, m, d] = day.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
 
 /** Every day from `from` to `to`, both included. */
 export function daysFrom(from: string, to: string): string[] {

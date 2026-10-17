@@ -4,6 +4,8 @@
 // and the items they unlock live here, like the item names in catalog.ts.
 // No React Native imports, so `npm test` can run it.
 
+import { dayToUtc } from '../lib/day.ts';
+
 export type AchievementKind = 'day_steps' | 'total_steps' | 'streak' | 'quests';
 
 export type Achievement = {
@@ -174,8 +176,7 @@ export function achievementCount(n: number): string {
 
 /** "12 Oct 2026" style, from 'YYYY-MM-DD', without the phone's time zone moving it. */
 export function formatEarnedOn(day: string): string {
-  const [y, m, d] = day.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+  return new Date(dayToUtc(day)).toLocaleDateString('en-US', {
     timeZone: 'UTC',
     month: 'short',
     day: 'numeric',

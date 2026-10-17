@@ -10,11 +10,24 @@ import { ThemedView } from '@/components/themed-view';
 import { Section } from '@/components/ui/section';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import type { Walker } from '@/track/StepTrack';
 
-const PERIODS: { value: Period; label: string }[] = [
+export const PERIODS: { value: Period; label: string }[] = [
   { value: 'today', label: 'Today' },
   { value: 'week', label: 'Last 7 days' },
 ];
+
+/** "Today" or "Last 7 days" */
+export const periodLabel = (period: Period) => PERIODS.find((p) => p.value === period)!.label;
+
+/** A ranking row as a character for the road or the player card. */
+export const rowToWalker = (row: LeaderboardRow, myId: string | undefined): Walker => ({
+  id: row.user_id,
+  name: row.display_name || 'Player',
+  steps: row.total_steps,
+  avatar: row.avatar,
+  isMe: row.user_id === myId,
+});
 
 export function PeriodPicker({
   value,
@@ -75,7 +88,7 @@ export function Leaderboard({
   onRemove?: (row: LeaderboardRow) => void;
 }) {
   const theme = useTheme();
-  const max = Math.max(1, ...rows.map((r) => Number(r.total_steps)));
+  const max = Math.max(1, ...rows.map((r) => r.total_steps));
 
   return (
     <Section>
@@ -85,7 +98,7 @@ export function Leaderboard({
         </ThemedText>
       )}
       {rows.map((r, i) => {
-        const steps = Number(r.total_steps); // bigint arrives as a number or string
+        const steps = r.total_steps;
         const isMe = r.user_id === myId;
         const name = r.display_name || 'Unnamed';
         const entry = (

@@ -413,31 +413,32 @@ export function findItem(slot: Slot, id: string | null | undefined) {
   return CATALOG[slot].find((i) => i.id === id);
 }
 
-/**
- * Every sprite drawn for this character, in no particular order. Keep in
- * step with the layers in Avatar.tsx.
- */
-export function wornLayers(config: AvatarConfig): number[] {
+/** One sprite of a character; tint multiplies a grayscale sprite by a color. */
+export type WornLayer = { key: string; source: number; tint?: string };
+
+/** Every sprite drawn for this character, back to front (Avatar draws these). */
+export function wornLayers(config: AvatarConfig): WornLayer[] {
   const hair = findItem('hair', config.hair);
   const cape = findItem('cape', config.cape);
+  // A one-piece outfit is drawn instead of the top and bottom
   const outfit = findItem('outfit', config.outfit);
   const hand = findItem('hand', config.hand);
-  const layers = [
-    cape?.back,
-    hair?.back,
-    hand?.back,
-    BODY,
-    outfit ? undefined : findItem('bottom', config.bottom)?.image,
-    findItem('shoes', config.shoes)?.image,
-    outfit ? outfit.image : findItem('top', config.top)?.image,
-    findItem('face', config.face)?.image,
-    findItem('glasses', config.glasses)?.image,
-    hair?.image,
-    findItem('hat', config.hat)?.image,
-    cape?.image,
-    hand?.image,
+  const layers: { key: string; source: number | undefined; tint?: string }[] = [
+    { key: 'cape-back', source: cape?.back },
+    { key: 'hair-back', source: hair?.back, tint: config.hairColor },
+    { key: 'hand-back', source: hand?.back },
+    { key: 'body', source: BODY, tint: config.skin },
+    { key: 'bottom', source: outfit ? undefined : findItem('bottom', config.bottom)?.image },
+    { key: 'shoes', source: findItem('shoes', config.shoes)?.image },
+    { key: 'top', source: outfit ? outfit.image : findItem('top', config.top)?.image },
+    { key: 'face', source: findItem('face', config.face)?.image },
+    { key: 'glasses', source: findItem('glasses', config.glasses)?.image },
+    { key: 'hair', source: hair?.image, tint: config.hairColor },
+    { key: 'hat', source: findItem('hat', config.hat)?.image },
+    { key: 'cape', source: cape?.image },
+    { key: 'hand', source: hand?.image },
   ];
-  return layers.filter((l): l is number => l !== undefined);
+  return layers.filter((l): l is WornLayer => l.source !== undefined);
 }
 
 const isHex = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);

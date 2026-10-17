@@ -1,5 +1,7 @@
 // Goal reminders (step-tracker-history-reminders.txt, part B): which ones
-// to schedule, and what they say. No imports, so `npm test` can check them.
+// to schedule, and what they say. Pure, so `npm test` can check them.
+
+import { dayKey } from '../lib/day.ts';
 
 export type ReminderSettings = {
   on: boolean;
@@ -31,12 +33,7 @@ export type PlannedReminder = {
   body: string;
 };
 
-// Local date, as dayKey in storage/step-log.ts (kept free of imports here)
-const localDay = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-` +
-  `${String(d.getDate()).padStart(2, '0')}`;
-
-export const reminderId = (date: Date) => `${REMINDER_PREFIX}${localDay(date)}`;
+export const reminderId = (date: Date) => `${REMINDER_PREFIX}${dayKey(date)}`;
 
 /**
  * The reminders to schedule now. Today's only if its time is still to come

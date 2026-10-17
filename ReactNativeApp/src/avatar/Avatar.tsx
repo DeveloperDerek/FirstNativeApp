@@ -13,7 +13,7 @@ import {
 } from '@shopify/react-native-skia';
 import { useEffect, useState } from 'react';
 
-import { BODY, findItem } from './catalog';
+import { BODY, findItem, wornLayers } from './catalog';
 import type { AvatarConfig } from './types';
 
 export const SPRITE_W = 32;
@@ -99,11 +99,6 @@ type AvatarProps = {
 };
 
 export function Avatar({ config, scale = 4, accessibilityLabel = 'Character', light }: AvatarProps) {
-  const hair = findItem('hair', config.hair);
-  const cape = findItem('cape', config.cape);
-  // A one-piece outfit is drawn instead of the top and bottom
-  const outfit = findItem('outfit', config.outfit);
-  const hand = findItem('hand', config.hand);
   return (
     <Canvas
       style={{ width: SPRITE_W * scale, height: SPRITE_H * scale }}
@@ -120,20 +115,9 @@ export function Avatar({ config, scale = 4, accessibilityLabel = 'Character', li
             </Paint>
           ) : undefined
         }>
-        {/* Back to front */}
-        <Layer source={cape?.back} scale={scale} />
-        <Layer source={hair?.back} scale={scale} tint={config.hairColor} />
-        <Layer source={hand?.back} scale={scale} />
-        <Layer source={BODY} scale={scale} tint={config.skin} />
-        {!outfit && <Layer source={findItem('bottom', config.bottom)?.image} scale={scale} />}
-        <Layer source={findItem('shoes', config.shoes)?.image} scale={scale} />
-        <Layer source={outfit ? outfit.image : findItem('top', config.top)?.image} scale={scale} />
-        <Layer source={findItem('face', config.face)?.image} scale={scale} />
-        <Layer source={findItem('glasses', config.glasses)?.image} scale={scale} />
-        <Layer source={hair?.image} scale={scale} tint={config.hairColor} />
-        <Layer source={findItem('hat', config.hat)?.image} scale={scale} />
-        <Layer source={cape?.image} scale={scale} />
-        <Layer source={hand?.image} scale={scale} />
+        {wornLayers(config).map((l) => (
+          <Layer key={l.key} source={l.source} scale={scale} tint={l.tint} />
+        ))}
       </Group>
     </Canvas>
   );

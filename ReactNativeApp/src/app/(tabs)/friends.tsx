@@ -22,7 +22,7 @@ import { normalizeAvatar } from '@/avatar/catalog';
 import { ActivityList } from '@/components/activity-list';
 import { GroundText } from '@/components/ground-text';
 import { personMenu, reportHref } from '@/components/block-actions';
-import { Leaderboard, PillPicker } from '@/components/leaderboard';
+import { Leaderboard, periodLabel, PERIODS, PillPicker, rowToWalker } from '@/components/leaderboard';
 import { MoreButton } from '@/components/more-button';
 import { PlayerCard } from '@/components/player-card';
 import { SharingRequired } from '@/components/sharing-required';
@@ -41,11 +41,7 @@ const name = (p: PublicProfile) => p.display_name || p.username;
 
 // The two rankings, and the activity board (step-tracker-activity-board.txt)
 type View = Period | 'activity';
-const VIEWS: { value: View; label: string }[] = [
-  { value: 'today', label: 'Today' },
-  { value: 'week', label: 'Last 7 days' },
-  { value: 'activity', label: 'Activity' },
-];
+const VIEWS: { value: View; label: string }[] = [...PERIODS, { value: 'activity', label: 'Activity' }];
 
 /** "Updated 5m ago"; nothing under a minute. */
 function updatedText(at: number | null): string | null {
@@ -353,18 +349,8 @@ export default function FriendsScreen() {
 
       {/* Opens over the page when a ranking row is tapped */}
       <PlayerCard
-        walker={
-          selectedRow
-            ? {
-                id: selectedRow.user_id,
-                name: selectedRow.display_name || 'Player',
-                steps: Number(selectedRow.total_steps), // bigint arrives as a number or string
-                avatar: selectedRow.avatar,
-                isMe: selectedRow.user_id === myId,
-              }
-            : null
-        }
-        stepsLabel={period === 'today' ? 'Today' : 'Last 7 days'}
+        walker={selectedRow ? rowToWalker(selectedRow, myId) : null}
+        stepsLabel={periodLabel(period)}
         onClose={() => setSelectedId(null)}
         onEditMine={() => router.navigate('/profile')}
         onBlockChanged={() => (selectedId ? gone(selectedId) : load())}

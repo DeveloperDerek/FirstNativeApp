@@ -18,7 +18,7 @@ import { type LeaderboardRow, type Period } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
 import { checkName } from '@/auth/name-rules';
 import { nameProblem } from '@/auth/register';
-import { Leaderboard, PeriodPicker } from '@/components/leaderboard';
+import { Leaderboard, PeriodPicker, periodLabel, rowToWalker } from '@/components/leaderboard';
 import { reportHref } from '@/components/block-actions';
 import { PlayerCard } from '@/components/player-card';
 import { QuestCard } from '@/components/quest-card';
@@ -304,17 +304,9 @@ export default function GroupDetailScreen() {
       <PlayerCard
         walker={(() => {
           const row = board.find((r) => r.user_id === selectedId);
-          return row
-            ? {
-                id: row.user_id,
-                name: row.display_name || 'Player',
-                steps: Number(row.total_steps), // bigint arrives as a number or string
-                avatar: row.avatar,
-                isMe: row.user_id === myId,
-              }
-            : null;
+          return row ? rowToWalker(row, myId) : null;
         })()}
-        stepsLabel={period === 'today' ? 'Today' : 'Last 7 days'}
+        stepsLabel={periodLabel(period)}
         group={group ? { id: group.id, name: group.name } : undefined}
         onClose={() => setSelectedId(null)}
         onEditMine={() => router.navigate('/profile')}

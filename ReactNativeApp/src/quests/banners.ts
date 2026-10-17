@@ -1,10 +1,8 @@
 import type { MyQuest } from '@/api/quests';
+import { clockTime as clock } from '@/lib/day';
 import { durationText, questType } from '@/quests/rules';
 
 const GRACE_MS = 3_600_000;
-
-const clock = (iso: string) =>
-  new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
 /**
  * One line for a quest that needs me (section 7, "Notifications"). Until

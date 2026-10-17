@@ -11,7 +11,7 @@ import type { LeaderboardRow } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
 import { CheckinCountdown } from '@/components/checkin-countdown';
 import { CoinBalance } from '@/components/coin-balance';
-import { Leaderboard } from '@/components/leaderboard';
+import { Leaderboard, rowToWalker } from '@/components/leaderboard';
 import { PlayerCard } from '@/components/player-card';
 import { StreakLine } from '@/components/streak-line';
 import { QuestBanners } from '@/components/quest-banners';
@@ -127,15 +127,8 @@ export default function TodayScreen() {
   let walkers: Walker[] = [me];
   if (mode.kind !== 'solo' && board?.key === modeKey(mode)) {
     walkers = board.rows.map((r) =>
-      r.user_id === myId
-        ? me // show my live phone count even if the upload lagged
-        : {
-            id: r.user_id,
-            name: r.display_name || 'Player',
-            steps: Number(r.total_steps), // bigint arrives as a number or string
-            avatar: r.avatar,
-            isMe: false,
-          }
+      // show my live phone count even if the upload lagged
+      r.user_id === myId ? me : rowToWalker(r, myId)
     );
     if (!walkers.some((w) => w.isMe)) walkers.push(me);
   }

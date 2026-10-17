@@ -4,6 +4,7 @@
 // and the list handling. No React Native imports, so `npm test` can run it.
 
 import { type Achievement, findAchievement } from '../achievements/achievements.ts';
+import { dayToUtc } from '../lib/day.ts';
 
 /** One line from friends_activity(). */
 export type ActivityLine = {
@@ -67,20 +68,15 @@ export function lineBadge(line: ActivityLine): Achievement | 'goal' {
   return earned.length > 0 ? earned[earned.length - 1] : 'goal';
 }
 
-const parse = (day: string) => {
-  const [y, m, d] = day.split('-').map(Number);
-  return Date.UTC(y, m - 1, d);
-};
-
 /**
  * Today, Yesterday, then "Mon Oct 13", from the viewer's date. A friend
  * ahead of you can be on your tomorrow: that's their today, so Today too.
  */
 export function dayLabel(day: string, today: string): string {
-  const ago = Math.round((parse(today) - parse(day)) / 86_400_000);
+  const ago = Math.round((dayToUtc(today) - dayToUtc(day)) / 86_400_000);
   if (ago <= 0) return 'Today';
   if (ago === 1) return 'Yesterday';
-  return new Date(parse(day)).toLocaleDateString('en-US', {
+  return new Date(dayToUtc(day)).toLocaleDateString('en-US', {
     timeZone: 'UTC',
     weekday: 'short',
     month: 'short',

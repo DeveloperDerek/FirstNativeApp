@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Section } from '@/components/ui/section';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { clockTime as clock } from '@/lib/day';
 import {
   coinsEach,
   durationText,
@@ -29,9 +30,6 @@ function useNow(offset: number) {
 }
 
 const nameOf = (m: QuestMember | undefined) => m?.display_name || 'Someone';
-
-const clock = (iso: string) =>
-  new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
 /** "3:00 PM", or "tomorrow 8:00 AM" when it is not today */
 function when(iso: string, now: number) {
