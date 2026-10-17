@@ -95,9 +95,9 @@ def strands(px, mask, base, highlight):
     a strand crosses the shine it breaks it into glossy pieces."""
     rows = [y for _, y in mask]
     top, bottom = min(rows), max(rows)
-    for x0 in (6, 10, 14, 18, 22, 26):
+    for x0 in (11, 21):  # just two, kept short, so the hair stays simple
         lean = (x0 - 15.5) / 9  # columns per row: outward from the middle
-        for y in range(top + 2, bottom - 1):
+        for y in range(top + 3, min(bottom - 1, top + 8)):
             x = round(x0 + lean * (y - top - 2) * 0.6)
             if px.get((x, y)) in (base, highlight) and (x, y + 2) in mask:
                 px[(x, y)] = HAIR_STRAND
