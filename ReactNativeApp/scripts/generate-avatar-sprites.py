@@ -1690,6 +1690,26 @@ def badge_quests():
     save_badge(layer, 'badge_quests')
 
 
+def badge_goal():
+    """A check mark: the day's goal reached (the activity board's goal days)."""
+    def stroke(a, b, r):
+        (ax, ay), (bx, by) = a, b
+        pts = set()
+        for x in range(22):
+            for y in range(22):
+                px, py = x + 0.5 - ax, y + 0.5 - ay
+                dx, dy = bx - ax, by - ay
+                t = max(0, min(1, (px * dx + py * dy) / (dx * dx + dy * dy)))
+                if (px - t * dx) ** 2 + (py - t * dy) ** 2 <= r * r:
+                    pts.add((x, y))
+        return pts
+
+    green = hexc('#3fa34d')
+    check = stroke((6.5, 11.5), (9.5, 14.5), 1.9) | stroke((9.5, 14.5), (15.5, 7), 1.9)
+    layer = Layer(BADGE).part(check, green, darker(green, 0.8), OUTLINE, lighter(green, 0.35))
+    save_badge(layer, 'badge_goal')
+
+
 def achievement_rewards():
     shoes_winged('shoes_winged')
     cape_ember('cape_ember')
@@ -1701,6 +1721,7 @@ def achievement_rewards():
     badge_total_steps()
     badge_streak()
     badge_quests()
+    badge_goal()
 
 
 # ---------------------------------------------------------------- step track

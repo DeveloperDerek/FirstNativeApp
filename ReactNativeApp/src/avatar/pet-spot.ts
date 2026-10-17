@@ -98,17 +98,23 @@ export async function measurePetEdge(config: AvatarConfig, petId: string): Promi
   return edges;
 }
 
-/** measurePetEdge() as a hook. null until measured, so the pet never jumps. */
+/**
+ * measurePetEdge() as a hook. null until a pet is first measured, so it
+ * never jumps on appearing. After that it keeps its last spot while a new
+ * outfit is measured, rather than disappearing and reappearing each time
+ * an item is put on.
+ */
 export function usePetEdge(config: AvatarConfig): PetEdges | null {
   const key = JSON.stringify(config);
-  const [measured, setMeasured] = useState<{ key: string; edge: PetEdges } | null>(null);
+  const [measured, setMeasured] = useState<{ pet: string; edge: PetEdges } | null>(null);
 
   useEffect(() => {
-    if (!config.pet) return;
+    const pet = config.pet;
+    if (!pet) return;
     let alive = true;
-    measurePetEdge(config, config.pet)
-      .then((edge) => alive && setMeasured({ key, edge }))
-      .catch(() => alive && setMeasured({ key, edge: { left: PET_EDGE, right: PET_EDGE_RIGHT } }));
+    measurePetEdge(config, pet)
+      .then((edge) => alive && setMeasured({ pet, edge }))
+      .catch(() => alive && setMeasured({ pet, edge: { left: PET_EDGE, right: PET_EDGE_RIGHT } }));
     return () => {
       alive = false;
     };
@@ -116,5 +122,5 @@ export function usePetEdge(config: AvatarConfig): PetEdges | null {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  return measured && measured.key === key ? measured.edge : null;
+  return measured && measured.pet === config.pet ? measured.edge : null;
 }

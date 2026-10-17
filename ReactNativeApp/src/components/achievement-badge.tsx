@@ -34,6 +34,10 @@ const SYMBOLS: Record<AchievementKind, { earned: number; locked: number }> = {
   },
 };
 
+// The activity board's goal days (step-tracker-activity-board.txt): the
+// same frame with a check mark. Always earned, so no grey copy is used.
+const GOAL = require('@/assets/badges/badge_goal.png');
+
 function Piece({ source, scale }: { source: number; scale: number }) {
   const image = useSprite(source);
   if (!image) return null;
@@ -95,3 +99,15 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 });
+
+/** The goal badge: the day's goal reached. No number under it. */
+export function GoalBadge({ scale = 2 }: { scale?: number }) {
+  return (
+    <View style={styles.badge} accessible accessibilityRole="image" accessibilityLabel="Goal reached">
+      <Canvas style={{ width: SIZE * scale, height: SIZE * scale }}>
+        <Piece source={FRAME.earned} scale={scale} />
+        <Piece source={GOAL} scale={scale} />
+      </Canvas>
+    </View>
+  );
+}

@@ -1,0 +1,479 @@
+STEP TRACKER - ACTIVITY BOARD (BLUEPRINT)
+A list of what your friends and group mates have done lately ("Sam
+reached their goal", "Ana unlocked A week in a row", "The Walkers won
+a quest"), newest first, so you can see how everyone is doing.
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. It
+describes what the board shows, where each line comes from, who can
+see it, what the screens look like, and the choices to make before
+building (section 10).
+
+Nothing in this blueprint changes an existing rule. Coins, the daily
+goal, streaks, achievements, blocking and the group rules all
+stay exactly as their own blueprints describe them. The board only
+SHOWS things the server already records, under the read rules that
+already exist. Section 12 lists what an earlier draft asked for that
+would have changed a rule, and what happens to it instead.
+
+Builds on what the app already has:
+  - daily coins at the goal (claim_daily_rewards, run by sync_day after
+    each upload), one coin_transactions row per day ('daily_goal', the
+    day), never taken back (step-tracker-goals-streaks.txt)
+  - achievements, earned once and kept for good, each with its real
+    day (user_achievements.earned_on; step-tracker-achievements.txt)
+  - group quests and who was in each party (quests, quest_party;
+    step-tracker-group-quests.txt)
+  - the read rules: is_active_account, can_see, is_friend,
+    shares_group, and the group functions (group_leaderboard,
+    group_member_card), which already cover blocked, paused, hidden,
+    under-age and unfinished accounts, and SAFE-1
+  - the player card (src/components/player-card.tsx) and the badge
+    art (assets/badges)
+  - the tab bar (Today, History, Friends, Groups, Profile) and the way
+    the tab badges refresh on open and on coming back to the foreground
+    (step-tracker-notifications.txt)
+
+======================================================================
+1. THE IDEA IN ONE MINUTE
+======================================================================
+
+  - Friends gets a third button next to Today and Last 7 days:
+    Activity. (Each group gets the same view later, section 11.)
+  - One line per person per day, saying what they did that day: reached
+    their goal, unlocked achievements, or both. A group's view also has
+    a line for each quest the group won.
+  - Newest day first. "Show older" at the bottom for older days, up to
+    30 days back.
+  - Tap a line to open that person's player card.
+  - No new table. Every line is read from records the server already
+    keeps, at the moment you look, under the read rules that already
+    exist. So nothing can be counted twice, nothing has to be kept in
+    step, and a block or an unfriend takes effect on the next load.
+  - No pushes, no tab badge, no coins.
+
+======================================================================
+2. WHAT A LINE SAYS
+======================================================================
+
+  THE DAY LINE (Friends and groups)
+  One per person per day, when that day has any of:
+    - the goal reached: there is a 'daily_goal' coin row for that day
+      AND the uploaded day still exists (section 4)
+    - achievements earned that day (earned_on)
+
+    Sam reached their goal                         Today
+    Sam reached their goal · unlocked first 10k    Yesterday
+    Ana unlocked a week in a row                   Tue, Oct 13
+    Ana unlocked a million steps and 100 days ...  Mon, Oct 12
+
+  - Your own lines are in the list too (the ranking includes you), and
+    only yours add the coins: "You reached your goal · +150 coins". The
+    amount is the row's own amount, so a day from before the coin
+    rebalance says +100.
+  - The sentence after the name is all lowercase, achievement names
+    included ("unlocked first 10k"). The name and the day label keep
+    their capitals.
+  - Several achievements on one day are listed together on one line
+    ("and 2 more" past two).
+  - A line that gains something later the same day (an achievement
+    after the goal) is the same line, with more on it. It never becomes
+    two lines.
+
+  THE QUEST LINE (that group's view only)
+    The Walkers won Weekend Wander · 5 walked      Sat Oct 11
+
+  - One per quest with status 'completed', on the day it was completed
+    (completed_at in the shop time zone, the same day the quest
+    achievements use). "5 walked" is the size of its party.
+  - Never shown in Friends: it would tell a friend outside the group
+    about the group.
+
+  WHAT A LINE NEVER SHOWS
+  - Step counts. Friends and group mates see today's and this week's
+    totals on the rankings, never a single past day's number, and the
+    board doesn't change that.
+  - Anyone else's coins, wallet or progress toward an achievement.
+  - The goal number (it's each player's own daily target).
+  - Anything about a person the read rules say you can't see.
+
+  ICONS (PIXEL ART, NO SYSTEM EMOJI)
+  - The person's character head, drawn from their avatar like the
+    rankings, and the badge for what they did: the existing badge
+    frame and symbols (shoe, footprints, flame, flag) for achievements,
+    and the same frame with a green check mark (badge_goal, drawn in
+    scripts/generate-avatar-sprites.py) for a goal day. A quest
+    line uses the quest badge (badge_quests, the flag). No new art
+    beyond the goal badge.
+
+======================================================================
+3. WHO SEES WHAT
+======================================================================
+
+  FRIENDS > ACTIVITY
+  - Your lines, and the lines of each person who is, at that moment:
+      - your friend (is_friend) and someone you can see (can_see: both
+        active, neither blocked, not paused or hidden)
+      - sharing their steps (only people who share have coins or
+        achievements at all; a new server-only check for a person,
+        like notification_counts_for(), makes it explicit)
+  - The caller must be signed in and active (is_active_account), as for
+    every function the app calls. Friends is already closed until you
+    share your steps (sharing-required.tsx), so a viewer always shares.
+
+  A GROUP > ACTIVITY
+  - The lines of the group's current members and the group's quest
+    lines, under the same rules as group_leaderboard and
+    group_member_card: you and they are both current members, both
+    active. Group mates who aren't your friends are included, the same
+    as on the group's ranking.
+  - Blocking follows SAFE-1: blocked people still see each other in a
+    group they share, through the group functions only. So a person you
+    blocked still has lines in that group's view, and never in Friends.
+  - A member who left: no longer listed from the next load. A quest
+    line stays for the group (the quest is the group's), with its
+    party size unchanged.
+
+  WHY NOTHING ON SCREEN CAN BE STALE FOR LONG
+  - Every load asks the server again, and the server applies the rules
+    above to every line it returns. Unfriend, block, pause, sharing
+    off, leaving a group, account deletion: the next load leaves those
+    lines out. No separate removal messages are needed.
+  - On this phone, blocking or removing a friend also drops that
+    person's lines from the list straight away (the app already knows
+    who it just acted on).
+
+======================================================================
+4. WHEN RECORDS CHANGE (THE EXISTING RULES, AS THEY SHOW HERE)
+======================================================================
+
+  - A day corrected lower (Apple Health or Health Connect changed it,
+    the phone uploaded the last 7 days again): the coins stay, as
+    claim_daily_rewards already decides, so "reached their goal" stays
+    too. The board says what the server paid, nothing more.
+  - An achievement: earned stays earned, so its line stays, with its
+    real day.
+  - A day the person deleted: the goal part of that day's line is left
+    out (the uploaded day must still exist), so deleting a day removes
+    it from other people's view. The coins stay, as now. Any
+    achievement earned that day stays, as it does on the player card.
+  - A day uploaded late (up to 7 days, the phone's upload window): its
+    line appears under its own day, not at the top, on the next load.
+  - A goal-day line needs the day to be after the switch to "the goal
+    is the daily target" (goal_is_coin_target_from, GOAL-16). Before
+    it, a coin row meant the coin target, not the goal, so those days
+    show no goal line. They are older than 30 days in any case.
+  - Manually typed-in steps already don't count toward coins, so they
+    never make a line. The board adds no checks of its own.
+
+======================================================================
+5. ORDER, PAGES AND REFRESHING
+======================================================================
+
+  ORDER
+  - Newest day first. The day is the phone's calendar day the steps
+    were walked, as everywhere else in the app (the server doesn't
+    know time zones, recommendations 3d), or for a quest the shop day
+    of completed_at.
+  - Within a day: the line whose latest part arrived most recently
+    first (the coin row's created_at, an achievement's earned_at, a
+    quest's completed_at), then by person id, so the order is always
+    the same.
+  - Day labels from the viewer's phone date: Today, Yesterday, then
+    "Tue, Oct 13". Never a clock time: the server only knows the day.
+
+  PAGES
+  - 20 lines a page, the next page asked for with the last line's
+    (day, time, id), never by page number, so nothing is skipped or
+    repeated when new lines arrive in between.
+  - The next page comes with a "Show older" button under the list, not
+    by scrolling: Friends is one scrolling page with the requests and
+    the search under the board.
+  - At most 30 days back (choice ACT-3). Past that: "That's everything
+    from the last 30 days."
+
+  REFRESHING
+  - Loads when the view opens, when the app comes back to the
+    foreground with the view open (not again within 30 seconds), and on
+    pull-to-refresh.
+  - A refresh loads the first page again and replaces the list.
+    Pull-to-refresh always does. An automatic one, when older pages are
+    open, keeps the list as it is and shows a "New activity" button at
+    the top, which swaps in the fresh page, instead of jumping.
+  - Keeps only the newest answer for the signed-in account, like the
+    tab badges; an answer for a previous account is thrown away.
+  - No live updates and no checking in the background (choice ACT-4).
+  - A failed load keeps what is on screen, with "Couldn't refresh. Pull
+    to try again." above it. Offline the same. A small "Updated 5m ago"
+    shows after a refresh, hidden when it was under a minute.
+
+======================================================================
+6. SCREENS
+======================================================================
+
+  FRIENDS
+  - Three buttons at the top: Today, Last 7 days (the rankings, as
+    now) and Activity (ACT-1). Last 7 days stays the default.
+  - Each line: character head, display name, what they did, the badge,
+    and the day label on the right.
+  - Tapping the line opens the player card, the same as tapping a
+    ranking row, with today's steps (the board loads the Today ranking
+    for it).
+
+  A GROUP (LATER)
+  - The same Activity button on the group screen, the same lines, plus the
+    group's quest lines. A member's line opens the card from the group
+    (group_member_card), as the group's ranking does.
+
+  EMPTY AND ERROR STATES
+  - No friends: "Add friends to see what they're up to." with the
+    existing Add friend button.
+  - Friends, but nothing in 30 days: "Nothing yet. When friends reach
+    their goal or unlock achievements, it shows here."
+  - A group with nothing: "Nothing in this group yet."
+  - The first load: the same loading look as the rankings.
+
+  ACCESSIBILITY
+  - Each line reads as one sentence: "Sam, reached their goal and
+    unlocked first 10k, yesterday."
+  - Lines grow with the phone's text size, and each line keeps at
+    least a 44-point touch area.
+
+======================================================================
+7. DATABASE
+======================================================================
+
+  NO NEW TABLES
+  - The lines are worked out when asked from coin_transactions
+    ('daily_goal' rows), daily_steps, user_achievements, quests and
+    quest_party. Nothing is written when someone walks, so there is
+    nothing to deduplicate and no second record that could disagree
+    with the first.
+  - Two indexes, if the plan shows they're needed: coin_transactions
+    on (user_id, reason, ref), which the unique key already gives, and
+    user_achievements on (user_id, earned_on).
+
+  FUNCTIONS (APP-FACING)
+  - friends_activity(my_today, before): your lines and your friends'
+    lines (section 3), 20 at most, newer than 30 days before my_today,
+    older than the "before" position when given. Each line: day,
+    person (id, display name, avatar), goal (true or false), coins
+    (yours only), achievement ids, and the time used for the order.
+  - group_activity(gid, my_today, before), LATER: the same for one group,
+    plus quest lines (quest id, type, party size). Refuses with
+    NOT_A_MEMBER unless the caller is a current member, like the other
+    group functions.
+  - my_today is the phone's date, checked with is_today_somewhere as
+    the other functions do (BAD_DAY otherwise), so the 30 days can't
+    be stretched.
+
+  PERMISSIONS
+  - Security definer, "set search_path = ''", fully qualified names,
+    owned by the migration's role, like the existing functions. Each
+    starts with is_active_account. "revoke all ... from public, anon,
+    authenticated", then execute granted back to authenticated only.
+  - coin_transactions and user_achievements keep their read rules: the
+    app still can't read anyone else's rows directly. These functions
+    return only the fields in section 2.
+
+  COST
+  - A page looks at at most 30 days for each friend or member: small
+    for the group sizes the app has. If it ever isn't, a summary table
+    filled by claim_daily_rewards can replace the joins later without
+    changing what the functions return.
+
+======================================================================
+8. WHAT IS NOT ON THE BOARD (AND WHY)
+======================================================================
+
+  - Personal bests: the app has no such rule, and the day achievements
+    (10,000, 20,000, 30,000) already mark the big days. Adding one
+    would be a new reward rule, not a display.
+  - Every streak of 7 days, every time: streaks are shown, not
+    celebrated, apart from the streak achievements (7, 30, 100).
+    Those are on the board.
+  - Coins on their own: the check-in bonus, quest coins, the shop
+    refresh payout. They say nothing to friends, and the wallet is private.
+  - Character and outfit changes, passing someone on the road, new
+    friends, joining a group: possible later, each as its own choice
+    (section 11).
+
+======================================================================
+9. TRICKY CASES
+======================================================================
+
+  - Two phones, or a fast double pull: each load is a plain read, so
+    two at once give the same answer; the newest one wins on screen.
+  - A friend who walked "today" in a time zone ahead of yours: their
+    line says Today on their date, which is your tomorrow. Shown as
+    Today: the label is about their day, and it never shows a time.
+  - A friend unfriends you while you're looking: their lines stay on
+    screen until the next load, then go. Nothing about them is added
+    meanwhile.
+  - A friend turns sharing off: no lines from the next load. Turning it
+    back on brings back their lines from the last 30 days, since the
+    records were never deleted.
+  - Someone deletes every day they uploaded: no goal lines; their
+    achievement lines stay (they're on their player card too).
+  - Account deleted: the rows go with the account (on delete cascade),
+    so the lines do too.
+  - A quest won by a group you joined afterwards: shown, since it's
+    the group's history, like the group's quest list.
+  - An old app that doesn't know a new achievement id: the line leaves
+    that id out (the earnedList rule); a line with nothing left is not
+    shown.
+
+======================================================================
+10. CHOICES (ACT-1 AND ACT-2 DECIDED OCTOBER 2026; THE REST SUGGESTED)
+======================================================================
+
+  ACT-1  Where it lives (DECIDED): a third button in Friends, next to
+         Today and Last 7 days, not a new tab. Groups get it later.
+    Why:  five tabs already, and the board is about the same people
+    the rankings are about.
+
+  ACT-2  One line per person per day (DECIDED): the goal plus that
+         day's achievements, and (with groups, later) one per won
+         quest.
+    Why:  a busy day doesn't flood the list, and nothing has to be
+    merged or deduplicated.
+
+  ACT-3  30 days back.
+    Why:  enough to scroll a month, and it keeps every load small.
+
+  ACT-4  No live updates: open, foreground and pull-to-refresh only.
+    Why:  nothing on the board is urgent, and it keeps the battery and
+    the database quiet. Live updates can be added later (section 11).
+
+  ACT-5  No pushes and no tab badge.
+    Why:  a badge means "something needs you" (notifications blueprint,
+    section 5), and a push for every friend's goal would be noise.
+
+  ACT-6  Coins shown on your own lines only; no step counts on anyone's.
+    Why:  the wallet is private, and friends only see today's and the
+    week's totals now.
+
+  ACT-7  A deleted day takes its goal line with it.
+    Why:  deleting a day is how a person removes it; the coins stay
+    as now.
+
+  When these are settled, copy them into step-tracker-decisions.txt
+  as a new section, like the other blueprints.
+
+======================================================================
+11. LATER (EACH ITS OWN CHOICE)
+======================================================================
+
+  - Live updates while the view is open.
+  - "Sam has a new look": a line when someone wears a new item, at most
+    one a day per person.
+  - Joining a group, in that group's view.
+  - A Friends filter for one person.
+
+======================================================================
+12. FROM THE EARLIER DRAFT
+======================================================================
+
+  The earlier draft of this file asked for several things that would
+  have changed existing rules. They are left out; this is where each
+  one went.
+
+  - Taking back achievements and coins when a day is corrected: no.
+    Achievements are kept for good and paid coins are never taken back
+    (achievements section 2, claim_daily_rewards). The board shows what
+    was paid.
+  - Pending coins and a new coin ledger: no. Daily coins can be spent
+    at once, and coin_transactions with its unique (user, reason, ref)
+    already stops a reward being paid twice.
+  - "+10 coins for 10,000 steps": coins are paid at the daily goal
+    (150), and 10,000 pays nothing, so a goal line is the only one with
+    coins on it.
+  - An approved list of step sources, and Android records of unknown
+    origin: the existing filters (no typed-in steps, at most 100,000 a
+    day) stay as they are.
+  - An activities table with dedupe keys, update cursors and removal
+    messages: not needed, since every line is read live (section 7).
+  - Cheers on lines: not built at this time. The board has no
+    reactions.
+  - A "synced 3h ago" label: the board shows past days only, never
+    live progress, so nothing on it claims to be live.
+  - Personal bests and repeated streak milestones: section 8.
+
+======================================================================
+13. TESTS
+======================================================================
+
+  DATABASE (supabase/tests/database)
+  What shows
+  - A day at the goal gives one line; the same day's achievement joins
+    that line, never a second one; an achievement on a day without the
+    goal gives a line of its own.
+  - Coins only on your own lines, with the row's amount; no step counts
+    anywhere in the answer.
+  - A won quest gives one line in that group's view and none in
+    Friends; a failed or cancelled quest gives none.
+  - A day corrected below the goal keeps its line (the coin row stays);
+    a deleted day loses its goal part and keeps its achievements.
+  - A late day appears under its own day.
+  - Days before goal_is_coin_target_from give no goal line.
+
+  Who sees what
+  - Friends: a friend yes; a stranger, a former friend, blocked either
+    way, paused or hidden, under-age or unfinished, not sharing: no.
+  - Group: a member yes, including a non-friend and (SAFE-1) a blocked
+    member; a former member no; a caller who isn't a member gets
+    NOT_A_MEMBER.
+  - Signed out or inactive caller: refused.
+  - No EXECUTE for public or anon; authenticated only; security
+    definer with an empty search_path.
+
+  Order and pages
+  - Newest day first, the same order every time; ties broken by
+    person id.
+  - Paging with "before": every line exactly once, none skipped, even
+    when a new line arrives between pages.
+  - Nothing older than 30 days; a my_today that isn't today anywhere
+    is refused with BAD_DAY.
+
+  APP (npm test)
+  - The line text for each mix (goal, one achievement, several, both,
+    yours with coins, a quest), and leaving out unknown ids.
+  - Merging a fresh first page into the list, the "New activity" pill,
+    keeping the list on a failed load, the 30-second foreground limit,
+    and dropping a person's lines after blocking or removing them.
+
+  ON A PHONE (DEVICE-TESTS.md)
+  - Reach the goal: a friend's phone shows the line after pulling to
+    refresh; then unlock an achievement the same day: still one line.
+  - Unfriend: the lines go on the next load. Block from the card: they
+    go at once.
+  - Airplane mode: the list stays, with the "Couldn't refresh" note.
+  - Large text and VoiceOver read each line as one sentence.
+  - Android (emulator, since there is only an iPhone to test on): the
+    same list and states.
+
+======================================================================
+14. BUILD ORDER CHECKLIST
+======================================================================
+
+    [x] ACT-1 and ACT-2 decided
+    [ ] ACT-3 to ACT-7 settled, and all seven copied to
+        step-tracker-decisions.txt
+    [x] Goal badge art: a green check mark on the badge frame
+        (assets/badges/badge_goal.png and _locked), drawn by badge_goal
+        in scripts/generate-avatar-sprites.py
+    [x] Migration (written, passing locally, not yet deployed):
+        supabase/migrations/20261121000000_activity_board.sql,
+        friends_activity only; tests in
+        supabase/tests/database/activity_board.test.sql. The sharing
+        check is inside the function (profiles.sharing_consent_at);
+        no new indexes were needed (the unique keys cover the reads).
+    [x] App, Friends (written): the Activity button and list
+        (src/components/activity-list.tsx), its words and paging
+        (src/activity/activity.ts, tested in activity.test.ts), loading
+        and refreshing (src/hooks/use-friends-activity.ts), and
+        src/api/activity.ts. The migration must be deployed before this
+        build ships.
+    [ ] Groups: group_activity and the group screen's Activity view,
+        with quest lines (later)
+    [ ] Device tests, iPhone and Android emulator

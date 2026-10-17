@@ -39,6 +39,13 @@
 --     Theo that you aren't in (fake_quest.sql makes one with you in it).
 --   - a "Last seen" time from just now to yesterday (Ava has none, to
 --     show a card without it); times count back from when you run this
+--   - the daily goal coins for each of the last 30 days at the coin
+--     target, as claim_daily_rewards would have paid them, with their
+--     wallets to match: these are what the activity board's goal lines
+--     are read from (step-tracker-activity-board.txt). With the
+--     achievements earned in those days (Luna's 30,000 day is 6 days
+--     back, Theo's 22,000 day 3 days back), every friend but Ava has
+--     lines on Friends > Activity
 --
 -- The eight friends: an accepted friendship with you. Ava has no streak
 -- or achievements, to show an empty card.
@@ -164,7 +171,7 @@ begin
     f.id,
     current_date - d,
     case
-      when f.id = 'f4ce0004-0000-4000-8000-000000000004' and d = 40 then 31000   -- Luna
+      when f.id = 'f4ce0004-0000-4000-8000-000000000004' and d = 6 then 31000    -- Luna
       when f.id = 'f4ce0007-0000-4000-8000-000000000007' and d = 3 then 22000    -- Theo
       when d = 0 then f.today_steps
       when d <= f.streak_days then 10000 + round(random() * f.typical_steps * 0.4)
@@ -175,6 +182,37 @@ begin
   cross join lateral generate_series(0, f.history_days - 1) as d
   on conflict (user_id, day) do update set steps = excluded.steps;
   alter table public.daily_steps enable trigger daily_steps_check;
+
+  -- The daily goal coins for the last 30 days, worked out afresh (the
+  -- steps above are new each run): the old rows go, with their coins
+  -- out of the wallet, then a row for each day at the coin target, paid
+  -- in that evening (or a minute ago for today), with the coins in
+  with gone as (
+    delete from public.coin_transactions c
+    using fake_players f
+    where c.user_id = f.id and c.reason = 'daily_goal'
+      and c.ref >= to_char(current_date - 29, 'YYYY-MM-DD')
+    returning c.user_id, c.amount
+  )
+  update public.wallets w set balance = greatest(0, w.balance - g.total)
+  from (select user_id, sum(amount)::int as total from gone group by user_id) g
+  where w.user_id = g.user_id;
+
+  with paid as (
+    insert into public.coin_transactions (user_id, amount, reason, ref, created_at)
+    select s.user_id, 150, 'daily_goal', s.day::text,
+           least(now() - interval '1 minute',
+                 (s.day + time '17:00')::timestamptz + make_interval(mins => (random() * 240)::int))
+    from public.daily_steps s
+    join fake_players f on f.id = s.user_id
+    where s.day > current_date - 30
+      and s.steps >= public.coin_steps_on(s.user_id, s.day)
+    on conflict (user_id, reason, ref) do nothing
+    returning user_id, amount
+  )
+  insert into public.wallets (user_id, balance)
+  select user_id, sum(amount)::int from paid group by user_id
+  on conflict (user_id) do update set balance = public.wallets.balance + excluded.balance;
 
   -- Trail Crew: Diego's group with Priya and Theo, and ten Sprints they
   -- won together, one every three days
@@ -251,8 +289,10 @@ begin
   from fake_players f
   where f.relation in ('asks_me', 'i_asked');
 
-  raise notice 'Added % fake friends and 2 friend requests for derekqho@gmail.com; % achievements earned',
+  raise notice 'Added % fake friends and 2 friend requests for derekqho@gmail.com; % achievements earned; % goal days in the last 30',
     (select count(*) from fake_players where relation = 'friend'),
-    (select count(*) from public.user_achievements a join fake_players f on f.id = a.user_id);
+    (select count(*) from public.user_achievements a join fake_players f on f.id = a.user_id),
+    (select count(*) from public.coin_transactions c join fake_players f on f.id = c.user_id
+     where c.reason = 'daily_goal' and c.ref >= to_char(current_date - 29, 'YYYY-MM-DD'));
 end;
 $$;

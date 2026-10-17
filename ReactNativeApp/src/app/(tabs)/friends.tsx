@@ -2,6 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
 
+import { type ActivityLine } from '@/activity/activity';
 import {
   acceptFriendRequest,
   cancelFriendRequest,
@@ -14,13 +15,14 @@ import {
   searchUsers,
   sendFriendRequest,
 } from '@/api/friends';
-import { type LeaderboardRow, type Period } from '@/api/steps';
+import { type LeaderboardRow, myToday, type Period } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
+import { ActivityList } from '@/components/activity-list';
 import { GroundText } from '@/components/ground-text';
 import { personMenu, reportHref } from '@/components/block-actions';
-import { Leaderboard, PeriodPicker } from '@/components/leaderboard';
+import { Leaderboard, PillPicker } from '@/components/leaderboard';
 import { MoreButton } from '@/components/more-button';
 import { PlayerCard } from '@/components/player-card';
 import { SharingRequired } from '@/components/sharing-required';
@@ -30,11 +32,28 @@ import { Screen } from '@/components/ui/screen';
 import { Row, Section } from '@/components/ui/section';
 import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
+import { useFriendsActivity } from '@/hooks/use-friends-activity';
 import { useNotificationCounts } from '@/hooks/use-notification-counts';
 import { errorMessage } from '@/lib/error-message';
 import { askForPush } from '@/notifications/push';
 
 const name = (p: PublicProfile) => p.display_name || p.username;
+
+// The two rankings, and the activity board (step-tracker-activity-board.txt)
+type View = Period | 'activity';
+const VIEWS: { value: View; label: string }[] = [
+  { value: 'today', label: 'Today' },
+  { value: 'week', label: 'Last 7 days' },
+  { value: 'activity', label: 'Activity' },
+];
+
+/** "Updated 5m ago"; nothing under a minute. */
+function updatedText(at: number | null): string | null {
+  if (at === null) return null;
+  const minutes = Math.floor((Date.now() - at) / 60_000);
+  if (minutes < 1) return null;
+  return minutes < 60 ? `Updated ${minutes}m ago` : `Updated ${Math.floor(minutes / 60)}h ago`;
+}
 
 /** Small character shown at the start of each person's row. */
 const character = (p: PublicProfile) => (
@@ -52,7 +71,10 @@ export default function FriendsScreen() {
   const sharing = Boolean(profile?.sharing_consent_at);
   const { refreshCounts } = useNotificationCounts();
 
-  const [period, setPeriod] = useState<Period>('week');
+  const [view, setView] = useState<View>('week');
+  // The board's lines open a card with today's steps, from the Today ranking
+  const period: Period = view === 'activity' ? 'today' : view;
+  const activity = useFriendsActivity(sharing ? myId : '', sharing && view === 'activity');
   const [board, setBoard] = useState<LeaderboardRow[]>([]);
   const [friendships, setFriendships] = useState<Friendship[]>([]);
   const [query, setQuery] = useState('');
@@ -80,17 +102,31 @@ export default function FriendsScreen() {
     }
   }, [sharing, period, refreshCounts]);
 
+  const refreshActivity = activity.refresh;
+  const onActivity = view === 'activity';
+
   // Reload whenever the tab is opened, so new requests show up.
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+      if (onActivity) refreshActivity();
+    }, [load, onActivity, refreshActivity])
   );
 
   async function pullToRefresh() {
     setRefreshing(true);
-    await load();
+    await Promise.all([load(), onActivity && refreshActivity({ force: true, replace: true })]);
     setRefreshing(false);
+  }
+
+  /** Someone blocked or removed here: off the board at once, then reload. */
+  function gone(id: string) {
+    activity.dropPerson(id);
+    load();
+  }
+
+  function openLine(l: ActivityLine) {
+    setSelectedId(l.user_id);
   }
 
   /** Runs an action, shows any error, then reloads the lists. */
@@ -120,7 +156,11 @@ export default function FriendsScreen() {
   const confirmRemove = (f: Friendship, other: PublicProfile) =>
     Alert.alert('Remove friend?', `${name(other)} will no longer see your steps.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => act(() => removeFriend(f.id)) },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => act(() => removeFriend(f.id)).then(() => activity.dropPerson(other.id)),
+      },
     ]);
 
   if (!sharing) {
@@ -150,9 +190,42 @@ export default function FriendsScreen() {
         </Section>
       )}
 
-      <PeriodPicker value={period} onChange={setPeriod} />
-      {board.length > 0 && <GroundText type="small">Tap a name to see their profile.</GroundText>}
-      <Leaderboard rows={board} myId={myId} onSelect={(r) => setSelectedId(r.user_id)} />
+      <PillPicker options={VIEWS} value={view} onChange={setView} />
+      {onActivity ? (
+        <>
+          {activity.error && activity.loaded && (
+            <GroundText type="small">Couldn&apos;t refresh. Pull to try again.</GroundText>
+          )}
+          {!activity.error && updatedText(activity.updatedAt) && (
+            <GroundText type="small">{updatedText(activity.updatedAt)}</GroundText>
+          )}
+          {accepted.length === 0 && activity.loaded && activity.lines.length === 0 ? (
+            <Section>
+              <ThemedText type="small" themeColor="textSecondary">
+                Add friends to see what they&apos;re up to.
+              </ThemedText>
+            </Section>
+          ) : (
+            <ActivityList
+              lines={activity.lines}
+              myId={myId}
+              today={myToday()}
+              loaded={activity.loaded}
+              hasOlder={activity.hasOlder}
+              loadingOlder={activity.loadingOlder}
+              hasNew={activity.hasNew}
+              onSelect={openLine}
+              onOlder={activity.loadOlder}
+              onShowNew={activity.showNew}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          {board.length > 0 && <GroundText type="small">Tap a name to see their profile.</GroundText>}
+          <Leaderboard rows={board} myId={myId} onSelect={(r) => setSelectedId(r.user_id)} />
+        </>
+      )}
 
       {incoming.length > 0 && (
         <Section title="Requests">
@@ -175,7 +248,10 @@ export default function FriendsScreen() {
               />
               <MoreButton
                 onPress={() =>
-                  personMenu(f.requester, { onChanged: load, onReport: reportFor(f.requester) })
+                  personMenu(f.requester, {
+                    onChanged: () => gone(f.requester.id),
+                    onReport: reportFor(f.requester),
+                  })
                 }
               />
             </Row>
@@ -206,7 +282,7 @@ export default function FriendsScreen() {
                   onChanged: () => {
                     // Gone for you now: off the results and the lists
                     setResults((r) => r?.filter((x) => x.id !== p.id) ?? null);
-                    load();
+                    gone(p.id);
                   },
                   onReport: reportFor(p),
                 })
@@ -291,7 +367,7 @@ export default function FriendsScreen() {
         stepsLabel={period === 'today' ? 'Today' : 'Last 7 days'}
         onClose={() => setSelectedId(null)}
         onEditMine={() => router.navigate('/profile')}
-        onBlockChanged={load}
+        onBlockChanged={() => (selectedId ? gone(selectedId) : load())}
       />
     </Screen>
   );

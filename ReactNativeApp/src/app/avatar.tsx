@@ -29,6 +29,10 @@ import { THEME_LIST } from '@/track/themes';
 type Collection = <T extends { id: string }>(items: T[]) => T[];
 
 const TILE_WIDTH = 88;
+// Item rows built on the editor's first render; the rest follow ROWS_PER_FRAME
+// at a time, a frame apart
+const FIRST_ROWS = 2;
+const ROWS_PER_FRAME = 2;
 
 /** How a row of tiles talks back to the screen while being rearranged. */
 type Arrange = {
@@ -190,6 +194,17 @@ export default function AvatarEditorScreen() {
   );
   const [dragging, setDragging] = useState(false);
 
+  // Building every tile at once held the editor up as it opened. Only the
+  // first rows are on screen by then, so the rest arriving a frame or two
+  // later can't be seen.
+  const [rowsShown, setRowsShown] = useState(FIRST_ROWS);
+  const allRows = rowsShown >= SLOTS.length;
+  useEffect(() => {
+    if (allRows) return;
+    const frame = requestAnimationFrame(() => setRowsShown((n) => n + ROWS_PER_FRAME));
+    return () => cancelAnimationFrame(frame);
+  }, [allRows, rowsShown]);
+
   // Which items need owning, and the owned ones: only what the user can
   // wear is shown (reward items only once earned). Loaded again each time
   // the editor opens or comes back into view, behind the kept lists, so an
@@ -311,7 +326,7 @@ export default function AvatarEditorScreen() {
             label="Hair color"
           />
 
-          {SLOTS.map(({ slot, title }) => (
+          {SLOTS.slice(0, rowsShown).map(({ slot, title }) => (
             <View key={slot} style={styles.slot}>
               <ThemedText type="smallBold">
                 {title}
@@ -346,7 +361,9 @@ export default function AvatarEditorScreen() {
                     <ItemIcon
                       slot={slot}
                       id={item.id}
-                      config={avatar}
+                      color={
+                        slot === 'hair' ? avatar.hairColor : slot === 'face' ? avatar.skin : undefined
+                      }
                       accessibilityLabel={item.label}
                     />
                   </Tile>
@@ -355,36 +372,40 @@ export default function AvatarEditorScreen() {
             </View>
           ))}
 
-          <View style={styles.slot}>
-            <ThemedText type="smallBold">
-              Pet
-              <ThemedText type="small" themeColor="textSecondary">
-                {'  '}
-                {findPet(avatar.pet)?.label ?? 'None'}
-              </ThemedText>
-            </ThemedText>
-            <ItemRow
-              items={mine(PETS)}
-              arrange={arrange}
-              leading={
-                <Tile
-                  label="No pet"
-                  selected={avatar.pet === null}
-                  onPress={() => set({ pet: null })}>
-                  <View style={styles.iconBox} />
-                </Tile>
-              }
-              renderItem={(p) => (
-                <Tile label={p.label} selected={avatar.pet === p.id} onPress={() => set({ pet: p.id })}>
-                  <View style={styles.iconBox}>
-                    <Pet id={p.id} scale={4} />
-                  </View>
-                </Tile>
-              )}
-            />
-          </View>
+          {allRows && (
+            <>
+              <View style={styles.slot}>
+                <ThemedText type="smallBold">
+                  Pet
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {'  '}
+                    {findPet(avatar.pet)?.label ?? 'None'}
+                  </ThemedText>
+                </ThemedText>
+                <ItemRow
+                  items={mine(PETS)}
+                  arrange={arrange}
+                  leading={
+                    <Tile
+                      label="No pet"
+                      selected={avatar.pet === null}
+                      onPress={() => set({ pet: null })}>
+                      <View style={styles.iconBox} />
+                    </Tile>
+                  }
+                  renderItem={(p) => (
+                    <Tile label={p.label} selected={avatar.pet === p.id} onPress={() => set({ pet: p.id })}>
+                      <View style={styles.iconBox}>
+                        <Pet id={p.id} scale={4} />
+                      </View>
+                    </Tile>
+                  )}
+                />
+              </View>
 
-          <BackgroundPicker mine={mine} arrange={arrange} />
+              <BackgroundPicker mine={mine} arrange={arrange} />
+            </>
+          )}
 
           <ThemedText type="small" themeColor="textSecondary">
             Hold an item, then drag it to move it along its row.
