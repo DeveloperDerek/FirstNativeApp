@@ -6,7 +6,8 @@ import { type AvatarConfig, DEFAULT_AVATAR } from './types';
 // To add an item: drop the 32 x 56 PNG in assets/avatar/ and add a line.
 // An item that isn't free needs its shop_items row deployed first: one with
 // no row is free to wear. A reward item (earned, never sold) is also listed
-// in src/achievements/achievements.ts, which keeps it locked in Customize.
+// in src/achievements/achievements.ts, which keeps it out of Customize
+// until it's earned.
 
 export type Slot =
   | 'face'
@@ -127,7 +128,14 @@ export const CATALOG: Record<Slot, Item[]> = {
       id: 'top_puffer_purple',
       label: 'Puffer jacket',
       image: require('@/assets/avatar/top_puffer_purple.png'),
-    },  ],
+    },
+    // Item sets
+    {
+      id: 'top_cowboy_vest',
+      label: 'Cowboy vest',
+      image: require('@/assets/avatar/top_cowboy_vest.png'),
+    },
+  ],
   bottom: [
     {
       id: 'bottom_shorts_blue',
@@ -237,6 +245,18 @@ export const CATALOG: Record<Slot, Item[]> = {
       label: 'Propeller cap',
       image: require('@/assets/avatar/hat_propeller.png'),
     },
+    // Item sets
+    { id: 'hat_cowboy', label: 'Cowboy hat', image: require('@/assets/avatar/hat_cowboy.png') },
+    { id: 'hat_chef', label: 'Chef hat', image: require('@/assets/avatar/hat_chef.png') },
+    { id: 'hat_pirate', label: 'Pirate hat', image: require('@/assets/avatar/hat_pirate.png') },
+    { id: 'hat_knight', label: 'Knight helm', image: require('@/assets/avatar/hat_knight.png') },
+    {
+      id: 'hat_astronaut',
+      label: 'Space helmet',
+      image: require('@/assets/avatar/hat_astronaut.png'),
+    },
+    { id: 'hat_straw', label: 'Straw hat', image: require('@/assets/avatar/hat_straw.png') },
+    { id: 'hat_viking', label: 'Viking helmet', image: require('@/assets/avatar/hat_viking.png') },
     // Earned, never sold (src/achievements/achievements.ts)
     { id: 'hat_laurel', label: 'Laurel wreath', image: require('@/assets/avatar/hat_laurel.png') },
   ],
@@ -354,6 +374,18 @@ export const CATALOG: Record<Slot, Item[]> = {
       id: 'outfit_dress',
       label: 'Party dress',
       image: require('@/assets/avatar/outfit_dress.png'),
+    },
+    // Item sets
+    { id: 'outfit_chef', label: 'Chef whites', image: require('@/assets/avatar/outfit_chef.png') },
+    {
+      id: 'outfit_pirate',
+      label: 'Pirate coat',
+      image: require('@/assets/avatar/outfit_pirate.png'),
+    },
+    {
+      id: 'outfit_astronaut',
+      label: 'Space suit',
+      image: require('@/assets/avatar/outfit_astronaut.png'),
     },
   ],
 };

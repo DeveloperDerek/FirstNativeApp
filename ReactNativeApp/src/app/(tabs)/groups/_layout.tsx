@@ -7,15 +7,14 @@ export default function GroupsLayout() {
   return (
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      {/* The header is painted the map's sky so it runs into the page's own sky */}
+      {/* See-through header: the page's sky picture runs up behind it, as on the tabs */}
       <Stack.Screen
         name="[id]"
         options={{
           title: '',
           headerBackButtonDisplayMode: 'minimal',
-          headerStyle: { backgroundColor: theme.sky },
+          headerTransparent: true,
           headerTintColor: theme.skyInk,
-          headerShadowVisible: false,
         }}
       />
     </Stack>

@@ -26,11 +26,16 @@ export const CRISP = { filter: FilterMode.Nearest, mipmap: MipmapMode.None };
 // Each sprite is decoded once and shared by every character on screen,
 // so a leaderboard of 20 people doesn't decode 160 images.
 const decoded = new Map<number, Promise<SkImage | null>>();
+// The ones that have finished, so they can be drawn without waiting
+const ready = new Map<number, SkImage | null>();
 
 export function loadSprite(source: number) {
   let promise = decoded.get(source);
   if (!promise) {
-    promise = loadData(source, (data) => Skia.Image.MakeImageFromEncoded(data));
+    promise = loadData(source, (data) => Skia.Image.MakeImageFromEncoded(data)).then((image) => {
+      ready.set(source, image);
+      return image;
+    });
     decoded.set(source, promise);
   }
   return promise;
@@ -39,13 +44,22 @@ export function loadSprite(source: number) {
 export function useSprite(source: number | undefined): SkImage | null {
   // Kept in state (not read from the cache during render) so the React
   // Compiler re-renders when the image arrives.
-  const [loaded, setLoaded] = useState<{ source: number; image: SkImage | null } | null>(null);
+  const [loaded, setLoaded] = useState<{ source: number; image: SkImage | null } | null>(() =>
+    source !== undefined && ready.has(source) ? { source, image: ready.get(source)! } : null
+  );
+
+  // A sprite decoded already (every item icon in the editor decodes its
+  // own) shows in this same render: putting an item on doesn't leave its
+  // layer empty for a frame while the promise below comes back
+  if (source !== undefined && loaded?.source !== source && ready.has(source)) {
+    setLoaded({ source, image: ready.get(source)! });
+  }
 
   useEffect(() => {
     if (source === undefined) return;
     let alive = true;
     loadSprite(source).then((image) => {
-      if (alive) setLoaded({ source, image });
+      if (alive) setLoaded((prev) => (prev?.source === source ? prev : { source, image }));
     });
     return () => {
       alive = false;

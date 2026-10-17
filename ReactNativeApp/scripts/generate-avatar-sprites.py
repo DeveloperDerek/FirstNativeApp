@@ -85,6 +85,24 @@ def shade(mask, base, shadow, outline, size=(W, H), top=0, highlight=None, lit=r
     return px
 
 
+HAIR_STRAND = (180, 180, 180)  # tinted with the hair, a shade under its base
+
+
+def strands(px, mask, base, highlight):
+    """Lines down the hair that split it into locks, fanning out from a
+    parting at the middle of the crown. Only drawn over the base color
+    and the shine, so the outline and shadow band stay as they are; where
+    a strand crosses the shine it breaks it into glossy pieces."""
+    rows = [y for _, y in mask]
+    top, bottom = min(rows), max(rows)
+    for x0 in (11, 21):  # just two, kept short, so the hair stays simple
+        lean = (x0 - 15.5) / 9  # columns per row: outward from the middle
+        for y in range(top + 3, min(bottom - 1, top + 8)):
+            x = round(x0 + lean * (y - top - 2) * 0.6)
+            if px.get((x, y)) in (base, highlight) and (x, y + 2) in mask:
+                px[(x, y)] = HAIR_STRAND
+
+
 def is_tintable(outline):
     """Body and hair parts (gray, tinted in the app) use the gray outline."""
     return outline == GRAY_OUTLINE
@@ -121,6 +139,8 @@ class Layer:
         elif highlight:
             lit = shine_lit
         shaded = shade(mask, base, shadow, outline, self.size, self.top, highlight, lit)
+        if self.size == (W, H) and is_tintable(outline) and base != GRAY_BASE:
+            strands(shaded, mask, base, highlight)  # hair, not the body
         self.px.update(shaded)
         self.edges.update({p: c for p, c in shaded.items() if c == outline})
         return self
@@ -217,6 +237,8 @@ def body():
         layer.px[(14, y)] = GRAY_OUTLINE
         layer.px[(17, y)] = GRAY_OUTLINE
     layer.part(HEAD | EARS, *gray)  # head last so the chin outline shows
+    layer.dots(GRAY_SHADOW, rect(14, 26, 17, 26))  # the chin's shadow on the neck
+    layer.dots(GRAY_SHADOW, [(4, 14), (4, 15), (27, 14), (27, 15)])  # inside the ears
     layer.save('body_base')
 
 
@@ -228,11 +250,19 @@ MOUTH = (0x8A, 0x3B, 0x3B)
 EYE_IRIS = (0x6B, 0x45, 0x5A)
 
 
+EYE_GLOW = (0xA8, 0x7A, 0x8E)  # light coming up through the bottom of the iris
+
+
 def open_eye(layer, x, y):
-    """2x3 eye, (x, y) its top-left: dark, a softer iris tone along the
-    bottom, and a highlight pixel."""
-    layer.dots(EYE_DARK, rect(x, y, x + 1, y + 1))
-    layer.dots(EYE_IRIS, [(x, y + 2), (x + 1, y + 2)]).dots(WHITE, [(x, y)])
+    """3x4 eye, (x, y) the top-left of its two middle columns: a lash
+    line along the top, a dark pupil with a highlight on its upper left
+    (the light), and the iris lighter toward the bottom. The left eye
+    reaches a column further left, the right eye a column further right,
+    so the pair stays mirrored and inside the blink box in WalkingAvatar."""
+    x0 = x - 1 if x < W // 2 else x
+    layer.dots(EYE_DARK, rect(x0, y - 1, x0 + 2, y + 1))
+    layer.dots(EYE_IRIS, [(x0, y + 2), (x0 + 2, y + 2)]).dots(EYE_GLOW, [(x0 + 1, y + 2)])
+    layer.dots(WHITE, [(x0, y)])
 
 
 def face(name, left='open', mouth='smile', brows=False, blush=True):
@@ -268,6 +298,14 @@ HAIR_BACK = ((204, 204, 204), (158, 158, 158), GRAY_OUTLINE)
 CAP = ellipse(16, 13, 12.5, 12) & rect(0, 0, W - 1, 9)  # top of the head, a little bigger
 
 
+def bangs(x0, x1, y0, y1, step=4):
+    """A fringe from row y0 down to y1, cut into locks `step` columns wide
+    with a notch between them, each lock coming to a point a row lower."""
+    m = rect(x0, y0, x1, y1 - 1)
+    m |= {(x, y1) for x in range(x0, x1 + 1) if (x - x0) % step != step - 1}
+    return m | {(x, y1 + 1) for x in range(x0, x1 + 1) if (x - x0) % step == 1}
+
+
 def hair_spiky():
     spikes = set()
     for i, cx in enumerate((7, 12, 16, 20, 25)):
@@ -281,7 +319,7 @@ def hair_spiky():
 
 
 def hair_short():
-    fringe = rect(6, 9, 25, 10) | {(x, 11) for x in range(6, 18)}
+    fringe = bangs(6, 17, 9, 11) | rect(18, 9, 25, 10)  # swept to one side
     sides = mirror(rect(3, 8, 6, 18))
     Layer().part(CAP | fringe | sides, *HAIR).save('hair_short')
 
@@ -292,7 +330,7 @@ def hair_buzz():
 
 
 def hair_long():
-    fringe = rect(6, 9, 25, 10) | mirror({(x, 11) for x in range(6, 12)})
+    fringe = mirror(bangs(6, 15, 9, 11))  # parted in the middle
     sides = mirror(rect(2, 8, 6, 24))
     Layer().part(CAP | fringe | sides, *HAIR).save('hair_long')
     back = ellipse(16, 13, 13.5, 12.5) | rect(3, 13, 28, 33) | ellipse(16, 33, 12.5, 3)
@@ -300,7 +338,7 @@ def hair_long():
 
 
 def hair_ponytail():
-    fringe = rect(7, 9, 24, 10) | {(x, 11) for x in range(14, 25)}
+    fringe = rect(7, 9, 13, 10) | bangs(14, 24, 9, 11)
     sides = mirror(rect(4, 8, 6, 15))
     Layer().part(CAP | fringe | sides, *HAIR).save('hair_ponytail')
     tail = ellipse(16, 12, 13, 11.5) | ellipse(26, 16, 4, 5) | ellipse(27.5, 25, 3.5, 8)
@@ -312,9 +350,19 @@ TOP_BODY = rect(10, 26, 21, 37)
 TOP_ARMS = mirror(rect(7, 27, 10, 35) | rect(9, 26, 11, 27))
 
 
+def tailor(layer, c, cuffs=True):
+    """Where a sleeve meets the body, a seam down the side, so the arms read
+    apart from the chest, and a cuff at the end of each sleeve."""
+    seam = darker(c, 0.84)
+    layer.dots(seam, mirror([(10, y) for y in range(29, 35)]))
+    if cuffs:
+        layer.dots(darker(c, 0.9), mirror([(8, 34), (9, 34)]))
+
+
 def top(name, color, detail=None):
     c = hexc(color)
     layer = Layer().part(TOP_BODY | TOP_ARMS, c, darker(c))
+    tailor(layer, c)
     if detail:
         detail(layer, c)
     layer.save(name)
@@ -607,7 +655,7 @@ def hair_bun():
 
 def hair_wavy():
     import math
-    fringe = rect(6, 9, 25, 10) | mirror({(x, 11) for x in range(6, 13)})
+    fringe = mirror(bangs(6, 15, 9, 11))
     sides = set()
     for y in range(8, 27):
         off = round(math.sin(y / 2.5))
@@ -1215,6 +1263,193 @@ def shop_collection():
     outfit_dress('outfit_dress', '#f48fb1')
 
 
+# ================================================================ item sets
+# Themed looks sold piece by piece (a hat, an outfit or top), each finishing with items the shop already has: cowboy boots,
+# the eyepatch, the knight's armor, shield and sword, sandals.
+# Walking: long coats stop above row 42, where the legs start to lift
+# on their own, and nothing but a sleeve reaches the arm columns (0-10
+# and 21 on) between rows 32 and 38, which swing with the hands.
+STEEL = hexc('#c9d1dc')
+LEATHER = hexc('#8a5a32')
+
+
+# ---------------------------------------------------------------- cowboy
+def hat_cowboy(name, color):
+    c = hexc(color)
+    crown = (rect(9, -2, 22, 6) - {(9, -2), (22, -2)}) - rect(14, -2, 17, -2)  # dented top
+    brim = rect(1, 6, 30, 8) | mirror({(0, 4), (0, 5), (1, 5)})  # turned up at the ends
+    layer = Layer().part(crown, c, darker(c, 0.8)).part(brim, c, darker(c, 0.8))
+    layer.dots(darker(c, 0.6), [(x, y) for x in range(10, 22) for y in (4, 5)])  # band
+    layer.dots(GOLD, [(11, 4), (11, 5)])
+    layer.dots(darker(c, 0.85), [(15, -1), (16, -1), (15, 0), (16, 0)])  # the dent's crease
+    layer.save(name)
+
+
+def cowboy_vest(layer, c):
+    leather = LEATHER
+    layer.part(mirror(rect(10, 26, 13, 37)), leather, darker(leather, 0.8))
+    layer.dots(lighter(leather, 0.35), mirror([(11, 28), (11, 29)]))
+    layer.dots(GOLD, mirror([(13, 32)]))  # a star pinned on one side
+    layer.dots(GOLD, [(17, 31), (19, 31), (18, 30), (18, 32)])
+    red = hexc('#c0392b')
+    layer.part({(x, 26) for x in range(13, 19)} | rect(14, 27, 17, 27) | rect(15, 28, 16, 29),
+               red, darker(red))  # bandana
+    layer.dots(WHITE, [(14, 27)])
+
+
+# ---------------------------------------------------------------- chef
+def hat_chef(name):
+    white = hexc('#f7f7f4')
+    puffs = ell(10, 0, 4.2, 4) | ell(16, -2.5, 5, 4.6) | ell(22, 0, 4.2, 4) | rect(8, 0, 23, 3)
+    layer = Layer().part(puffs, white, hexc('#d8d8d4'))
+    layer.part(rect(7, 3, 24, 8), white, hexc('#d8d8d4'))
+    layer.dots(hexc('#c8c8c4'), [(x, y) for x in (11, 15, 19) for y in range(4, 8)])  # pleats
+    layer.save(name)
+
+
+def outfit_chef(name):
+    white, black = hexc('#f4f4f0'), hexc('#2f2f38')
+    layer = Layer().part(legs_mask(44), black, darker(black, 0.85))
+    split_legs(layer, 44)
+    # Houndstooth trousers: a light check on every other pixel
+    layer.dots(hexc('#8a8a96'), [(x, y) for x, y in legs_mask(44) if (x + y) % 2 == 0
+                                 and layer.px.get((x, y)) == black])
+    layer.part(OUTFIT_BODY, white, darker(white, 0.86))
+    tailor(layer, white)
+    layer.dots(darker(white, 0.8), [(x, y) for y in (29, 32) for x in (13, 18)])  # double buttons
+    red = hexc('#d9534f')
+    layer.part(rect(13, 26, 18, 27) | rect(15, 28, 16, 28), red, darker(red))  # neckerchief
+    apron = rect(11, 33, 20, 41)
+    layer.part(apron, WHITE, hexc('#dcdcd6'))
+    layer.dots(hexc('#9aa3b5'), [(x, 33) for x in range(12, 20)])  # apron string
+    layer.save(name)
+
+
+# ---------------------------------------------------------------- pirate
+def hat_pirate(name):
+    black = hexc('#2b2730')
+    crown = ell(16, 5, 9, 7) & rect(0, -HEADROOM, W - 1, 7)
+    # The brim turns up at the front and both sides into a tricorn
+    brim = {(x, y) for x in range(2, 30) for y in range(round(2 + abs(x - 15.5) / 4), 10)
+            if y >= 6 or abs(x - 15.5) > 8}
+    layer = Layer().part(crown | brim, black, darker(black, 0.8))
+    layer.dots(GOLD, [(x, 6) for x in range(5, 27) if x not in range(13, 19)])  # gold trim
+    skull = rect(14, 1, 17, 3) | rect(15, 4, 16, 4)
+    layer.dots(WHITE, skull).dots(black, [(14, 2), (17, 2)])
+    layer.dots(WHITE, [(13, 5), (18, 5), (12, 6), (19, 6)])  # crossbones
+    layer.save(name)
+
+
+def outfit_pirate(name):
+    red, navy = hexc('#b3261e'), hexc('#2f2a3a')
+    layer = Layer().part(legs_mask(44), navy, darker(navy, 0.85))
+    split_legs(layer, 44)
+    # A long coat, open down the front, its tails stopping above the knees
+    coat = OUTFIT_BODY | rect(11, 37, 20, 41)
+    layer.part(coat, red, darker(red))
+    tailor(layer, red, cuffs=False)
+    layer.dots(GOLD, mirror([(8, 34), (9, 34)]))  # gold cuffs
+    layer.part(rect(14, 26, 17, 33), hexc('#f4ecd8'), hexc('#d8ccb0'))  # shirt
+    layer.dots(darker(navy, 0.8), [(15, y) for y in range(34, 42)] + [(16, y) for y in range(34, 42)])
+    layer.dots(GOLD, [(13, 29), (13, 32), (18, 29), (18, 32)])  # buttons
+    leather = hexc('#4a3020')
+    layer.dots(leather, [(x, 36) for x in range(11, 21)]).dots(GOLD, [(15, 36), (16, 36)])
+    layer.save(name)
+
+
+# ---------------------------------------------------------------- knight
+def hat_knight(name):
+    dome = ellipse(16, 11, 13.5, 11.5) & rect(0, 0, W - 1, 11)
+    cheeks = mirror(rect(2, 9, 6, 20))
+    layer = Layer().part(dome | cheeks, STEEL, darker(STEEL, 0.82))
+    layer.dots(darker(STEEL, 0.7), [(16, y) for y in range(1, 9)])  # ridge
+    layer.dots(darker(STEEL, 0.75), [(x, 10) for x in range(7, 25)])  # brow band
+    layer.dots(darker(STEEL, 0.75), mirror([(4, 12), (4, 14), (4, 16), (4, 18)]))  # rivets
+    layer.dots(WHITE, [(9, 3), (8, 4), (10, 2)])
+    plume = hexc('#c0392b')
+    layer.part(ell(16, -2, 2.4, 3.8) | rect(15, 0, 16, 1), plume, darker(plume))
+    layer.save(name)
+
+
+# ---------------------------------------------------------------- astronaut
+def hat_astronaut(name):
+    shell = hexc('#f2f4f8')
+    window = ell(16, 16, 11, 9.5)  # the face shows through the visor
+    helmet = (ell(16, 13.5, 15.5, 14.5) - window) & rect(0, -HEADROOM, W - 1, 24)
+    layer = Layer().part(helmet, shell, hexc('#c8cdd8'))
+    glass = hexc('#bfe4f6')
+    layer.dots(glass, [(x, y) for x, y in ring(16, 16, 10.6, 9.1, 1)
+                       if y <= 10 and (x, y) not in layer.px])  # the visor's rim
+    layer.dots(WHITE, [(8, 9), (9, 8)])  # glint
+    layer.part(mirror(rect(0, 13, 2, 18)), hexc('#d9534f'), hexc('#b03a36'))  # ear pieces
+    layer.dots(OUTLINE, [(23, -4), (24, -5), (24, -6)]).dots(hexc('#f2c94c'), [(25, -7)])  # antenna
+    layer.save(name)
+
+
+def outfit_astronaut(name):
+    white = hexc('#eef1f6')
+    layer = Layer().part(legs_mask(44), white, darker(white, 0.85))
+    split_legs(layer, 44)
+    layer.part(OUTFIT_BODY, white, darker(white, 0.85))
+    tailor(layer, white, cuffs=False)
+    gray = hexc('#8a93a6')
+    layer.part(mirror(rect(7, 35, 10, 38)), gray, darker(gray))  # gloves
+    layer.part(rect(13, 28, 18, 32), gray, darker(gray))  # chest panel
+    layer.dots(hexc('#d9534f'), [(14, 30)]).dots(hexc('#5b8def'), [(16, 30)])
+    layer.dots(hexc('#f2c94c'), [(17, 30)])
+    layer.dots(gray, [(x, 36) for x in range(11, 21)])  # belt
+    layer.dots(hexc('#f08a3c'), mirror([(11, 41), (12, 41), (13, 41)]))  # knee patches
+    layer.save(name)
+
+
+# ---------------------------------------------------------------- summer and viking
+def hat_straw(name):
+    straw = hexc('#e8c66a')
+    crown = ellipse(16, 7, 9, 7) & rect(0, -HEADROOM, W - 1, 7)
+    brim = rect(1, 7, 30, 9) - {(1, 9), (30, 9)}
+    layer = Layer().part(crown | brim, straw, darker(straw, 0.82))
+    layer.dots(darker(straw, 0.88), [(x, y) for x, y in crown | brim
+                                      if (x + y) % 3 == 0 and layer.px[(x, y)] == straw])  # weave
+    layer.dots(hexc('#d9534f'), [(x, y) for x in range(8, 24) for y in (5, 6)])  # band
+    layer.save(name)
+
+
+def hat_viking(name):
+    horn = hexc('#f0e6c8')
+    # The left horn, row by row from its tip: first and last column.
+    # Out from the side of the helmet, curving up to a point.
+    rows = {-6: (3, 3), -5: (2, 3), -4: (1, 3), -3: (0, 3), -2: (0, 4), -1: (0, 4),
+            0: (0, 5), 1: (1, 6), 2: (1, 7), 3: (2, 7), 4: (3, 7), 5: (4, 7)}
+    left = {(x, y) for y, (x0, x1) in rows.items() for x in range(x0, x1 + 1)}
+    layer = Layer().part(mirror(left), horn, darker(horn, 0.82))
+    dome = ellipse(16, 11, 12.5, 10.5) & rect(0, 0, W - 1, 8)
+    layer.part(dome, STEEL, darker(STEEL, 0.82))
+    bronze = hexc('#b07a3a')
+    layer.part(rect(4, 7, 27, 9), bronze, darker(bronze, 0.8))
+    layer.dots(darker(bronze, 0.6), [(x, 8) for x in range(6, 26, 3)])  # rivets
+    layer.dots(bronze, [(16, y) for y in range(1, 7)]).dots(WHITE, [(10, 3), (9, 4)])
+    layer.save(name)
+
+
+def item_sets():
+    hat_cowboy('hat_cowboy', '#8a5a32')
+    top('top_cowboy_vest', '#e9dcc0', cowboy_vest)
+
+    hat_chef('hat_chef')
+    outfit_chef('outfit_chef')
+
+    hat_pirate('hat_pirate')
+    outfit_pirate('outfit_pirate')
+
+    hat_knight('hat_knight')
+
+    hat_astronaut('hat_astronaut')
+    outfit_astronaut('outfit_astronaut')
+
+    hat_straw('hat_straw')
+    hat_viking('hat_viking')
+
+
 # ================================================================ achievement rewards
 # Items no one can buy: each is unlocked by one achievement
 # (docs/step-tracker-achievements.txt, section 4). Drawn to look unlike
@@ -1455,6 +1690,26 @@ def badge_quests():
     save_badge(layer, 'badge_quests')
 
 
+def badge_goal():
+    """A check mark: the day's goal reached (the activity board's goal days)."""
+    def stroke(a, b, r):
+        (ax, ay), (bx, by) = a, b
+        pts = set()
+        for x in range(22):
+            for y in range(22):
+                px, py = x + 0.5 - ax, y + 0.5 - ay
+                dx, dy = bx - ax, by - ay
+                t = max(0, min(1, (px * dx + py * dy) / (dx * dx + dy * dy)))
+                if (px - t * dx) ** 2 + (py - t * dy) ** 2 <= r * r:
+                    pts.add((x, y))
+        return pts
+
+    green = hexc('#3fa34d')
+    check = stroke((6.5, 11.5), (9.5, 14.5), 1.9) | stroke((9.5, 14.5), (15.5, 7), 1.9)
+    layer = Layer(BADGE).part(check, green, darker(green, 0.8), OUTLINE, lighter(green, 0.35))
+    save_badge(layer, 'badge_goal')
+
+
 def achievement_rewards():
     shoes_winged('shoes_winged')
     cape_ember('cape_ember')
@@ -1466,6 +1721,7 @@ def achievement_rewards():
     badge_total_steps()
     badge_streak()
     badge_quests()
+    badge_goal()
 
 
 # ---------------------------------------------------------------- step track
@@ -3170,6 +3426,7 @@ if __name__ == '__main__':
     hat_crown('hat_crown_gold', '#f2c94c')
 
     shop_collection()
+    item_sets()
     achievement_rewards()
 
     os.makedirs(TRACK_OUT, exist_ok=True)

@@ -1,6 +1,6 @@
-import { Canvas, Group, Rect } from '@shopify/react-native-skia';
+import { Canvas, Group, Path, rect, Skia, type SkPath } from '@shopify/react-native-skia';
 import { useIsFocused } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -536,22 +536,29 @@ function Bubble({
   scale: number;
 }) {
   const opacity = useDerivedValue(() => (emote.get().icon === icon ? 1 : 0));
+  // One path per color rather than a Rect per pixel: the four bubbles were
+  // hundreds of components to build each time the scene appeared
+  const paths = useMemo(() => {
+    const byColor = new Map<string, SkPath>();
+    rows.forEach((row, y) =>
+      [...row].forEach((c, x) => {
+        if (c === '.') return;
+        const color = INK[c as keyof typeof INK];
+        let path = byColor.get(color);
+        if (!path) {
+          path = Skia.Path.Make();
+          byColor.set(color, path);
+        }
+        path.addRect(rect(x * scale, y * scale, scale, scale));
+      })
+    );
+    return [...byColor];
+  }, [rows, scale]);
   return (
     <Group opacity={opacity}>
-      {rows.flatMap((row, y) =>
-        [...row].map((c, x) =>
-          c === '.' ? null : (
-            <Rect
-              key={`${x},${y}`}
-              x={x * scale}
-              y={y * scale}
-              width={scale}
-              height={scale}
-              color={INK[c as keyof typeof INK]}
-            />
-          )
-        )
-      )}
+      {paths.map(([color, path]) => (
+        <Path key={color} path={path} color={color} />
+      ))}
     </Group>
   );
 }

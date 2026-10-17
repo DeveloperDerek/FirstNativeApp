@@ -1,8 +1,8 @@
 import { BlendColor, Canvas, Group, Image, type SkImage } from '@shopify/react-native-skia';
 
-import { CRISP, HEADROOM, SPRITE_H, SPRITE_W, useSprite } from './Avatar';
-import { BODY, findItem, type Slot } from './catalog';
-import type { AvatarConfig } from './types';
+import { CRISP, HEADROOM, loadSprite, SPRITE_H, SPRITE_W, useSprite } from './Avatar';
+import { BODY, CATALOG, findItem, type Slot } from './catalog';
+import { PETS } from './pets';
 
 // One item on its own, as an inventory icon: just its sprite(s), cropped
 // to the pixels it actually covers and scaled up to fill the box. The
@@ -46,6 +46,22 @@ function opaqueBox(image: SkImage): Box | null {
   return box;
 }
 
+/**
+ * Decodes every item's and pet's sprites and works out each item's crop,
+ * so the editor's icons draw on their first render when it opens instead
+ * of each one loading its art and redrawing as it arrives. Each sprite is
+ * only ever decoded once, so calling this again costs next to nothing.
+ */
+export async function preloadItemIcons() {
+  const sources = [
+    BODY,
+    ...Object.values(CATALOG).flatMap((items) => items.flatMap((x) => [x.image, x.back])),
+    ...PETS.flatMap((p) => p.frames),
+  ].filter((s): s is number => s !== undefined);
+  const images = await Promise.all(sources.map((s) => loadSprite(s).catch(() => null)));
+  for (const image of images) if (image) opaqueBox(image);
+}
+
 function union(a: Box | null, b: Box | null): Box | null {
   if (!a || !b) return a ?? b;
   const x = Math.min(a.x, b.x);
@@ -61,20 +77,24 @@ function union(a: Box | null, b: Box | null): Box | null {
 export function ItemIcon({
   slot,
   id,
-  config,
+  color,
   size = 64,
   accessibilityLabel,
 }: {
   slot: Slot;
   id: string;
-  /** For the colors: hair is drawn in their hair color, a face on their skin. */
-  config: AvatarConfig;
+  /**
+   * Their hair color for hair, their skin for a face (drawn on a head),
+   * nothing for the rest. Only the color, not the whole character, so
+   * putting on a hat doesn't redraw every icon.
+   */
+  color?: string;
   /** Width and height of the square box, in points. */
   size?: number;
   accessibilityLabel: string;
 }) {
   const item = findItem(slot, id);
-  const tint = slot === 'hair' ? config.hairColor : undefined;
+  const tint = slot === 'hair' ? color : undefined;
   const head = useSprite(slot === 'face' ? BODY : undefined);
   const back = useSprite(item?.back);
   const front = useSprite(item?.image);
@@ -123,7 +143,7 @@ export function ItemIcon({
             height: box.h * scale,
           }}>
           {layer(back, tint)}
-          {layer(head, config.skin)}
+          {layer(head, color)}
           {layer(front, tint)}
         </Group>
       )}

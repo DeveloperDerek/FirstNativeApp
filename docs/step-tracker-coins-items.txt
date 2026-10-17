@@ -162,8 +162,17 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-1 to COIN-5)
     hat_laurel      100-day streak                 (streak_100)
     pet_mimic       first completed quest          (quest_1)
 
-  PAID ITEMS: 94 items, 89,600 coins for the full set
-  Median price: 700. Every price is a round hundred.
+  ITEM SETS (20261120000000_item_sets.sql; sold one piece at a time)
+    Cowboy      hat_cowboy, top_cowboy_vest               + shoes_cowboy
+    Chef        hat_chef, outfit_chef
+    Pirate      hat_pirate, outfit_pirate                 + glasses_eyepatch
+    Knight      hat_knight          + outfit_knight, hand_sword, hand_shield
+    Astronaut   hat_astronaut, outfit_astronaut           + hand_flag
+    Summer      hat_straw                                 + top_aloha, shoes_sandals
+    Viking      hat_viking
+
+  PAID ITEMS: 105 items, 103,200 coins for the full set
+  Median price: 800. Every price is a round hundred.
   (*) = price changed in the rebalance; the old price is in brackets.
 
   FACES (7 items, 2,300 total)
@@ -177,11 +186,12 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-1 to COIN-5)
     hair_bun               600      hair_mohawk            700
     hair_twintails         700      hair_wavy              800
 
-  TOPS (8 items, 4,500 total)
+  TOPS (9 items, 5,200 total)
     top_tank_orange        300      top_jersey_blue        700
     top_jacket_green       400      top_blazer             700
     top_stripe_navy        400      top_puffer_purple      700
     top_aloha              500      top_varsity            800
+    top_cowboy_vest        700
 
   BOTTOMS (5 items, 1,700 total)
     bottom_pants_black     300 (400)*   bottom_track_red    300 (400)*
@@ -196,13 +206,16 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-1 to COIN-5)
     shoes_rain_yellow      500      shoes_gold           1,200
     shoes_boots_brown      600      shoes_rocket         1,500
 
-  HATS (11 items, 9,800 total)
-    hat_beanie_teal        400      hat_cat                900
+  HATS (18 items, 16,700 total)
+    hat_beanie_teal        400      hat_cowboy             900
     hat_cap_red            500      hat_witch            1,000
     hat_propeller          600      hat_tophat           1,000
-    hat_flowers            700      hat_crown_gold       1,500
-    hat_headphones         800      hat_halo             1,500
-    hat_bunny              900
+    hat_straw              600      hat_pirate           1,000
+    hat_flowers            700      hat_viking           1,000
+    hat_chef               700      hat_knight           1,200
+    hat_headphones         800      hat_crown_gold       1,500
+    hat_bunny              900      hat_halo             1,500
+    hat_cat                900      hat_astronaut        1,500
 
   GLASSES (6 items, 3,700 total)
     glasses_round          400      glasses_star           700
@@ -223,10 +236,12 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-1 to COIN-5)
     hand_bug_net           700
     hand_sword             800
 
-  OUTFITS (6 items, 10,500 total)
-    outfit_pajamas       1,200      outfit_tuxedo        1,800
-    outfit_sailor        1,500      outfit_wizard        2,000
+  OUTFITS (9 items, 16,500 total)
+    outfit_pajamas       1,200      outfit_wizard        2,000
+    outfit_sailor        1,500      outfit_pirate        2,000
     outfit_dress         1,500      outfit_knight        2,500 (2,200)*
+    outfit_chef          1,500      outfit_astronaut     2,500
+    outfit_tuxedo        1,800
 
   PETS (9 items, 9,000 total)
     pet_snail              500           pet_dog        1,000 (800)*
@@ -244,19 +259,19 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-1 to COIN-5)
   SUMMARY BY SLOT
 
     Slot       Items   Cheapest  Dearest   Total    Share of all
-    Maps          8     1,500     3,000    16,500      18%
-    Held         13       400     1,500    10,600      12%
-    Outfits       6     1,200     2,500    10,500      11%
-    Capes/wings   5     1,200     2,500    10,500      11%
-    Hats         11       400     1,500     9,800      11%
-    Pets          9       500     1,500     9,000      10%
-    Shoes        12       300     1,500     8,100       9%
-    Tops          8       300       800     4,500       5%
+    Hats         18       400     1,500    16,700      16%
+    Maps          8     1,500     3,000    16,500      16%
+    Outfits       9     1,200     2,500    16,500      16%
+    Capes/wings   5     1,200     2,500    10,500      10%
+    Held         11       400     1,500     8,900       9%
+    Pets          9       500     1,500     9,000       9%
+    Shoes        12       300     1,500     8,100       8%
+    Tops          9       300       800     5,200       5%
     Hair          6       600       800     4,100       4%
     Glasses       6       400       900     3,700       4%
-    Faces         7       300       400     2,300       3%
+    Faces         7       300       400     2,300       2%
     Bottoms       5       300       500     1,700       2%
-    ALL          96       300     3,000    91,300     100%
+    ALL         105       300     3,000   103,200     100%
 
   HOW LONG THINGS TAKE
 
@@ -266,7 +281,7 @@ CHANGED IN OCTOBER 2026 (step-tracker-decisions.txt, COIN-1 to COIN-5)
     1,500           9 days              6 days
     2,500          14 days             10 days
     3,000          17 days             12 days
-    Everything   ~505 days            ~340 days
+    Everything   ~575 days            ~380 days
 
 ======================================================================
 5. THE REBALANCE (OCTOBER 2026)

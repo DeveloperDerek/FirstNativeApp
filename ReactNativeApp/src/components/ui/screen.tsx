@@ -1,6 +1,7 @@
 import { useFocusEffect } from 'expo-router';
+import { HeaderHeightContext } from 'expo-router/react-navigation';
 import { setStatusBarStyle } from 'expo-status-bar';
-import { type ReactNode, useCallback, useState } from 'react';
+import { type ReactNode, useCallback, useContext, useState } from 'react';
 import {
   Image,
   RefreshControl,
@@ -53,7 +54,7 @@ type ScreenProps = {
   refreshing?: boolean;
   /** Tab screens leave room for the tab bar; pushed screens and modals don't. */
   inTabs?: boolean;
-  /** Screens under a native header don't need to pad for the status bar. */
+  /** Under a see-through native header: pads for the header instead of the status bar. */
   hasHeader?: boolean;
   /** false = sky header only, no strip of scenery. */
   scenery?: boolean;
@@ -77,6 +78,8 @@ export function Screen({
 }: ScreenProps) {
   const { theme } = useMapTheme();
   const insets = useSafeAreaInsets();
+  // Includes the status bar; undefined outside a navigator with a header
+  const headerHeight = useContext(HeaderHeightContext) ?? insets.top;
 
   // Status bar text that reads on this map's sky while the page is visible
   useFocusEffect(
@@ -101,7 +104,7 @@ export function Screen({
         {lit && <SkyLayer scenery={lit} clock={clock} scrollX={scrollX} viewport={width} above={above} />}
         <View
           onLayout={(e) => setAbove(e.nativeEvent.layout.height)}
-          style={{ paddingTop: hasHeader ? 0 : insets.top }}>
+          style={{ paddingTop: hasHeader ? headerHeight : insets.top }}>
           {(title || subtitle) && (
             <View style={styles.header}>
               <View style={styles.inner}>

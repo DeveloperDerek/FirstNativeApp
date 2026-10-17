@@ -59,7 +59,8 @@ SKY_H = TILE_TOP + ROAD_TOP  # scene rows above the road: 72
 SKY_W = 256  # 512 points, wider than any phone
 # The sky picture reaches this far above the scene too, so the page's
 # header (coins, today's count, page titles) sits on it, up to the top of
-# the screen. Sun, moon and Earth stay where they were over the scene.
+# the screen. Sun, moon and Earth stay over the scene, just under the
+# header's bottom edge at the highest.
 SKY_ABOVE = 160
 SKY_FULL_H = SKY_ABOVE + SKY_H
 DEPTH_H = 40
@@ -154,13 +155,13 @@ DARK_INK, LIGHT_INK = hexc('#2a1a1a'), hexc('#ffffff')
 COMMON = {
     'day': dict(lift=0.15, sat=1.2, rim='#fff6d8', shade=(0.8, 0.84, 0.98), side=1,
                 shadow=(0.78, 0.8, 0.92), shadow_len=0.25, front=(1, 1, 1), ridge=0.2,
-                sun=(150, 12), sun_color='#fff8e0', glow=28, glow_strength=0.9),
+                sun=(150, 8), sun_color='#fff8e0', glow=28, glow_strength=0.9),
     'sunset': dict(lift=0.3, sat=1.15, rim='#ffb060', shade=(0.7, 0.62, 0.85), side=1,
                    shadow=(0.62, 0.55, 0.78), shadow_len=0.9, front=(1.03, 1.02, 1.02), ridge=0.5,
-                   sun=(150, 42), sun_color='#fff0c0', glow=46, glow_strength=1.4, rays=True),
+                   sun=(150, 22), sun_color='#fff0c0', glow=46, glow_strength=1.4, rays=True),
     'night': dict(lift=0.35, sat=1.0, rim='#bcd0ff', shade=(0.75, 0.75, 0.9), side=-1,
                   shadow=(0.7, 0.72, 0.85), shadow_len=0.2, front=(0.86, 0.84, 0.9), ridge=0.2,
-                  moon=(170, 16), stars=70),
+                  moon=(170, 7), stars=70),
 }
 
 
@@ -1094,7 +1095,7 @@ THEMES = {
                  depth=('#7fb0a0', '#98c0b0'), haze='#d6f0f2', shadow=(0.8, 0.8, 0.88), shadow_len=0.3),
             dict(sky=['#e87a8a', '#f0928a', '#f6ac8e', '#f9c496', '#fcdaa6'], light='#ffd0b0',
                  lift_to='#6a3a6a', lift=0.28, rim='#ffa070', shade=(0.72, 0.64, 0.86),
-                 depth=('#a0708a', '#b88894'), haze='#fcdaa6', shadow=(0.66, 0.58, 0.8), sun=(150, 54),
+                 depth=('#a0708a', '#b88894'), haze='#fcdaa6', shadow=(0.66, 0.58, 0.8), sun=(150, 34),
                  front=(1, 1, 1)),
             dict(sky=['#0e1630', '#12203c', '#182848', '#1e3052', '#263a5c'], light='#7f90c8',
                  lift_to='#0e1630', depth=('#1a2440', '#202c48'), haze='#263a5c', front=(0.9, 0.9, 0.95),
@@ -1115,7 +1116,7 @@ THEMES = {
             dict(sky=['#c87aa0', '#dc8ea0', '#eca8a4', '#f6c0a8', '#fbd4b0'], light='#ffc8d0',
                  lift_to='#4a3a6a', lift=0.28, rim='#ffa0b0', shade=(0.72, 0.66, 0.88),
                  depth=('#c890a8', '#a87890'), haze='#fbd4b0', snow='#ffd8e0',
-                 shadow=(0.64, 0.58, 0.8), sun=(150, 46)),
+                 shadow=(0.64, 0.58, 0.8), sun=(150, 26)),
             dict(sky=['#0c1430', '#101a3a', '#162246', '#1c2a52', '#24345c'], light='#8090c8',
                  lift_to='#0c1430', rim='#c0d4ff', shade=(0.75, 0.78, 0.92), depth=('#2a3458', '#323e64'),
                  haze='#24345c', snow='#a8b8e0', front=(0.9, 0.9, 0.95), stars=90),
@@ -1163,11 +1164,11 @@ THEMES = {
             dict(sky=['#0a0d1c', '#0e1224', '#12172c', '#161c34', '#1a213c'], light='#ffffff',
                  lift_to='#141a33', lift=0.1, sat=1.1, rim='#ffffff', shade=(0.6, 0.62, 0.75),
                  depth=('#3a3e58', '#4a4e66'), haze='#1a213c', shadow=(0.6, 0.62, 0.72), shadow_len=0.6,
-                 sun=(150, 14), stars=30),
+                 sun=(150, 6), stars=30),
             dict(sky=['#0c1024', '#10162c', '#141c36', '#182240', '#1e2a4a'], light='#d0e0ff',
                  lift_to='#141a33', lift=0.2, sat=1.1, rim='#9fc8ff', shade=(0.65, 0.68, 0.82),
                  depth=('#2e3452', '#3a4060'), haze='#1e2a4a', shadow=(0.62, 0.64, 0.76), sun=None,
-                 rays=False, earthrise=(150, 62), stars=30, front=(1, 1, 1)),
+                 rays=False, earthrise=(150, 42), stars=30, front=(1, 1, 1)),
             dict(sky=['#06080f', '#080b16', '#0b0f1e', '#0e1326', '#12182e'], light='#8a90b8',
                  lift_to='#06080f', lift=0.3, rim='#c0d0ff', shade=(0.72, 0.74, 0.88),
                  depth=('#1e2238', '#262a42'), haze='#12182e', shadow=(0.7, 0.72, 0.84), stars=45,

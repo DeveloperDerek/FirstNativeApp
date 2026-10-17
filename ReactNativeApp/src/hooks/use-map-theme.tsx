@@ -4,6 +4,8 @@ import { Alert, AppState } from 'react-native';
 import { listOwnedItems } from '@/api/coins';
 import { saveMapTheme } from '@/api/mapTheme';
 import { useAuth } from '@/auth/AuthProvider';
+import { preloadItemIcons } from '@/avatar/ItemIcon';
+import { loadMyItems } from '@/avatar/my-items';
 import { errorMessage } from '@/lib/error-message';
 import { lightTheme } from '@/track/lighting';
 import { DEFAULT_THEME_ID, getTheme, type MapTheme } from '@/track/themes';
@@ -49,9 +51,13 @@ export function MapThemeProvider({ children }: { children: ReactNode }) {
   }, [userId]);
 
   // Load on sign-in, and again whenever the app returns to the foreground.
+  // The character editor's lists and item art load now too, so it opens
+  // with them.
   useEffect(() => {
     if (!userId) return;
     let alive = true;
+    loadMyItems(userId).catch(() => {}); // the editor loads them itself if this fails
+    preloadItemIcons().catch(() => {}); // likewise each icon loads its own
     listOwnedItems()
       .then((ids) => alive && setOwned({ userId, ids }))
       .catch(() => {});

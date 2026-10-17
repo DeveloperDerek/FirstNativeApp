@@ -13,6 +13,7 @@ import {
 import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
 import { CATALOG, type Slot, wear } from '@/avatar/catalog';
+import { addOwnedItem } from '@/avatar/my-items';
 import { Pet } from '@/avatar/Pet';
 import { PETS } from '@/avatar/pets';
 import { DEFAULT_AVATAR } from '@/avatar/types';
@@ -169,6 +170,7 @@ export default function ShopScreen() {
           try {
             setBalance(await purchaseItem(itemId));
             setOwned((prev) => new Set(prev).add(itemId));
+            if (userId) addOwnedItem(userId, itemId); // in the character editor straight away
             refreshOwned(); // a new background unlocks on Profile straight away
           } catch (e) {
             Alert.alert('Not purchased', errorMessage(e));
