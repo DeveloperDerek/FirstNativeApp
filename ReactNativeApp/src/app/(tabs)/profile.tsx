@@ -132,7 +132,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <Screen title="Profile" subtitle={session?.user.email}>
+    <Screen title="Profile">
       {profile && (
         <Section title="Your character">
           <CharacterScene avatar={profile.avatar} />
@@ -186,6 +186,9 @@ export default function ProfileScreen() {
       </Section>
 
       <Section title="Sign-in and security">
+        {/* Here rather than under the title, so the header (and the scenery
+            under it) is the same height as on the other tabs */}
+        {session?.user.email && <Row title="Email" detail={session.user.email} />}
         {hasPassword ? (
           <Button
             title="Change password"

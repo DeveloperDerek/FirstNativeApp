@@ -17,30 +17,71 @@ import { ThemedText } from '@/components/themed-text';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useMapTheme } from '@/hooks/use-map-theme';
 import { FrontLayer, SkyLayer, useAmbientClock } from '@/track/ambient';
+import { centerFor, LANDMARK_EVERY, ROAD_PAD } from '@/track/scale';
+import { LANDMARK_H, LANDMARK_W, ROAD_H, TILE_H, TILE_W } from '@/track/sizes';
 
-const TILE_W = 512; // same sizes as StepTrack
-const TILE_H = 160;
 const SCENE_H = 192; // lit maps: the sky's depth strips start above the tiles
+const P = 2; // points per drawing pixel (shadow boxes are in drawing pixels)
+// The last page's header height, so a page opening for the first time
+// draws its sky in place instead of jumping once it's measured
+let lastAbove = 0;
 
 /** A fixed strip of the map's scenery at full height (as on Today), no characters. */
 function SceneryBand({ height }: { height: number }) {
   const { theme } = useMapTheme();
   const { width } = useWindowDimensions();
-  const count = Math.ceil(width / TILE_W);
+  const scenery = theme.scenery;
+  // Lit maps leave a clearing at each tile's ends for a landmark, so lay
+  // them out as Today does, with the start (and any landmark in view)
+  // standing in its clearing. Other maps lay tiles end to end.
+  const tiles = scenery
+    ? Array.from({ length: Math.ceil((width - ROAD_PAD) / LANDMARK_EVERY) + 1 }, (_, i) => ({
+        left: ROAD_PAD + (i - 1) * LANDMARK_EVERY,
+        index: (i + 1) % theme.tiles.length,
+      }))
+    : Array.from({ length: Math.ceil(width / TILE_W) }, (_, i) => ({
+        left: i * TILE_W,
+        index: i % theme.tiles.length,
+      }));
+  const landmarks = scenery
+    ? theme.landmarks
+        .map((l, index) => ({ ...l, index, left: centerFor(l.steps) - LANDMARK_W / 2 }))
+        .filter((l) => l.left < width)
+    : [];
   return (
     <View
       style={[styles.band, { height }]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants">
       <View style={styles.tiles}>
-        {Array.from({ length: count }, (_, i) => (
+        {tiles.map((t) => (
           <Image
-            key={i}
-            source={theme.tiles[i % theme.tiles.length]}
-            style={{ width: TILE_W, height: TILE_H }}
+            key={t.left}
+            source={theme.tiles[t.index]}
+            style={{ position: 'absolute', left: t.left, width: TILE_W, height: TILE_H }}
           />
         ))}
       </View>
+      {landmarks.map((l) => {
+        const box = scenery?.shadowBoxes[l.index];
+        const shadow = scenery?.landmarkShadows[l.index];
+        return box && shadow ? (
+          <Image
+            key={`shadow-${l.steps}`}
+            source={shadow}
+            resizeMode="stretch"
+            style={[styles.shadow, { left: l.left + box.left * P, width: box.width * P }]}
+          />
+        ) : null;
+      })}
+      {landmarks.map((l) => (
+        <Image
+          key={l.steps}
+          source={l.image}
+          resizeMode="stretch"
+          style={[styles.landmark, { left: l.left }]}
+        />
+      ))}
     </View>
   );
 }
@@ -96,14 +137,17 @@ export function Screen({
   const { width } = useWindowDimensions();
   const clock = useAmbientClock();
   const scrollX = useSharedValue(0);
-  const [above, setAbove] = useState(0);
+  const [above, setAbove] = useState(lastAbove);
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.ground }]}>
       <View style={{ backgroundColor: theme.sky }}>
         {lit && <SkyLayer scenery={lit} clock={clock} scrollX={scrollX} viewport={width} above={above} />}
         <View
-          onLayout={(e) => setAbove(e.nativeEvent.layout.height)}
+          onLayout={(e) => {
+            lastAbove = e.nativeEvent.layout.height;
+            setAbove(lastAbove);
+          }}
           style={{ paddingTop: hasHeader ? headerHeight : insets.top }}>
           {(title || subtitle) && (
             <View style={styles.header}>
@@ -156,8 +200,21 @@ const styles = StyleSheet.create({
   },
   tiles: {
     position: 'absolute',
+    left: 0,
+    right: 0,
     bottom: 0,
-    flexDirection: 'row',
+    height: TILE_H,
+  },
+  landmark: {
+    position: 'absolute',
+    bottom: ROAD_H, // sits on top of the road
+    width: LANDMARK_W,
+    height: LANDMARK_H,
+  },
+  shadow: {
+    position: 'absolute',
+    bottom: 0, // covers the road, from its top line down
+    height: ROAD_H,
   },
   content: {
     flexDirection: 'row',

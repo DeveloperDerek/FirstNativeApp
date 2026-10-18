@@ -21,11 +21,11 @@ import { useIsFocused } from 'expo-router';
 import { type ReactNode, useEffect, useState } from 'react';
 import { type ImageStyle, StyleSheet, View } from 'react-native';
 import Reanimated, {
+  makeMutable,
   type SharedValue,
   useAnimatedStyle,
   useFrameCallback,
   useReducedMotion,
-  useSharedValue,
 } from 'react-native-reanimated';
 
 import type { Frames, Scenery } from './lighting';
@@ -143,21 +143,27 @@ function useKinds(scenery: Scenery) {
   return (kind: Kind) => on.has(kind);
 }
 
-/** Seconds since the page came into view, in whole ticks; 0 while still. */
+// One clock for the whole app, so moving things carry on from where they
+// were when you switch tabs instead of starting over on each page
+const CLOCK = makeMutable(0);
+const CLOCK_START = makeMutable(-1); // frame timestamp of the first tick
+
+/** Seconds since the app first showed the scenery, in whole ticks; 0 while still. */
 export function useAmbientClock(): SharedValue<number> {
-  const clock = useSharedValue(0);
   const focused = useIsFocused();
   const still = useReducedMotion();
-  const frames = useFrameCallback(({ timeSinceFirstFrame }) => {
-    const t = Math.floor((timeSinceFirstFrame / 1000) * FPS) / FPS;
-    if (t !== clock.value) clock.value = t;
+  const frames = useFrameCallback(({ timestamp }) => {
+    if (CLOCK_START.value < 0) CLOCK_START.value = timestamp;
+    const t = Math.floor(((timestamp - CLOCK_START.value) / 1000) * FPS) / FPS;
+    if (t !== CLOCK.value) CLOCK.value = t;
   }, false);
 
   useEffect(() => {
     frames.setActive(focused && !still);
+    if (still) CLOCK.value = 0;
   }, [frames, focused, still]);
 
-  return clock;
+  return CLOCK;
 }
 
 // Worklet helpers

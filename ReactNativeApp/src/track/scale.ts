@@ -16,6 +16,8 @@ export function scaleMax(highestSteps: number): number {
 // characters stay spread out and nobody moves when the road grows.
 export const PX_PER_STEP = 0.1; // 1,000 steps = 100 points of road
 export const ROAD_PAD = 64; // empty road before 0 and after the end
+// Landmarks stand every 5,000 steps
+export const LANDMARK_EVERY = 5_000 * PX_PER_STEP;
 
 /** Total scrollable width of the road, in points. */
 export function roadWidth(max: number): number {

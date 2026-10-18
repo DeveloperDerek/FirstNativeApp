@@ -38,6 +38,7 @@ import {
   centerFor,
   formatSteps,
   GOAL,
+  LANDMARK_EVERY,
   PX_PER_STEP,
   ROAD_PAD,
   roadWidth,
@@ -67,9 +68,6 @@ const MAX_LANES = 3; // 3 x 14 fits inside the 48-point road
 // Characters further back also step a little to the side, so two people
 // at the same count don't merge into one figure.
 const LANE_SHIFT = [0, 22, -22];
-
-// Landmarks stand every 5,000 steps
-const LANDMARK_EVERY = 5_000 * PX_PER_STEP;
 
 // Landmarks stand on the road and reach above the street art, so the
 // scene is tall enough for them; the extra space at the top is sky.
