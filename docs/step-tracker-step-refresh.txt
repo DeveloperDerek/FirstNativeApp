@@ -118,6 +118,81 @@ in the order A, B, C: B reuses A's split, and C reuses B's checks.
   - Never two "Goal reached!" alerts. (The database already pays each
     day only once, so coins were always correct; this stops the
     duplicate work and alerts.)
+  WHAT A CHECK CAN AND CAN'T DO
+  - A check after an await stops the work that comes AFTER it: later
+    saves, alerts, state and requests. It can't take back a request
+    that has already been sent. So the rules below make sure that a
+    request from A's refresh is always A's request, whenever it lands,
+    and that nothing on the phone is written for A after A signs out.
+
+  1. CAPTURED AT THE START
+  - Each refresh keeps the account id, the sharing setting AND that
+    account's access token from the moment it starts. It never reads
+    them again from shared state.
+
+  2. EVERY REQUEST CARRIES THE TOKEN IT STARTED WITH
+  - The Supabase client adds the CURRENT session's token when a
+    request is actually sent, not when it is called. So a call made
+    by A's refresh just after B signs in would go out as B.
+  - Every server call in a refresh (sync_day, upload_quest_steps)
+    sets its own Authorization header to the captured token
+    (.setHeader; supabase-js keeps a header the caller set). A
+    request already on its way then finishes as A, which is the same
+    as if it had finished a second before the sign-out: A's own
+    steps, A's own coins. It can never claim coins or upload steps
+    for B. If A's token has stopped working, the server refuses it.
+  - Calls not yet sent are cancelled when the account changes (an
+    AbortSignal per refresh). That saves work; it isn't what keeps
+    the data right (the token is).
+
+  3. EVERY LOCAL WRITE, ALERT AND STATE CHANGE IS GUARDED
+  - The guard is a per-account "generation" number that sign-out
+    bumps SYNCHRONOUSLY as its very first step, before it removes
+    anything. Not the signed-in account from React state, which only
+    updates after the next render, after the phone's data may already
+    be cleared.
+  - Checked immediately before: saving the step history (inside the
+    save, right before the write, so a sign-out during the read
+    before it can't bring A's history back after it was cleared),
+    every setState, the "Goal reached!" alert, the balance refresh
+    and starting each quest upload.
+  - The sharing setting is part of the guard: if sharing was turned
+    off while the refresh ran, no further uploads start, and no error
+    is shown for one the server refused because of it.
+
+  4. A CHANGE RUNS ONE MORE REFRESH
+  - A new account or sharing setting gives a new key, so the single
+    refresh rule (above) runs once more for the new state after the
+    running one stops. B's refresh reads Health and uploads with B's
+    own token, under B's own checks.
+
+  THE SERVER IS THE LAST CHECK
+  - sync_day and upload_quest_steps already check, inside the
+    database, the caller's own account: active, sharing, in the
+    party. Even a request that slipped through as the wrong account
+    could only act within that account's own rules. The app-side
+    rules keep it from ever getting that far.
+
+  STATUS (built October 17, 2026)
+  - The refresh steps are in src/steps/refresh.ts, run by
+    StepsProvider (src/hooks/use-steps.tsx), tested in
+    src/steps/refresh.test.ts.
+  - Rule 1: the account, sharing setting and (from getSession, checked
+    to be the same account) the token are taken when it starts.
+  - Rule 2: syncDay and uploadQuestSteps take the token
+    (src/lib/request-auth.ts, pinned()), with the account's
+    AbortSignal.
+  - Rule 3: src/auth/account-guard.ts. The auth listener reports every
+    session to it (only a different account counts), and signOut()
+    marks the phone signed out as its first step, so work for A stops
+    (and new work doesn't start as A) before anything is removed. The
+    guard also checks the sharing setting. The history save checks it
+    right before its write (saveDays in src/storage/step-log.ts).
+  - Before this, the shared client's current token was used, the
+    quest uploads after "Goal reached!" had no check, the guard was a
+    ref updated a render late, and the history save could write A's
+    days back after sign-out had removed them.
+
 
 ======================================================================
 4. PART C - STEP HISTORY PER ACCOUNT
@@ -174,6 +249,22 @@ in the order A, B, C: B reuses A's split, and C reuses B's checks.
   - Pruning: saving keeps the last 7 days and drops older ones.
 
   CHECKS
+  - A to B while A's upload is in flight (the refresh steps run as a
+    plain function with fake Health, storage and server):
+      1. Sign in as A, start a refresh, hold A's sync_day answer.
+      2. Sign out, then sign in as B, while it is held.
+      3. Let A's answer arrive.
+    Expect: every request A's refresh sent carries A's token, and
+    none is sent after step 2 (no quest upload); no step history saved
+    for A or B by A's refresh, and A's history stays removed; no
+    "Goal reached!" alert, no balance, goal, streak or quest state from
+    A's answer; no error shown; then exactly one refresh for B, with
+    B's token.
+  - The same with the sign-out landing during the step history save
+    (between its read and its write): A's history is not written back.
+  - Sharing turned off while a refresh runs: no quest upload starts
+    afterwards, no error is shown, and one more refresh runs with
+    sharing off.
   - `npx expo lint` has no errors.
   - `npx tsc --noEmit` passes.
 
@@ -194,6 +285,14 @@ in the order A, B, C: B reuses A's split, and C reuses B's checks.
 6. DECISIONS
 ======================================================================
 
+  - Sign out and into B while A's upload is in flight: slow the
+    network (Network Link Conditioner, "Very Bad Network"), sign in as
+    A, pull to refresh, then at once sign out and sign in as B. In
+    the Supabase logs, every sync_day / upload_quest_steps from the
+    first refresh is A's; B's first upload comes after it, as B. On
+    the phone: no "Goal reached!" alert for A's coins, B's balance and
+    history only, and A's coins (if the day reached the goal) are on
+    A's account when A signs back in.
   - Quiet time: 60 seconds, counted from when the last refresh
     started, for coming back to the app. Never for the first
     refresh, pull to refresh or the button.

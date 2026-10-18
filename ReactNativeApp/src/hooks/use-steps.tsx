@@ -4,14 +4,16 @@ import { Alert, AppState } from 'react-native';
 import type { MyGoal, MyStreak } from '@/api/goals';
 import { listMyQuests, type MyQuest } from '@/api/quests';
 import { syncDay } from '@/api/steps';
+import { currentAccount, isCurrent, signedInAccount } from '@/auth/account-guard';
 import { useAuth } from '@/auth/AuthProvider';
 import { dayRange, getSteps, type PermissionResult, requestStepPermission } from '@/health';
 import { useAchievementNotices } from '@/hooks/use-achievement-notices';
 import { useGoalReminders } from '@/hooks/use-goal-reminders';
 import { useWallet } from '@/hooks/use-wallet';
-import { errorMessage } from '@/lib/error-message';
 import { singleFlight } from '@/lib/single-flight';
+import { supabase } from '@/lib/supabase';
 import { syncQuestSteps } from '@/quests/sync';
+import { refreshSteps } from '@/steps/refresh';
 import { HISTORY_DAYS } from '@/storage/step-log';
 import { loadSteps, saveManySteps, type StepLog } from '@/storage/stepStore';
 
@@ -59,12 +61,12 @@ export function StepsProvider({ children }: { children: ReactNode }) {
   // One refresh at a time; a change of account or sharing runs once more.
   const [flight] = useState(() => singleFlight<void>());
   const lastStarted = useRef(0);
-  // Who is signed in now, so a refresh that outlives its account stops.
-  const signedIn = useRef(userId);
+  // The sharing setting now, so a refresh that outlives it stops uploading
+  const sharingNow = useRef(sharing);
   const mounted = useRef(true);
   useEffect(() => {
-    signedIn.current = userId;
-  }, [userId]);
+    sharingNow.current = sharing;
+  }, [sharing]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -72,68 +74,40 @@ export function StepsProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // The work itself. Every state change comes after the first await.
-  // One server call (syncDay) uploads, claims, and reads quests, goal and
-  // streak; a second only while a quest is taking steps.
+  // The work itself is in src/steps/refresh.ts. The account is checked
+  // with account-guard, which changes the moment sign-out starts (React
+  // state only catches up a render later).
   const load = useCallback(async () => {
-    const stillMine = () => mounted.current && signedIn.current === userId;
     lastStarted.current = Date.now();
-    try {
-      const result = await requestStepPermission();
-      if (!stillMine()) return;
-      setLoading(true);
-      setError(null);
-      setPermission(result);
-
-      // Today plus a backfill of the previous days, saved in one write.
-      // Without permission there are none, but they can still follow quests.
-      const entries =
-        result === 'granted'
-          ? await Promise.all(
-              Array.from({ length: HISTORY_DAYS }, async (_, daysAgo) => {
-                const { start, end } = dayRange(daysAgo);
-                return [start, await getSteps(start, end)] as [Date, number];
-              })
-            )
-          : [];
-      if (!stillMine()) return;
-      if (entries.length) setToday(entries[0][1]);
-      if (!userId) return;
-      if (entries.length) {
-        const saved = await saveManySteps(userId, entries);
-        if (!stillMine()) return;
-        setLog(saved);
-      }
-
-      // Uploads only with sharing on (coins and quests need it too); the
-      // goal and streak come back either way. With nothing to upload a
-      // failure is quiet: Today falls back to 10,000 and no streak.
-      const upload = sharing ? entries : [];
-      const synced = await syncDay(upload).catch((e) => {
-        if (!upload.length) return null;
-        throw new Error(`Couldn't sync steps: ${errorMessage(e)}`);
-      });
-      if (!stillMine() || !synced) return;
-      setGoal(synced.goal);
-      setStreak(synced.streak);
-      setQuests(synced.quests);
-      if (synced.earned > 0) {
-        Alert.alert('Goal reached!', `You earned ${synced.earned} coins. Spend them in the Shop.`);
-        await refreshBalance();
-      }
-      // Quest steps last: the server checks them against the daily totals
-      // just uploaded. Today's steps are already saved above.
-      if (sharing && entries.length) {
-        const list = await syncQuestSteps(synced.quests).catch((e) => {
-          throw new Error(`Couldn't send quest steps: ${errorMessage(e)}`);
-        });
-        if (stillMine()) setQuests(list);
-      }
-    } catch (e) {
-      if (stillMine()) setError(errorMessage(e));
-    } finally {
-      if (stillMine()) setLoading(false);
-    }
+    const mark = currentAccount();
+    const stillCurrent = () =>
+      mounted.current &&
+      isCurrent(mark) &&
+      signedInAccount() === userId &&
+      sharingNow.current === sharing;
+    await refreshSteps(
+      { userId, sharing, stillCurrent, signal: mark.signal },
+      {
+        requestPermission: requestStepPermission,
+        readDays: () =>
+          Promise.all(
+            Array.from({ length: HISTORY_DAYS }, async (_, daysAgo) => {
+              const { start, end } = dayRange(daysAgo);
+              return [start, await getSteps(start, end)] as [Date, number];
+            })
+          ),
+        getToken: async (uid) => {
+          const { data } = await supabase.auth.getSession();
+          return data.session?.user.id === uid ? data.session.access_token : null;
+        },
+        saveSteps: saveManySteps,
+        syncDay,
+        syncQuestSteps,
+        refreshBalance,
+        alert: (title, message) => Alert.alert(title, message),
+      },
+      { setLoading, setError, setPermission, setToday, setLog, setGoal, setStreak, setQuests }
+    );
   }, [userId, sharing, refreshBalance]);
 
   // Joins a running refresh for the same account and sharing setting.

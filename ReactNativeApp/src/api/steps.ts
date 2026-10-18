@@ -1,5 +1,6 @@
 import type { MyGoal, MyStreak } from '@/api/goals';
 import type { MyQuest } from '@/api/quests';
+import { pinned, type RequestAuth } from '@/lib/request-auth';
 import { supabase } from '@/lib/supabase';
 import { dayKey } from '@/storage/stepStore';
 
@@ -18,16 +19,20 @@ export type SyncResult = {
  * goal and streak. The caller passes the last few days it just read from
  * HealthKit / Health Connect, so late-arriving watch data gets picked up,
  * or none when steps can't be read (then nothing is uploaded or claimed).
- * The database refuses an upload unless the user has consented.
+ * The database refuses an upload unless the user has consented. With
+ * `auth`, the call is sent as the account the refresh started for.
  */
-export async function syncDay(entries: [Date, number][]): Promise<SyncResult> {
+export async function syncDay(entries: [Date, number][], auth?: RequestAuth): Promise<SyncResult> {
   const days = entries.map(([date, steps]) => ({
     day: dayKey(date),
     // The database rejects days over 100,000 (an anti-cheat limit). Cap
     // here so one odd reading can't make the whole upload fail.
     steps: Math.min(steps, 100_000),
   }));
-  const { data, error } = await supabase.rpc('sync_day', { my_today: myToday(), p_days: days });
+  const { data, error } = await pinned(
+    supabase.rpc('sync_day', { my_today: myToday(), p_days: days }),
+    auth
+  );
   if (error) throw error;
   return data as SyncResult;
 }

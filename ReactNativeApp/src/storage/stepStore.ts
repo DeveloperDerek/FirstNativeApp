@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { dayKey, pruneLog, type StepLog, stepsKey } from './step-log';
+import { saveDays, type StepLog, stepsKey } from './step-log';
 
 export { dayKey, type StepLog } from './step-log';
 
@@ -9,20 +9,27 @@ export { dayKey, type StepLog } from './step-log';
 export const LEGACY_STEPS_KEY = 'steps-by-day';
 let legacyRemoved = false;
 
+async function removeLegacy() {
+  if (legacyRemoved) return;
+  legacyRemoved = true;
+  await AsyncStorage.removeItem(LEGACY_STEPS_KEY).catch(() => {});
+}
+
 export async function loadSteps(userId: string): Promise<StepLog> {
-  if (!legacyRemoved) {
-    legacyRemoved = true;
-    await AsyncStorage.removeItem(LEGACY_STEPS_KEY).catch(() => {});
-  }
+  await removeLegacy();
   const raw = await AsyncStorage.getItem(stepsKey(userId));
   return raw ? JSON.parse(raw) : {};
 }
 
-/** Saves the days just read, keeping only the days History shows. */
-export async function saveManySteps(userId: string, entries: [Date, number][]): Promise<StepLog> {
-  const log = await loadSteps(userId);
-  for (const [date, steps] of entries) log[dayKey(date)] = steps;
-  const kept = pruneLog(log);
-  await AsyncStorage.setItem(stepsKey(userId), JSON.stringify(kept));
-  return kept;
+/**
+ * Saves the days just read, keeping only the days History shows. Nothing
+ * is written (null) once `stillCurrent` is false.
+ */
+export async function saveManySteps(
+  userId: string,
+  entries: [Date, number][],
+  stillCurrent?: () => boolean
+): Promise<StepLog | null> {
+  await removeLegacy();
+  return saveDays(AsyncStorage, userId, entries, stillCurrent);
 }

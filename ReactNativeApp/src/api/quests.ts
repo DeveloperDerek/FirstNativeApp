@@ -1,3 +1,4 @@
+import { pinned, type RequestAuth } from '@/lib/request-auth';
 import { supabase } from '@/lib/supabase';
 
 // Group quests. The app only calls the database functions in
@@ -88,9 +89,19 @@ export async function proposeQuest(groupId: string, typeId: string, startsAt: Da
   return data as string;
 }
 
-/** Replaces this member's hourly steps for the quest. Returns the group total. */
-export async function uploadQuestSteps(questId: string, hours: { hour: number; steps: number }[]) {
-  const { data, error } = await supabase.rpc('upload_quest_steps', { qid: questId, p_hours: hours });
+/**
+ * Replaces this member's hourly steps for the quest. Returns the group
+ * total. With `auth`, sent as the account the refresh started for.
+ */
+export async function uploadQuestSteps(
+  questId: string,
+  hours: { hour: number; steps: number }[],
+  auth?: RequestAuth
+) {
+  const { data, error } = await pinned(
+    supabase.rpc('upload_quest_steps', { qid: questId, p_hours: hours }),
+    auth
+  );
   if (error) throw new Error(questErrorMessage(error));
   return data as number;
 }

@@ -1,5 +1,6 @@
 import { type MyQuest, uploadQuestSteps } from '@/api/quests';
 import { getSteps } from '@/health';
+import type { RequestAuth } from '@/lib/request-auth';
 import { hourPieces } from '@/quests/rules';
 
 /** Quests I'm in that are taking steps: under way, or in the 1-hour grace period. */
@@ -19,8 +20,15 @@ function isTakingSteps(q: MyQuest, now: Date) {
  *
  * Takes my quests (from syncDay) and returns them with the new group
  * totals, for the banners. No call at all when none is taking steps.
+ *
+ * `auth` sends each upload as the account the refresh started for, and
+ * none starts once `stillCurrent` says that account (or sharing) changed.
  */
-export async function syncQuestSteps(quests: MyQuest[]): Promise<MyQuest[]> {
+export async function syncQuestSteps(
+  quests: MyQuest[],
+  auth?: RequestAuth,
+  stillCurrent: () => boolean = () => true
+): Promise<MyQuest[]> {
   const now = new Date();
   for (const q of quests.filter((q) => isTakingSteps(q, now))) {
     const pieces = hourPieces(new Date(q.starts_at!), new Date(q.ends_at!), now);
@@ -32,7 +40,8 @@ export async function syncQuestSteps(quests: MyQuest[]): Promise<MyQuest[]> {
         steps: Math.min(await getSteps(p.from, p.to), 15_000),
       }))
     );
-    q.total_steps = await uploadQuestSteps(q.quest_id, hours);
+    if (!stillCurrent()) break;
+    q.total_steps = await uploadQuestSteps(q.quest_id, hours, auth);
   }
   return quests;
 }

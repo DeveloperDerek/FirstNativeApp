@@ -13,6 +13,7 @@ import { AppState } from 'react-native';
 
 import { getMyProfile, type Profile } from '@/api/profile';
 import { getAccountStatus } from '@/api/register';
+import { setSignedInAccount } from '@/auth/account-guard';
 import { clearLocalUserData } from '@/auth/local-data';
 import { type AccountStatus, type Route, routeFor } from '@/auth/route';
 import { retryPendingRevocation, signOutOtherDevices } from '@/auth/password-change';
@@ -95,11 +96,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [userId]);
 
   useEffect(() => {
+    // The account guard hears about every account change before React
+    // state does, so work for the previous account stops at once
     supabase.auth
       .getSession()
-      .then(({ data }) => setSession(data.session))
+      .then(({ data }) => {
+        setSignedInAccount(data.session?.user.id);
+        setSession(data.session);
+      })
       .finally(() => setRestoring(false));
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      setSignedInAccount(s?.user.id);
       if (event === 'SIGNED_OUT' && !isSigningOut()) {
         // Revoked, password changed elsewhere, or the account was deleted.
         // Never because of a network error: Supabase keeps the session then.

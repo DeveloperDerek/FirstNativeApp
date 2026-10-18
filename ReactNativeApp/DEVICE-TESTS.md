@@ -183,6 +183,7 @@ follow-up on a real phone (section 4 of the blueprint).
 
 ## 12. Name limits (`step-tracker-safety.txt`, Part C)
 
+- [ ] iPhone  - [ ] Android — **Account switch mid-upload:** slow the network (iPhone: Settings > Developer > Network Link Conditioner, "Very Bad Network"), sign in as A, pull to refresh, then at once sign out and sign in as B. In the Supabase logs every `sync_day` / `upload_quest_steps` from the first refresh is A's, and B's first upload comes after it, as B. On the phone: no "Goal reached!" for A's coins, only B's balance and History; signing back in as A shows A's coins if that day reached the goal.
 - [ ] iPhone  - [ ] Android — **Profile, bad word:** change your display name to "Sh1t" and save: "That name isn't allowed. Try another." The old name stays.
 - [ ] iPhone  - [ ] Android — **Profile, hidden character:** paste a name with a line break or a zero-width space: "Remove line breaks and hidden characters…", nothing saved.
 - [ ] iPhone  - [ ] Android — **Emoji count as one:** a display name of 25 letters plus the family emoji 👨‍👩‍👧 saves (it counts 30). The field lets you type it.

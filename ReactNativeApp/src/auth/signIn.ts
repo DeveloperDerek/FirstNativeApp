@@ -10,6 +10,7 @@ import {
 import { Platform } from 'react-native';
 
 import { classifyAuthError } from '@/auth/links';
+import { setSignedInAccount } from '@/auth/account-guard';
 import { clearLocalUserData } from '@/auth/local-data';
 import type { LegalDoc } from '@/auth/route';
 import { type SocialProvider, SocialSignInError } from '@/auth/social';
@@ -189,6 +190,9 @@ export const isSigningOut = () => signingOut;
 
 export async function signOut() {
   signingOut = true;
+  // First, before anything is removed: work running for this account (a
+  // step refresh), or starting while sign-out runs, saves and sends nothing
+  setSignedInAccount(undefined);
   try {
     const { data } = await supabase.auth.getSession();
     if (googleSignInEnabled) {
