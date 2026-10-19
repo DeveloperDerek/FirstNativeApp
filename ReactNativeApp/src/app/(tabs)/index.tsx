@@ -9,12 +9,14 @@ import { friendsLeaderboard } from '@/api/friends';
 import { type Group, groupLeaderboard, listMyGroups } from '@/api/groups';
 import type { LeaderboardRow } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
+import { DEFAULT_AVATAR } from '@/avatar/types';
 import { CheckinCountdown } from '@/components/checkin-countdown';
 import { CoinBalance } from '@/components/coin-balance';
 import { Leaderboard, rowToWalker } from '@/components/leaderboard';
 import { PlayerCard } from '@/components/player-card';
 import { StreakLine } from '@/components/streak-line';
 import { QuestBanners } from '@/components/quest-banners';
+import { RollLine } from '@/components/roll-line';
 import { SharingRequired } from '@/components/sharing-required';
 import { ThemedButton } from '@/components/themed-button';
 import { ThemedText } from '@/components/themed-text';
@@ -40,7 +42,7 @@ const MAX_ON_TRACK = 30;
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { today, permission, loading, error, refresh, goal, streak } = useSteps();
+  const { today, permission, loading, error, refresh, goal, streak, roll } = useSteps();
   const { session, profile } = useAuth();
   const { balance, nextCheckin, checkIn } = useWallet();
   const myId = session?.user.id ?? '';
@@ -70,7 +72,7 @@ export default function TodayScreen() {
 
   // Today's goal: 7,000 to 10,000, different for each player each day,
   // and reaching it pays the daily coins (step-tracker-decisions.txt,
-  // GOAL-16). The server picks it.
+  // GOAL-16), or from the switch day the daily roll. The server picks it.
   const dailyGoal = goal?.today ?? DEFAULT_GOAL;
   const progress = goalProgress(today ?? 0, dailyGoal);
   const earnedCoins = (today ?? 0) >= dailyGoal && sharing;
@@ -83,36 +85,49 @@ export default function TodayScreen() {
     if (!sharing) return;
     try {
       // "today" is your own calendar date (sent with the period)
-      const [rows, myGroups] = await Promise.all([
+      const rows =
         mode.kind === 'friends'
-          ? friendsLeaderboard('today')
+          ? await friendsLeaderboard('today')
           : mode.kind === 'group'
-            ? groupLeaderboard(mode.id, 'today')
-            : Promise.resolve([]),
-        listMyGroups(),
-      ]);
+            ? await groupLeaderboard(mode.id, 'today')
+            : [];
       setBoard({ key: modeKey(mode), rows });
-      setGroups(myGroups);
       setBoardError(null);
     } catch (e) {
       setBoardError(errorMessage(e));
     }
   }, [mode, sharing]);
 
+  // The groups to pick from; not reloaded on every mode switch
+  const loadGroups = useCallback(async () => {
+    if (!sharing) return;
+    try {
+      setGroups(await listMyGroups());
+    } catch (e) {
+      setBoardError(errorMessage(e));
+    }
+  }, [sharing]);
+
   // On open: status bar text that reads on this map's sky, and load the
-  // board. No timer: pull to refresh for newer numbers. Other people only
-  // move when their own app syncs.
+  // groups and the board (the board again when the mode changes). No
+  // timer: pull to refresh for newer numbers. Other people only move when
+  // their own app syncs.
   useFocusEffect(
     useCallback(() => {
       setStatusBarStyle(theme.statusBar);
-      loadBoard();
+      loadGroups();
       return () => setStatusBarStyle('auto');
-    }, [loadBoard, theme.statusBar])
+    }, [loadGroups, theme.statusBar])
+  );
+  useFocusEffect(
+    useCallback(() => {
+      loadBoard();
+    }, [loadBoard])
   );
 
   async function pullToRefresh() {
     setRefreshing(true);
-    await Promise.all([refresh(), loadBoard(), checkIn().catch(() => {})]);
+    await Promise.all([refresh(), loadBoard(), loadGroups(), checkIn().catch(() => {})]);
     setRefreshing(false);
   }
 
@@ -164,10 +179,15 @@ export default function TodayScreen() {
         <ThemedText style={[styles.count, { color: theme.skyInk }]}>
           {today?.toLocaleString() ?? '--'}
         </ThemedText>
-        <ThemedText type="small" style={{ color: theme.skyInk }}>
-          {Math.round(progress * 100)}% of {dailyGoal.toLocaleString()} goal
-          {sharing && (earnedCoins ? ' · +150 coins' : ' · 150 coins at goal')}
-        </ThemedText>
+        <RollLine
+          roll={roll}
+          progress={progress}
+          goal={dailyGoal}
+          sharing={sharing}
+          reached={earnedCoins}
+          wearer={profile?.avatar ?? DEFAULT_AVATAR}
+          color={theme.skyInk}
+        />
         <StreakLine streak={streak} steps={today ?? 0} color={theme.skyInk} />
         <CheckinCountdown nextAt={nextCheckin} color={theme.skyInk} />
       </View>

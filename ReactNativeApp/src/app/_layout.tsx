@@ -78,10 +78,14 @@ function RootNavigator() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={route === 'app'}>
-        <Stack.Screen name="(tabs)" />
+        {/* The tabs stop redrawing while a modal covers them, so picking a
+            map in Customize or the Shop only redraws what's on screen;
+            they catch up when it closes */}
+        <Stack.Screen name="(tabs)" options={{ freezeOnBlur: true }} />
         <Stack.Screen name="consent" options={{ presentation: 'modal' }} />
         <Stack.Screen name="avatar" options={{ presentation: 'modal' }} />
         <Stack.Screen name="shop" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="roll" options={{ presentation: 'modal' }} />
         <Stack.Screen name="propose-quest" options={{ presentation: 'modal' }} />
         <Stack.Screen name="change-password" options={{ presentation: 'modal' }} />
         <Stack.Screen name="birthday-correction" options={{ presentation: 'modal' }} />

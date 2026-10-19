@@ -1,7 +1,9 @@
 # Device tests: register page
 
 Stage 10 of `step-tracker-register.txt`: every DEVICE test in section 11,
-plus the checks the earlier stages couldn't do without a real phone. Run
+plus the checks the earlier stages couldn't do without a real phone.
+Sections 10 onward hold the phone checks from the other blueprints in
+`../docs/`, each named in its heading. Run
 each on a real **iPhone** and a real **Android** phone and tick both boxes.
 The blueprint asks for these to be ticked off before release; this file is
 where that happens (section 11 points here).
@@ -154,8 +156,9 @@ on Profile (section 8e), before writing any help text.
 
 ## 10. Notifications (`step-tracker-notifications.txt`)
 
-Needs a build with `EXPO_PUBLIC_PUSH_NOTIFICATIONS=true` and
-`EXPO_PUBLIC_EAS_PROJECT_ID` set (see `app.config.ts`), and two accounts on
+Needs a build with `EXPO_PUBLIC_PUSH_NOTIFICATIONS=true` (see
+`app.config.ts`; the EAS project id it also needs is in `app.json` since
+`eas init`), and two accounts on
 two phones (or one phone and the web). iPhone first; Android is a
 follow-up on a real phone (section 4 of the blueprint).
 
@@ -174,16 +177,16 @@ follow-up on a real phone (section 4 of the blueprint).
 
 ## 11. Step refresh (`step-tracker-step-refresh.txt`)
 
-- [ ] iPhone  - [ ] Android — **One refresh on launch:** opening the app reads Health and uploads once (one `daily_steps` upsert in the Supabase logs), not twice.
+- [ ] iPhone  - [ ] Android — **One refresh on launch:** opening the app reads Health and uploads once (one `sync_day` call in the Supabase logs, plus `upload_quest_steps` only while a quest is taking steps), not twice.
 - [ ] iPhone  - [ ] Android — **Quiet time:** leave the app and come back within a minute: no refresh. Come back after a minute: one refresh.
-- [ ] iPhone  - [ ] Android — **Today timer:** with Today open, steps refresh about once a minute, never more often.
+- [ ] iPhone  - [ ] Android — **No timer:** leave Today open without touching it for a few minutes: no refresh. Pull to refresh still refreshes.
 - [ ] iPhone  - [ ] Android — **Pull twice:** pull to refresh twice quickly: one refresh, and the spinner stops once.
 - [ ] iPhone  - [ ] Android — **Two accounts, one phone:** sign in as A, open History, sign out, sign in as B: History shows only B's days (or "--" until they load), never A's.
 - [ ] iPhone  - [ ] Android — **Sharing turned on mid-refresh:** turn on step sharing while a refresh runs: the steps still upload without pulling again.
+- [ ] iPhone  - [ ] Android — **Account switch mid-upload:** slow the network (iPhone: Settings > Developer > Network Link Conditioner, "Very Bad Network"), sign in as A, pull to refresh, then at once sign out and sign in as B. In the Supabase logs every `sync_day` / `upload_quest_steps` from the first refresh is A's, and B's first upload comes after it, as B. On the phone: no "Goal reached!" for A's coins, only B's balance and History; signing back in as A shows A's coins if that day reached the goal.
 
 ## 12. Name limits (`step-tracker-safety.txt`, Part C)
 
-- [ ] iPhone  - [ ] Android — **Account switch mid-upload:** slow the network (iPhone: Settings > Developer > Network Link Conditioner, "Very Bad Network"), sign in as A, pull to refresh, then at once sign out and sign in as B. In the Supabase logs every `sync_day` / `upload_quest_steps` from the first refresh is A's, and B's first upload comes after it, as B. On the phone: no "Goal reached!" for A's coins, only B's balance and History; signing back in as A shows A's coins if that day reached the goal.
 - [ ] iPhone  - [ ] Android — **Profile, bad word:** change your display name to "Sh1t" and save: "That name isn't allowed. Try another." The old name stays.
 - [ ] iPhone  - [ ] Android — **Profile, hidden character:** paste a name with a line break or a zero-width space: "Remove line breaks and hidden characters…", nothing saved.
 - [ ] iPhone  - [ ] Android — **Emoji count as one:** a display name of 25 letters plus the family emoji 👨‍👩‍👧 saves (it counts 30). The field lets you type it.
@@ -242,7 +245,7 @@ Also run `bash supabase/tests/concurrency/group_owner_race.sh` against the local
 ## 16. Daily goal, streaks, usernames and quests (`step-tracker-goals-streaks.txt`, `step-tracker-decisions.txt`)
 
 - [ ] iPhone  - [ ] Android — **No goal to pick (GOAL-15):** Profile has no Daily goal section.
-- [ ] iPhone  - [ ] Android — **The goal is the coin target (GOAL-16):** Today shows "% of N goal · 150 coins at goal" with N from 7,000 to 10,000; walking past N shows "+150 coins" and the coins arrive once. The next day's N can differ; reopening the app the same day never changes it.
+- [ ] iPhone  - [ ] Android — **The goal is the coin target (GOAL-16):** Today shows "% of N goal · Daily roll at goal" with N from 7,000 to 10,000 (never "150 coins at goal"); walking past N offers the daily roll (section 24), or says "Goal reached!" while the roll is off. The next day's N can differ; reopening the app the same day never changes it.
 - [ ] iPhone  - [ ] Android — **The track:** the road's 10,000 tick reads "10k" with the flag, and there's no MINE marker.
 - [ ] iPhone  - [ ] Android — **Streak:** walk past your goal (N): Today's line goes up at once ("6-day streak · best 6"). Before reaching it: "5-day streak. 2,140 steps to keep it going."
 - [ ] iPhone  - [ ] Android — **7th day:** the streak shows 7, and no streak coins are paid (only the day's coin target pays).
@@ -289,7 +292,7 @@ Needs the `achievements` migration on the Supabase project the build uses (RELEA
 - [ ] iPhone  - [ ] Android — **Closed while showing:** with the message on screen, close the app before tapping it: it comes again on the next open.
 - [ ] iPhone  - [ ] Android — **Two phones:** one account on two phones; tap the message on one: the other doesn't show it after its next refresh.
 - [ ] iPhone  - [ ] Android — **Quest won while closed:** the message on the next open ("The Mimic can now walk beside you."), and the Mimic walking beside the character once chosen in Customize.
-- [ ] iPhone  - [ ] Android — **Reward items:** before earning, each of the four shows faded with a lock at the end of its row in Customize; tapping says "Earn A million steps to unlock…" and doesn't put it on. After earning, it's wearable, and looks right on the character and the player card.
+- [ ] iPhone  - [ ] Android — **Reward items:** before earning, none of the four is in Customize (Profile > Achievements names the item each one unlocks). After earning, it appears in its row, is wearable, and looks right on the character and the player card.
 - [ ] iPhone  - [ ] Android — **The list:** Profile > Achievements > See all: earned ones first, newest first, with dates; then the rest closest first, with progress ("640,000 of 1,000,000 steps", "Best streak 12 of 30").
 - [ ] iPhone  - [ ] Android — **Not sharing:** the list says "Share your steps to earn these", every achievement locked, no progress.
 - [ ] iPhone  - [ ] Android — **Small phone:** the three badges on Profile fit on one line; long progress lines wrap rather than cut off.
@@ -298,7 +301,77 @@ Needs the `achievements` migration on the Supabase project the build uses (RELEA
 - [ ] iPhone  - [ ] Android — **Your own card:** the same row, and the list matches Profile > Achievements' earned ones.
 - [ ] iPhone  - [ ] Android — **Small phone (card):** the badge row fits on one line on the card; a list of all 11 scrolls inside the card with Back and Close still on screen.
 
+## 20. Today minimap (`step-tracker-minimap.txt`)
+
+- [ ] iPhone  - [ ] Android — **Solo, 0 steps:** only your head, at the left end; nothing walked on the dashed line.
+- [ ] iPhone  - [ ] Android — **Long road:** in a group where someone has 23,000, the minimap ends at 25,000 and the 10,000 flag sits further left on it.
+- [ ] iPhone  - [ ] Android — **Crowded:** several people within 300 steps of each other: their heads stack upward (up to three rows); yours stays on the line, ringed, in front.
+- [ ] iPhone  - [ ] Android — **Moving the road:** scroll the road: the darker window on the minimap slides with it, smoothly. Tap the far end: the road scrolls there. Drag along it: the road follows your finger. Tap a head: the road centers on them. After any of these the road stops following your count.
+- [ ] iPhone  - [ ] Android — **Scrolls away:** scroll Today's list down: the minimap goes up with it, gone by two thirds of the way; back at the top it returns.
+- [ ] iPhone  - [ ] Android — **Your goal:** the road's distance markers show a star with "8.5k goal" (your day's goal); the minimap shows only the 10,000 flag.
+- [ ] iPhone  - [ ] Android — **Screen reader:** VoiceOver / TalkBack reads one summary ("Today's road. You're at 6,200 steps, 3,800 to the 10,000 flag, 2nd of 5"); swiping up and down moves the road from milestone to milestone.
+- [ ] iPhone  - [ ] Android — **Maps and sizes:** on a few maps at day and night the minimap's colors sit in the scenery and the flag's tag is readable; on a small phone (iPhone SE) heads stay inside the ends.
+
+## 21. Activity board (`step-tracker-activity-board.txt`)
+
+Needs the `activity_board` migration on the Supabase project the build uses (RELEASE-GATE, deploy step 15).
+
+- [ ] iPhone  - [ ] Android — **A line:** reach the goal: a friend's phone shows the line after pulling to refresh. Unlock an achievement the same day: still one line, now with the badge.
+- [ ] iPhone  - [ ] Android — **Opening a card:** tap a line: the player card opens with today's steps.
+- [ ] iPhone  - [ ] Android — **Unfriend and block:** unfriend: their lines go on the next load. Block from the card: they go at once.
+- [ ] iPhone  - [ ] Android — **Offline:** airplane mode, then pull: the list stays, with "Couldn't refresh. Pull to try again." above it.
+- [ ] iPhone  - [ ] Android — **New activity:** with older pages loaded, leave the app for more than 30 seconds and come back after a friend's new line: a "New activity" button at the top swaps in the fresh page instead of jumping.
+- [ ] iPhone  - [ ] Android — **Accessibility:** with large text, lines grow and stay tappable; VoiceOver / TalkBack reads each line as one sentence.
+
+## 22. Code cleanup (October 2026)
+
+Nothing here should look or behave differently from before the cleanup.
+The build needs a fresh `pod install` / prebuild: three unused native
+packages were removed.
+
+- [ ] iPhone  - [ ] Android — **Character layers:** in Customize, a character with a top and bottom, then a one-piece outfit, then a cape and a held item: each draws the same as before, with nothing missing or in front of the wrong layer. Putting the outfit on and off doesn't flash an empty layer.
+- [ ] iPhone  - [ ] Android — **Pet spot:** with a pet, change to a wide outfit or cape: the pet still stands just clear of the character in the walking scene.
+- [ ] iPhone  - [ ] Android — **Walking scene:** tiles, road and landmarks line up as on the map; the character's feet are on the road.
+- [ ] iPhone  - [ ] Android — **Maps on sign-in:** sign in to an account that owns a map: it's usable in Profile straight away, without reopening the app.
+- [ ] iPhone  - [ ] Android — **Friends:** switch Today / Last 7 days / Activity: the ranking changes. Accept, decline and remove a friend: the lists and the tab badge update straight away. Pull to refresh updates everything.
+- [ ] iPhone  - [ ] Android — **Today:** switch between Solo, Friends and a group: the right people show. Join or leave a group elsewhere, then reopen Today or pull to refresh: the group list is current.
+- [ ] iPhone  - [ ] Android — **Shop:** the balance and the refresh countdown are right on opening, after a purchase, and after a shop refresh.
+- [ ] iPhone  - [ ] Android — **Dates and times:** History, Activity day labels ("Yesterday", "Mon Oct 13"), achievement dates, the birthday on sign-up and quest times ("It begins at 3:00 PM") show as before, also just after midnight.
+
 ---
+
+## 23. Kudos (`step-tracker-kudos.txt`)
+
+Needs the `kudos` migration on the Supabase project the build uses. Two accounts that are friends (A and B), each on its own phone or simulator.
+
+- [ ] iPhone  - [ ] Android — **Give:** as B, open Friends > Activity and tap the party popper on A's goal line: it turns gold with a burst of confetti and the count goes up by one. Tapping again does nothing. Pull to refresh: the count stays.
+- [ ] iPhone  - [ ] Android — **Find out, no push:** on A, bring the app to the foreground: a dot (no number) on the Friends tab and on the Activity button, "1 new kudos" at the top of Activity and a dot by the count on that line. No push, no sound, no change to the app icon number.
+- [ ] iPhone  - [ ] Android — **Seen only from the list:** open Activity: the dots stay. Tap "1 new kudos": the list shows B for that day. Close it: the dots go (tab, button and line).
+- [ ] iPhone  - [ ] Android — **An older line:** as B, give kudos on a line of A's from more than a week ago (under "Show older"). On A it is in the "New kudos" list and stays new until that list is seen.
+- [ ] iPhone  - [ ] Android — **Who gave them:** on A, tap the count on your own line: B is listed; tapping B opens B's card. This doesn't clear any dots.
+- [ ] iPhone  - [ ] Android — **Requests first:** with a friend request waiting too, the Friends tab shows the red number, not the dot; accept it and the dot shows.
+- [ ] iPhone  - [ ] Android — **Offline:** turn on airplane mode on B and tap a popper: it goes back to light and "Couldn't send kudos." shows under the line for a few seconds.
+- [ ] iPhone  - [ ] Android — **Block:** on A, block B from B's card: after a refresh B's kudos no longer count, and B's lines are gone from A's board.
+- [ ] iPhone  - [ ] Android — **VoiceOver / TalkBack:** the line reads as one sentence ending in its kudos; the kudos pill is its own button ("Give Sam kudos, 4 so far"); the Activity button says "new kudos".
+- [ ] iPhone — **The art:** the popper is crisp (pixel art, no blur) at normal and large text sizes.
+
+## 24. Daily roll (`step-tracker-daily-roll.txt`)
+
+Needs the `daily_roll` migration and `daily_roll_from` set to today in `app_settings` on the Supabase project the build uses, and a build with `expo-haptics` (a new native module). One account that shares steps, plus a friend for the board.
+
+- [ ] iPhone  - [ ] Android — **Before the goal:** Today says "…% of N goal · Daily roll at goal" and shows no machine.
+- [ ] iPhone  - [ ] Android — **The small machine:** reach the goal and refresh: the goal line turns yellow ("Goal reached! Tap to roll") with the small machine bobbing, bulbs chasing and its reel changing every second or so. It's crisp, no blur.
+- [ ] iPhone  - [ ] Android — **Opening isn't rolling:** tap it: the roll screen opens with "Tap the machine to roll!" blinking. Close it with ✕: Today still says Tap to roll.
+- [ ] iPhone  - [ ] Android — **The roll:** tap the big machine: light haptic, the lever pulls, the reel spins about 3 seconds and stops a little past the prize, then settles on it. Medium haptic (heavy for Epic, Legendary, 500 coins); the payline and bulbs flash in the rarity colour.
+- [ ] iPhone  - [ ] Android — **An item:** it grows out of the window and shrinks back, then the card pops out of the tray with its rarity and name, "Wear it" and "Done". Wear it opens the character editor with the item on (and it saves).
+- [ ] iPhone  - [ ] Android — **Coins:** coins spray out of the tray, the wallet counts up, the card says "+N coins" with "Done" only. The coins on the reel and the card float and spin; all coin tiles are the same coin size.
+- [ ] iPhone  - [ ] Android — **One roll:** tapping the machine again does nothing; back on Today the line says "Today's prize: …". Friends > Activity: your goal line says "won …" or "+N coins"; on the friend's phone it says "won …" for an item, nothing for coins.
+- [ ] iPhone  - [ ] Android — **Killed mid-spin:** roll, close the app during the spin, reopen: Today says "Tap to see your prize"; the machine shows the same prize again.
+- [ ] iPhone  - [ ] Android — **Offline:** airplane mode on, tap the machine: "Couldn't roll. Check your connection and try again." and it can be tapped again once online.
+- [ ] iPhone  - [ ] Android — **Midnight:** open the roll screen just before midnight and tap just after: "This roll ended at midnight."
+- [ ] iPhone  - [ ] Android — **Reminder:** with goal reminders on, reach the goal before the reminder time without rolling: the reminder says "Your daily roll is waiting. Open the app before midnight."
+- [ ] iPhone  - [ ] Android — **Reduce Motion:** nothing spins, bobs or flies; the prize sits on the line and the card is shown in place.
+- [ ] iPhone  - [ ] Android — **VoiceOver / TalkBack:** Today's line reads "Daily roll ready, opens the prize machine"; the big machine is a button "Roll the prize machine"; the prize is announced ("You won …").
 
 ## Sign-off
 

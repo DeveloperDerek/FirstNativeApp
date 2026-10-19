@@ -18,8 +18,9 @@ decisions.txt, GOAL-16)
     the server (coin_steps_on). One number now does both jobs: reach it
     and the day counts for your streak, History and reminders, and pays
     the 150 daily coins.
-  - Today: "62% of 8,500 goal · 150 coins at goal", then "+150 coins"
-    once reached (it used to show the goal and "coins at N" apart).
+  - Today: "62% of 8,500 goal · Daily roll at goal", then the daily
+    roll once reached (step-tracker-daily-roll.txt, section 5; until
+    October 2026 "· 150 coins at goal", then "+150 coins").
   - The step track's flag stays at 10,000, where the road ends until
     someone passes it; that tick reads "10k" rather than GOAL. There is
     no per-player marker (see GOAL-15 on why it was removed).
@@ -134,7 +135,8 @@ CHANGED EARLIER IN OCTOBER 2026 (step-tracker-decisions.txt, GOAL-1, 2 and 6)
   - Random but fixed: the server works it out from the player and the
     day, so it is the same every time it's asked, on every phone, and
     can't be rerolled. my_goal() returns it as coin_steps, and Today
-    shows it ("coins at 8,500") until it's reached ("+150 coins").
+    shows it as the goal ("· Daily roll at goal" until it's reached;
+    the daily roll replaces the 150 coins, step-tracker-daily-roll.txt).
   - Why random: everyone has the same chances over time, so the shop
     stays fair between people, and a target that moves keeps the day
     a little less predictable than a fixed 10,000.
@@ -250,8 +252,8 @@ CHANGED EARLIER IN OCTOBER 2026 (step-tracker-decisions.txt, GOAL-1, 2 and 6)
     on a 12-day run saw "12-day streak" on day one.
 
   NO COINS FOR STREAKS (DECIDED, OCTOBER 2026)
-  - Streaks pay no coins. They are shown on Today, Profile, History and
-    the player card, and they count for the streak achievements (whose
+  - Streaks pay no coins. They are shown on Today, History and the
+    player card, and they count for the streak achievements (whose
     rewards are items, not coins: step-tracker-achievements.txt).
   - Before October 2026 a streak paid 200 coins on reaching 7 days and
     1,000 on reaching 30, following your own goal. That was removed
@@ -275,8 +277,9 @@ CHANGED EARLIER IN OCTOBER 2026 (step-tracker-decisions.txt, GOAL-1, 2 and 6)
   SCREENS
   - Today: the streak under the progress ("5-day streak · best 12"),
     and on the day it's at risk, how many steps keep it going. The
-    progress line also shows the day's coin target ("coins at 8,500")
-    or "+150 coins" once it's reached.
+    progress line reads "62% of 8,500 goal · Daily roll at goal",
+    then the daily roll once it's reached (the goal is the coin target,
+    GOAL-16; step-tracker-daily-roll.txt, section 5).
   - Profile: nothing (until October 2026 it had the Daily goal
     picker, a note on coins and your best streak; GOAL-15).
   - Player card: "12-day streak".
@@ -385,8 +388,8 @@ CHANGED EARLIER IN OCTOBER 2026 (step-tracker-decisions.txt, GOAL-1, 2 and 6)
     reads "10k" with the flag, and there's no MINE marker (GOAL-16).
   - Today shows the day's coin target; walking past it shows "+100
     coins", walking past only your goal doesn't.
-  - Walk past your goal: the streak goes up, Today says so and shows
-    "+150 coins".
+  - Walk past your goal: the streak goes up, Today says so and offers
+    the daily roll.
   - On the 7th day in a row: no coins for the streak.
   - A friend's player card shows your streak.
 

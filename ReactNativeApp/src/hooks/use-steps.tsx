@@ -13,6 +13,7 @@ import { useWallet } from '@/hooks/use-wallet';
 import { singleFlight } from '@/lib/single-flight';
 import { supabase } from '@/lib/supabase';
 import { syncQuestSteps } from '@/quests/sync';
+import type { RollState } from '@/roll/roll';
 import { refreshSteps } from '@/steps/refresh';
 import { HISTORY_DAYS } from '@/storage/step-log';
 import { loadSteps, saveManySteps, type StepLog } from '@/storage/stepStore';
@@ -32,6 +33,10 @@ type StepsState = {
   goal: MyGoal | null;
   /** Your streak, from the server; null until loaded */
   streak: MyStreak | null;
+  /** Today's daily roll (step-tracker-daily-roll.txt); null while it's off */
+  roll: RollState;
+  /** The roll as the roll screen just left it, until the next refresh */
+  setRoll: (roll: RollState) => void;
   /** Read, save and upload steps now (buttons, pull to refresh). */
   refresh: () => Promise<void>;
   /** The same, unless a refresh started in the last 60 seconds (coming back to the app). */
@@ -52,6 +57,7 @@ export function StepsProvider({ children }: { children: ReactNode }) {
   const [quests, setQuests] = useState<MyQuest[]>([]);
   const [goal, setGoal] = useState<MyGoal | null>(null);
   const [streak, setStreak] = useState<MyStreak | null>(null);
+  const [roll, setRoll] = useState<RollState>(null);
   const { session, profile } = useAuth();
   const userId = session?.user.id;
   // Only upload once the user has agreed on the consent screen.
@@ -106,7 +112,7 @@ export function StepsProvider({ children }: { children: ReactNode }) {
         refreshBalance,
         alert: (title, message) => Alert.alert(title, message),
       },
-      { setLoading, setError, setPermission, setToday, setLog, setGoal, setStreak, setQuests }
+      { setLoading, setError, setPermission, setToday, setLog, setGoal, setStreak, setQuests, setRoll }
     );
   }, [userId, sharing, refreshBalance]);
 
@@ -144,7 +150,7 @@ export function StepsProvider({ children }: { children: ReactNode }) {
   }, [run, refreshIfStale]);
 
   // Goal reminders follow every refresh (step-tracker-history-reminders.txt, B)
-  useGoalReminders({ userId, loading, today, goal, streak });
+  useGoalReminders({ userId, loading, today, goal, streak, roll });
 
   // New achievements, also after every refresh: the claim above and a
   // quest won (even while the app was closed) are when they're earned
@@ -161,6 +167,8 @@ export function StepsProvider({ children }: { children: ReactNode }) {
         quests,
         goal,
         streak,
+        roll,
+        setRoll,
         refresh,
         refreshIfStale,
         refreshQuests,

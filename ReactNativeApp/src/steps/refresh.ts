@@ -14,6 +14,7 @@ import type { MyQuest } from '@/api/quests';
 import type { SyncResult } from '@/api/steps';
 import type { PermissionResult } from '@/health';
 import type { RequestAuth } from '@/lib/request-auth';
+import type { RollState } from '@/roll/roll';
 import type { StepLog } from '@/storage/step-log';
 
 import { errorMessage } from '../lib/error-message.ts';
@@ -60,6 +61,7 @@ export type RefreshView = {
   setGoal: (goal: MyGoal) => void;
   setStreak: (streak: MyStreak) => void;
   setQuests: (quests: MyQuest[]) => void;
+  setRoll: (roll: RollState) => void;
 };
 
 // Every state change comes after the first await. One server call
@@ -105,6 +107,7 @@ export async function refreshSteps(ctx: RefreshContext, deps: RefreshDeps, view:
     view.setGoal(synced.goal);
     view.setStreak(synced.streak);
     view.setQuests(synced.quests);
+    view.setRoll(synced.roll ?? null);
     if (synced.earned > 0) {
       deps.alert('Goal reached!', `You earned ${synced.earned} coins. Spend them in the Shop.`);
       await deps.refreshBalance();

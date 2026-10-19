@@ -1,0 +1,733 @@
+STEP TRACKER - DAILY ROLL (BLUEPRINT)
+When a player reaches the day's goal, they get one free roll of a
+prize machine (a gacha). The roll gives either a shop item they
+don't own yet, with rarer items less likely, or a pile of coins. It
+takes the place of the 150 daily coins.
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. It
+describes how the roll is earned, what it can give, how the server
+picks the prize, what changes in the economy and on each screen, what
+the database keeps, and the choices to make before building (section
+11). All choices (ROLL-1 to ROLL-16) were decided on 2026-10-18.
+ROLL-1 was changed on 2026-10-19: the capsule machine became a slot
+machine (section 5, "The roll screen"). ROLL-17 is still open.
+
+What this changes in other blueprints (and nothing else):
+  - step-tracker-coins-items.txt, 2a ("Daily step reward, 150 coins
+    a day"): from the switch day (section 7) a goal day pays 0 coins
+    and gives a roll instead. The 'daily_goal' row is still written,
+    at 0 coins, because the activity board and kudos use it to mark
+    a goal day (section 7). "What a day is worth" and "How long
+    things take" need redoing (section 6).
+  - step-tracker-coins-items.txt, 5f (COIN-F, the coin sink): the
+    roll makes it more pressing (section 6).
+  - step-tracker-activity-board.txt: a goal line says what was won
+    (ROLL-11). Your own: the item or "+250 coins", instead of "+150
+    coins". A friend's: the item only; coins wins stay private, as
+    coins are now (ACT-6).
+  - step-tracker-history-reminders.txt: one more reminder text for a
+    roll that's waiting (ROLL-12).
+Goals, the 7,000 to 10,000 target (GOAL-2), streaks, achievements,
+check-ins, the welcome bonus, quests and the shop rotation are
+unchanged.
+
+Builds on what the app already has:
+  - the daily goal: coin_steps_on(uid, day), claimed by
+    claim_daily_rewards() inside sync_day() on every step refresh
+    (20261112000000_goal_range_coin_steps.sql,
+    20261114000000_sync_day.sql)
+  - the day rule: is_today_somewhere(day, now())
+    (20261108000000_goals_streaks.sql)
+  - the item tables: shop_items (price, active, unlocked_by),
+    user_items, coin_transactions with its once-only key
+    (20261010000000_coins_and_shop.sql,
+    20261110000000_achievements.sql)
+  - the price ladder COIN-5 (step-tracker-coins-items.txt, 5e)
+  - the switch-day pattern in app_settings ('goal_is_coin_target_from',
+    20261117000000_goal_is_coin_target.sql)
+  - the item art: src/avatar/ItemIcon.tsx, and the pixel-art generator
+    scripts/generate-avatar-sprites.py
+
+======================================================================
+1. THE IDEA IN ONE MINUTE
+======================================================================
+
+  - On Today, the line under the step track says "Daily roll at
+    goal" where it now says "150 coins at goal".
+  - When your steps reach today's goal and the app refreshes, a
+    small pixel-art slot machine shows on Today (ROLL-1). There is no
+    Roll button anywhere: the machine is what you tap.
+  - Tap it: the roll screen opens on the big slot machine. Tap that
+    machine: its reel spins through prizes and stops on either an
+    item you didn't own, with its rarity (Common to Legendary), or
+    coins (100, 250 or 500). A prize card pops out of the machine.
+    The prize is yours at once. For an item, "Wear it" opens the
+    character editor; "Done" goes back.
+  - One roll per goal day, and only on that day (ROLL-4): if you
+    don't roll before midnight on your phone, that day's roll is
+    gone.
+  - The roll never gives an item you already own. Once you own
+    every item it can give, every roll is a coins roll (ROLL-3).
+  - It's free and always will be: no buying rolls, no rerolls
+    (ROLL-9).
+  - Friends see the items you win on the activity board (ROLL-11).
+
+======================================================================
+2. EARNING A ROLL
+======================================================================
+
+  WHO
+  - The same people who earn coins now: signed in, active account,
+    sharing steps. Without sharing, no roll (same as no coins).
+  - Admins own every item, so every roll of theirs is a coins roll.
+
+  WHICH DAY
+  - A roll belongs to one day: the player's phone date, sent as
+    my_today like every other call. The server checks it with
+    is_today_somewhere(my_today, now()), or refuses with BAD_DAY.
+  - The roll for my_today exists when that day has a 'daily_goal'
+    row (claim_daily_rewards wrote it because steps reached
+    coin_steps_on for that day). One source of truth for "goal
+    reached": the same row the board and kudos use.
+  - So the steps have to reach the server before the roll can be
+    taken. The app refreshes steps on open and on coming back to the
+    foreground, then shows the button.
+
+  USE IT OR LOSE IT (ROLL-4)
+  - A day's roll can be taken only while that day is my_today on the
+    phone. After midnight the app sends the new date, and yesterday's
+    roll is gone.
+  - Late uploads no longer bring a reward. Before, the 7-day back-pay
+    window paid 150 coins for a goal day uploaded up to a week late.
+    Now a goal day uploaded after midnight still counts for the
+    streak, the board and achievements, but gets no roll and no
+    coins. This is the cost of ROLL-4; the reminder (ROLL-12) is
+    there to cut it down.
+  - The server's "today" is "today somewhere on Earth", as for
+    everything else, so a changed app could take yesterday's roll a
+    few hours after midnight (for California, until about 5 am,
+    when the day ends at UTC-12). The real app always sends the
+    phone date. Accepted: it is the same window every other function
+    has, and it can never give more than one roll per day.
+
+======================================================================
+3. WHAT THE ROLL CAN GIVE
+======================================================================
+
+  TWO KINDS OF PRIZE (ROLL-2)
+  - Coins: 100, 250 or 500 (ROLL-16).
+  - An item from the pool below.
+
+  THE ITEM POOL
+  - Every shop item that is on sale (active = true), not an
+    achievement item (unlocked_by is null), and not owned by the
+    player.
+  - Not free starter items (they have no shop row), not retired items
+    (active = false), not achievement items.
+  - Whether the item is in today's shop doesn't matter. If it is, its
+    shop slot empties until the next refresh, exactly as if it had
+    been bought (ROLL-14).
+  - Items in a set (Cowboy, Pirate...) are rolled one piece at a
+    time, like they are sold.
+
+  THE CHANCES (ROLL-6, ROLL-7)
+  Coins are one outcome; the items are split into five rarities by
+  price, using the COIN-5 ladder:
+
+    Outcome     Prices          Items now   Average value   Chance
+    Coins       -                  -             185          40%
+    Common      300 - 400          20            335          31%
+    Uncommon    500 - 700          32            620          19%
+    Rare        800 - 1,200        27            980           6%
+    Epic        1,500 - 2,000      18          1,640           3%
+    Legendary   2,500 - 3,000       8          2,560           1%
+
+  - The server picks an outcome by these chances first. For a rarity
+    it then picks one item from that rarity at random, all equally
+    likely. For coins it picks the amount (below).
+  - Coins stay at 40% for as long as there is any item left to win.
+  - A rarity with nothing left for you is skipped, and its share goes
+    to the other rarities in proportion, so items stay 60% (with no
+    Commons left: Uncommon about 39%, Rare 12%, Epic 6%, Legendary
+    2%). So rolls get better as your collection grows, and the
+    last item you need always comes.
+  - Picking the rarity first keeps the chances the same however many
+    items each rarity has, so adding 10 new hats doesn't change the
+    odds of a Legendary.
+  - Rarity is worked out from the price, not stored, so a new item
+    priced on the ladder is in the right rarity with no extra step.
+
+  THE COINS PRIZE (ROLL-16)
+  - A coins roll pays:
+        100 coins   6 in 10
+        250 coins   3 in 10
+        500 coins   1 in 10
+    About 185 coins on average, a bit more than the old 150.
+  - Shown on the reel as a tile of spinning gold coins (one coin for
+    100, three for 250, six for 500), then "+250 coins" on the prize
+    card.
+
+  WHEN THE POOL IS EMPTY (ROLL-3)
+  - Every roll is a coins roll, with the same three amounts.
+  - When new items are added, they go into the pool and the roll
+    gives items again (at the chances above).
+
+  NO ODDS IN THE APP (ROLL-8)
+  - The chances aren't shown anywhere in the app; the rarity name
+    and its colour are the only hint.
+  - The store rules that require odds (Apple 3.1.1, Google Play's
+    loot box policy) are about random prizes that are paid for. The
+    roll is never paid for (ROLL-9), so they don't apply. If rolls
+    were ever sold, showing the odds would be required first.
+  - Still tested and written down here, so the numbers are known if
+    a store reviewer or a parent asks.
+
+======================================================================
+4. THE ROLL ITSELF (SERVER)
+======================================================================
+
+  - roll_daily_prize(my_today) decides everything; the app only shows
+    the result.
+  - The prize is decided at the tap, before any animation, and saved
+    at once. Closing the app mid-animation doesn't give another try:
+    the next open shows the same prize, until it has been seen.
+  - Calling it again for a day already rolled returns the same prize,
+    with no error. Two taps, a retry after a timeout, or two phones
+    all get one roll.
+  - It takes the player's coin lock (the same advisory lock as
+    claim_daily_rewards and purchase_item), so a roll and a purchase
+    can't both take the last item.
+  - Randomness: Postgres random(), on the server. Nothing the phone
+    sends changes the result.
+
+======================================================================
+5. SCREENS
+======================================================================
+
+  TODAY
+  - Under the step track, the goal line:
+      before the goal     "62% of 8,500 goal · Daily roll at goal"
+      goal, not rolled    "Goal reached! Tap to roll" + the small
+                          slot machine
+      rolled              "Today's prize:" + the item's icon and
+                          name, or "+250 coins"
+  - It never says "150 coins at goal" (changed 2026-10-19), even
+    without a roll state from the server (the roll off, not loaded
+    yet, or not sharing): "62% of 8,500 goal · Daily roll at goal"
+    while sharing, "· Goal reached!" once reached, and just the
+    percent without sharing. The Shop's text says a daily roll too.
+  - The small machine: its own 32 x 40 pixel sprite in the same look
+    as the big machine (red body, purple sign reading ROLL with
+    bulbs, one reel window, tray, lever), shown at 2x (64 x 80 pt) at
+    the right end of the goal line. The goal line gets a pale yellow
+    fill and a yellow outline while the roll is waiting.
+  - While the roll is waiting the machine bobs gently, its bulbs
+    chase, and its reel slides to a new prize every 1.1 s, showing
+    prizes from the player's pool (items shrunk to fit, never
+    blown up). Coins spin on it like on the big reel.
+  - The roll screen slides up over Today when it opens and slides
+    back down on Done, Wear it or its close button.
+  - Tapping it (or anywhere on the goal line) opens the roll screen.
+    It only opens the screen; the roll starts when the big machine
+    is tapped. Screen readers hear "Daily roll ready, opens the
+    prize machine", a button.
+  - After the roll the small machine goes away and the line shows
+    the prize. Before the goal it isn't shown.
+  - With Reduce Motion on: no bobbing, no chasing bulbs, the reel
+    stays still on one prize.
+
+  THE ROLL SCREEN (a modal, src/app/roll.tsx)
+  Preview (private link, made 2026-10-19; nothing built):
+  https://claude.ai/artifact/8R6oU9BE2bujoUZSa5QER5
+
+  The machine
+  - A slot machine in the app's pixel art (2.5D, like the maps), drawn
+    at 120 x 152 pixels and scaled up by a whole number (3x on most
+    phones): a red body with a darker right side, a purple sign on
+    top reading DAILY ROLL with a ring of bulbs, a chrome frame round
+    one reel, gold arrows either side of the middle line (the
+    payline), a prize tray under the reel, and a lever with a red
+    knob on the right.
+  - The reel window shows three tiles; the middle one is on the
+    line. Each tile shows a prize on cream, with two small gems and
+    a faint edge in its rarity colour. The window is shaded at the
+    top and bottom so the reel looks round.
+  - Colours: Coins yellow, Common grey, Uncommon green, Rare blue,
+    Epic purple, Legendary gold.
+  - Before the tap the machine bobs gently, the bulbs chase slowly,
+    and "Tap the machine to roll!" blinks under it.
+
+  Starting the roll
+  - There is no Roll button on this screen: the whole machine is the
+    button. Tapping it dips the machine a pixel and pulls the lever.
+  - It works with a screen reader ("Roll the prize machine",
+    a button) and with a keyboard (Enter or Space).
+  - One roll per screen: tapping again while it spins or while the
+    prize card is up does nothing.
+
+  The spin (times from the tap)
+    0 ms           Tap. The hint hides, the lever pulls down,
+                   roll_daily_prize is called. Light haptic.
+    0 - 160        Wind-up: the reel nudges back a quarter tile.
+    160 - ~1,400   Full speed. Bulbs chase fast; a soft tick each time
+                   a tile crosses the line (at most one every 45 ms).
+    ~1,400 - 3,000 Slows down (ease-out); the ticks space out.
+    3,000 - 3,250  Stops a fifth of a tile past the prize and settles
+                   back onto it. The machine shakes; the payline and
+                   bulbs flash in the rarity colour. Medium haptic, or
+                   heavy for Epic, Legendary and 500 coins.
+    then           The reveal (below). mark_roll_seen.
+  - Rarer prizes spin longer, with a slower crawl at the end: Epic
+    3.4 s, Legendary 3.8 s, everything else 3.0 s.
+  - The spin only shows the result. The prize comes back from the
+    server first (section 4), and the reel is built with that prize
+    at the stop, so it can't land on anything else. The lever pulls
+    and the light haptic fires at the tap; the reel starts its
+    wind-up once the answer is back (usually a fraction of a
+    second). Built: it doesn't spin while waiting.
+  - The other tiles are things the player could win: items from
+    their own pool and coin tiles. How often each rarity shows up on
+    the reel is ROLL-17. The tiles next to the prize are never the
+    same prize, so the stop is easy to read.
+
+  The reveal
+  - An item: it grows out of the reel window to 2.4x with a glow in
+    its rarity colour, holds, then shrinks back into its tile
+    (about 0.76 s). Rare gets a few sparkles; Epic and Legendary
+    more (Legendary twice).
+  - Coins: gold coins spray out of the tray, more for bigger wins
+    (7, 14 or 26), and the wallet at the top counts up to the new
+    balance.
+  - Then the prize card pops out of the tray: it starts as a speck
+    at the tray, flies down and grows to just past full size, then
+    settles (about 0.56 s), with a puff of white sparkles at the
+    tray and a light haptic. It shows the prize, its rarity (or
+    "Coins") and its name (or "+250 coins").
+  - Buttons on the card: "Wear it" and "Done" for an item ("Wear
+    it" opens the character editor with the item picked); "Done"
+    only for coins.
+
+  The coins
+  - One 12 x 12 pixel coin: a dark navy outline, a gold body, a pale
+    yellow rim on the top left, orange shading on the bottom right,
+    and a raised orange square in the middle. No number on it.
+  - It spins in four frames, 120 ms each: front, three-quarter turn,
+    edge, three-quarter turn the other way. Every third turn a white
+    shine crosses the front.
+  - Each coin floats up and down 2 pixels. Coins in one tile spin
+    and float out of step with each other.
+  - Tiles: 100 is one coin, 250 is three in a row (the middle one
+    higher), 500 is two staggered rows of three. Every coin on the
+    reel is the same size (the size that lets the 500 tile fit).
+  - They keep spinning on the reel and on the prize card. The wallet
+    icon is the front frame, still.
+
+  Sound
+  - Short 8-bit sounds: a tick per tile, a thunk on the stop, a
+    rising jingle that gets longer with rarity, a pop when the card
+    comes out, and ticks as the balance counts up. Silent when the
+    phone is on silent. NOT BUILT YET: the first build has haptics
+    only (it needs sound files and an audio module).
+
+  Reduce Motion
+  - No spin, no lever, no shake, no growing item, no sparkles or
+    coin spray, no flying card. The prize sits on the line, the card
+    is shown in place, and the balance changes at once. Coins show
+    their front frame and don't float or spin.
+
+  ACTIVITY BOARD (ROLL-11)
+  - Your own goal line: "reached your goal · won pirate hat" or
+    "reached your goal · +250 coins", instead of "+150 coins" (no
+    "a", like "bought red cap").
+  - A friend's goal line, when they won an item: "reached their goal
+    · won pirate hat", with the item's icon. When they won coins,
+    or haven't rolled: "reached their goal", as now.
+  - The win is a new part of the line, so a line moves up when the
+    roll is taken, as it does for a later achievement. Kudos on the
+    line are unchanged (same person, same day).
+  - Who sees it is the board's rule, unchanged: friends you can see,
+    who share steps.
+
+  SHOP, CUSTOMIZE
+  - Nothing new. A won item is owned like a bought one: it leaves the
+    shop and shows in Customize.
+
+  REMINDER (ROLL-12)
+  - If at the last refresh the goal was reached and the roll not
+    taken, the evening reminder says "Your daily roll is waiting.
+    Open the app before midnight." instead of nothing. It uses the
+    existing local reminders (no push from the server).
+
+======================================================================
+6. THE ECONOMY AFTER THE SWITCH
+======================================================================
+
+  WHAT A GOAL DAY IS WORTH
+  - Before: 150 coins.
+  - After: about 430 on average at the prices above: items about
+    355 (0.31 x 335 + 0.19 x 620 + 0.06 x 980 + 0.03 x 1,640
+    + 0.01 x 2,560) and coins about 75 (0.40 x 185). So reaching the
+    goal is worth about 3x more than now, mostly paid in items.
+
+  WHAT A DAY PAYS IN COINS
+
+        Player          Check-ins  Refresh  Quests  Roll*   Total
+        Casual             20         10        0     ~75    ~105
+        Regular            30         20       72     ~75    ~195
+        Very engaged       40         20      270     ~75    ~405
+
+        * the average from coins rolls, on a goal day. A single day
+          is 0 (an item), 100, 250 or 500.
+
+  Coins now come from opening the app, the welcome bonus, quests and
+  coins rolls (down from ~180 a day for a casual player). They
+  become the way to pick the exact item you want, while the roll
+  fills the collection.
+
+  HOW LONG A COLLECTION TAKES
+  - 105 items; 6 goal days in 10 give one, so about 175 goal days.
+    Someone reaching the goal 5 days a week owns everything in about
+    35 weeks from rolls alone, sooner with purchases. Before: about
+    380 days for a regular player.
+  - After that every roll is coins, about 185 on average, a little
+    more than today's 150, so nobody ends up worse off than now.
+
+  WHAT THIS MEANS FOR COIN-F
+  - The shop thins out faster (owned items never show), and coins
+    have less to buy. The coin sink (5f) is now needed within a few
+    months of the switch, not ~11. Adding items at ~10 a month keeps
+    the pool from running dry; "buy any item at 2x" gives coins a
+    use near the end.
+  - If the collection fills too fast, the first thing to change is
+    the chances (ROLL-6), not the prices.
+
+======================================================================
+7. DATABASE
+======================================================================
+
+  THE SWITCH DAY
+  - app_settings 'daily_roll_from': a day, stored like
+    'goal_is_coin_target_from' (days after 2000-01-01). Empty = the
+    roll is off and everything works as now.
+  - It is set only once a build with the roll screen is out (ROLL-5).
+    Older builds don't know about rolls: on a day after the switch
+    they'd say "+150 coins" and pay nothing. So: ship the build, wait
+    about two weeks, then set the day. Older builds can be told to
+    update with the builds blueprint's update prompt.
+
+  claim_daily_rewards() (CHANGED)
+  - Days before the switch day: 150 coins, as now (late uploads of
+    those days still pay inside the 7-day window).
+  - The switch day and after: the 'daily_goal' row is still written,
+    with amount 0. The activity board (friends_activity,
+    activity_line_exists) and kudos read that row to know a day was a
+    goal day, so they keep working with no change. The wallet isn't
+    touched for a 0.
+
+  daily_rolls (NEW TABLE)
+    user_id    uuid, references profiles, on delete cascade
+    day        date
+    item_id    text, references shop_items, null when coins were paid
+    coins      integer: 0 for an item, else 100, 250 or 500
+    rarity     text: common, uncommon, rare, epic, legendary, coins
+    rolled_at  timestamptz, default now()
+    seen_at    timestamptz, null until the result has been shown
+    primary key (user_id, day)
+  - Read own rows only (RLS). No insert, update or delete for the app;
+    only the functions below write it.
+
+  roll_rarity(price) (NEW, INTERNAL)
+  - The ladder in section 3, in one place. Tests pin it.
+
+  roll_daily_prize(my_today date) (NEW)
+  - Returns (item_id, rarity, coins, new boolean). new = false when
+    the day was already rolled.
+  - Checks, in order: signed in (else 'Not signed in'), active
+    (ACCOUNT_NOT_ACTIVE), sharing (NO_SHARING), is_today_somewhere
+    (BAD_DAY), the switch day set and my_today on or after it
+    (ROLL_OFF), a 'daily_goal' row for my_today (GOAL_NOT_REACHED).
+  - Takes the coin lock. If daily_rolls has the day, returns it.
+  - Otherwise picks the outcome, then the item or the amount (section
+    3) and, in one transaction: inserts daily_rolls; inserts
+    user_items for an item; inserts coin_transactions (reason 'roll',
+    ref the day, amount 0 for an item, like 'starter' rows are 0, or
+    the coins); adds the coins to the wallet when there are any; runs
+    award_achievements.
+
+  mark_roll_seen(my_today date) (NEW)
+  - Sets seen_at. The roll screen calls it once the prize card has
+    opened.
+
+  sync_day() (CHANGED)
+  - Its result gets one more key, 'roll', for my_today:
+      null                    the roll is off, or not sharing
+      {"state": "locked"}     goal not reached yet
+      {"state": "ready"}      goal reached, not rolled
+      {"state": "rolled", "item_id", "rarity", "coins", "seen"}
+  - Older builds ignore the extra key.
+
+  activity_feed() and activity_parts() (CHANGED)
+  - The board is activity_feed now (one line per thing done), so the
+    prize goes there; friends_activity is only for older builds,
+    which don't know rolls, and is unchanged.
+  - Every goal line gets 'prize_item' from daily_rolls for that day:
+    the item_id, or null for a coins roll or no roll yet. Your own
+    goal lines also get 'prize_coins' (null on friends' lines, like
+    'coins').
+  - A goal line's 'at' is its roll's rolled_at when that is later,
+    so taking the roll moves the line up and paging still works.
+  - activity_line_exists is unchanged: a win is only ever on a goal
+    day, which is already a line.
+
+  CLEANUP
+  - daily_rolls rows are kept (a few bytes per goal day, and a record
+    of where an item came from). Deleted with the account.
+
+======================================================================
+8. WHAT THE ROLL IS NOT
+======================================================================
+
+  - Not for sale. No buying rolls, no paying coins for an extra roll
+    or a reroll, no premium machine (ROLL-9). Selling random prizes
+    brings loot-box rules (store odds disclosure, some countries'
+    gambling laws) and is a poor fit for 13 and up.
+  - Not a way to get achievement items. They still come only from
+    their achievement.
+  - Not a duplicate-giver: there's nothing to trade or sell back.
+  - Not a push from the server. The reminder is the existing local
+    one (ROLL-12).
+
+======================================================================
+9. TRICKY CASES
+======================================================================
+
+  - Goal reached, app not opened that day: the server never learns
+    the goal was reached before midnight, so no roll (ROLL-4). The
+    reminder can only fire if an earlier refresh that day already
+    saw the goal.
+  - Roll taken, then steps re-uploaded lower or the day deleted: the
+    item stays. A roll, like a purchase, is never taken back.
+  - The item won is in today's shop: the slot empties (ROLL-14).
+  - The pool has 1 item left and the player buys it while the roll
+    screen is open: the lock orders them; whichever is second sees
+    the item owned (the purchase fails ALREADY_OWNED, or the roll
+    picks from what's left, or is a coins roll if nothing is).
+  - An item retired (active = false) after being won: kept, like a
+    bought one.
+  - Two phones on one account: one roll; both see the same prize.
+  - Phone date changed to tomorrow: is_today_somewhere allows it only
+    when it's already tomorrow somewhere, and tomorrow's steps still
+    have to reach tomorrow's goal. At most one roll per day, as for
+    coins.
+  - Midnight while the roll screen is open: the tap sends the date
+    the screen was opened with. If that day is no longer today
+    anywhere, BAD_DAY: "This roll ended at midnight." Otherwise it
+    goes through.
+  - Sharing turned off after the goal: no roll (NO_SHARING), same as
+    no coins.
+  - The switch day itself: a goal day before it paid 150 coins and
+    has no roll; the switch day has a roll and its 'daily_goal' row
+    pays 0 (a coins roll pays through its own 'roll' row). No day
+    gets both.
+
+======================================================================
+10. WHERE IT LIVES (WHEN BUILT)
+======================================================================
+
+  Server
+    supabase/migrations/20261125000000_daily_roll.sql
+      daily_roll_from, daily_rolls, roll_rarity, roll_outcome,
+      roll_coin_amount, roll_daily_prize, mark_roll_seen, my_roll,
+      claim_daily_rewards, sync_day, activity_parts, activity_feed
+    supabase/tests/database/daily_roll.test.sql
+  App
+    src/roll/roll.ts               the server's answer, the reel, the
+                                   spin's timing, and the pixel art
+                                   (machine, small machine, coin
+                                   frames) as data; tested by
+                                   roll.test.ts
+    src/api/roll.ts                rollDailyPrize, markRollSeen,
+                                   listRollPool (the reel's tiles)
+    src/app/roll.tsx               the roll screen (modal)
+    src/components/prize-machine.tsx   the big and small machines,
+                                   the reel, the spinning coins, the
+                                   item pop, sparkles and coin spray
+    src/components/roll-line.tsx   the Today goal line and the small
+                                   machine
+    src/activity/activity.ts       "won ..." on board lines
+    src/steps/refresh.ts           reads 'roll' from sync_day
+    src/reminders/plan.ts          the "roll is waiting" text
+    src/app/avatar.tsx             "Wear it": opens with the item on
+  Art
+    Drawn from code in src/roll/roll.ts (rectangles in art pixels,
+    drawn by Skia at a whole-number scale), not PNG files. Items on
+    the reel use their existing sprites. The small machine's reel
+    shows coins and clothing only (pets and maps don't shrink to a
+    whole-number scale that small).
+
+======================================================================
+11. CHOICES (ALL DECIDED 2026-10-18)
+======================================================================
+
+  To change one, write the new choice on its "Change to:" line (and
+  in step-tracker-decisions.txt). Empty means keep it.
+
+  ROLL-1  Name: "Daily Roll", with a pixel-art slot machine: one
+          reel, tapped to spin, the prize card popping out of its
+          tray. No Roll buttons: a small machine on Today opens the
+          roll screen (section 5).
+          (Was a capsule machine; changed 2026-10-19.)
+          Change to:
+
+  ROLL-2  The prize: coins, or a shop item on sale that the player
+          doesn't own, weighted by rarity. Never a duplicate item.
+          Change to:
+
+  ROLL-3  When the item pool is empty: every roll is a coins roll.
+          Change to:
+
+  ROLL-4  Today only. One roll per goal day, taken before midnight on
+          the phone, or lost. No back-pay for late uploads.
+          Change to:
+
+  ROLL-5  The roll replaces the 150 daily coins, from a switch day
+          set after the build with the roll is out.
+          Change to:
+
+  ROLL-6  Chances: Coins 40%, Common 31%, Uncommon 19%, Rare 6%,
+          Epic 3%, Legendary 1%. The outcome first, then an item or
+          an amount; an empty rarity's share goes to the other
+          rarities, and coins stay 40%.
+          (The suggestion was 30/30/22/11/5/2.)
+          Change to:
+
+  ROLL-7  Rarity from the price (the COIN-5 ladder), not a new column.
+          Change to:
+
+  ROLL-8  The odds are not shown in the app. Fine while the roll is
+          never sold (ROLL-9); required first if it ever is.
+          (The suggestion was a "See odds" link.)
+          Change to:
+
+  ROLL-9  The roll is never sold: no paid rolls, no rerolls.
+          Change to:
+
+  ROLL-10 No pity counter.
+          Change to:
+
+  ROLL-11 Items won show on the activity board, on your lines and
+          friends' lines. Coins won show on your own lines only.
+          (The suggestion was your own lines only.)
+          Change to:
+
+  ROLL-12 An evening local reminder when the goal was reached but the
+          roll wasn't taken, in the existing reminder slot.
+          Change to:
+
+  ROLL-13 The prize is decided and saved at the tap; closing the app
+          never rerolls.
+          Change to:
+
+  ROLL-14 A won item that's in today's shop leaves an empty slot until
+          the next refresh, as a purchase does.
+          Change to:
+
+  ROLL-15 No achievements for rolls.
+          Change to:
+
+  ROLL-16 Coin amounts: 100 (6 in 10), 250 (3 in 10), 500 (1 in 10),
+          about 185 on average.
+          Change to:
+
+  ROLL-17 (STILL OPEN) How often each rarity shows on the reel's other
+          tiles. They are only for show; the prize is already decided.
+          A. The real chances (ROLL-6): the reel shows roughly what
+             people win. A Legendary passes by about once in every
+             two or three spins.
+          B. More rare tiles than the real chances (the preview uses
+             coins 30, Common 22, Uncommon 20, Rare 14, Epic 9,
+             Legendary 5): more exciting, but it suggests rare prizes
+             are likelier than they are, which matters more because
+             the odds aren't shown (ROLL-8) and players are 13 and up.
+          Recommended: A.
+          Decision:
+
+======================================================================
+12. LATER (EACH ITS OWN CHOICE)
+======================================================================
+
+  - Roll history on Profile: every prize and the day it came.
+  - Seasonal items that are only in the roll for a few weeks.
+  - Friends seeing coins wins too (ROLL-11 shows items only).
+  - Showing the odds in the app (ROLL-8 other).
+  - A first-ever roll that's always Rare or better, to make the
+    first one memorable.
+
+======================================================================
+13. TESTS
+======================================================================
+
+  Database (daily_roll.test.sql)
+  - roll_rarity: 300, 400 common; 500, 700 uncommon; 800, 1,200 rare;
+    1,500, 2,000 epic; 2,500, 3,000 legendary.
+  - No goal row for my_today: GOAL_NOT_REACHED. Goal row: a roll.
+  - Not sharing: NO_SHARING. Inactive: ACCOUNT_NOT_ACTIVE. Switch day
+    empty or later than my_today: ROLL_OFF. A day not today
+    anywhere: BAD_DAY. Yesterday after it ended everywhere: BAD_DAY.
+  - The prize is never owned before, never an achievement item,
+    never retired, never a starter.
+  - Rolling twice returns the same prize with new = false, and only
+    one user_items, daily_rolls and coin_transactions row.
+  - A coins roll: item_id null, coins 100, 250 or 500, the wallet up
+    by that much, one 'roll' coin_transactions row with that amount.
+  - Pool empty: always a coins roll.
+  - Only Legendaries left: a Legendary 60%, coins 40% (empty
+    rarities skipped, coins unchanged).
+  - Chances: 10,000 rolls against a fixed pool (a test-only helper
+    with the pool passed in) land within 1.5 points of each chance,
+    and the coin amounts within 2 points of 60/30/10.
+  - claim_daily_rewards: before the switch day 150 coins; on and
+    after it a 'daily_goal' row with amount 0 and no wallet change.
+  - The board and kudos still see a goal line on a 0-coin goal day.
+  - friends_activity: prize_item on your lines and friends' lines;
+    prize_coins on yours only; a friend's coins roll shows nothing;
+    a roll moves the line's 'at'; no prize on a friend you can't see.
+  - A purchase and a roll racing for the last item: one gets it.
+  - Other users can't read your daily_rolls.
+  App
+  - The Today line in each state (off, locked, ready, rolled). The
+    small machine shows only when ready, and tapping it opens the
+    roll screen without rolling.
+  - lineText: "won pirate hat" on yours and friends', "+250 coins"
+    on yours only.
+  - The roll screen for an item (with "Wear it") and for coins
+    (without).
+  - The roll screen with Reduce Motion on.
+  - The reel always stops on the prize the server returned, for every
+    rarity and coin amount, and the tiles next to it are never the
+    same prize.
+  - Tapping the machine a second time does nothing.
+  Device (DEVICE-TESTS.md)
+  - Reach the goal, roll, kill the app mid-animation, reopen: same
+    prize shown.
+  - Roll near midnight; change the phone date; airplane mode on tap.
+
+======================================================================
+14. BUILD ORDER CHECKLIST
+======================================================================
+
+    [x] ROLL-1 to ROLL-16 decided (2026-10-18), copied to
+        step-tracker-decisions.txt
+    [ ] Decide ROLL-17 (reel tile mix); built as option A (the real
+        chances), REEL_CHANCES in src/roll/roll.ts
+    [x] Art: slot machine (body, sign, bulbs, lever), coin spin
+        frames (drawn from code, 2026-10-19)
+    [x] Migration with the switch day empty; database tests
+        (2026-10-19, passing locally; not pushed to the live project)
+    [x] App: api, roll screen, Today, board line, reminder
+        (2026-10-19; sound not built yet; needs a new build for
+        expo-haptics)
+    [ ] Update step-tracker-coins-items.txt (2a, the day tables, 5f)
+    [ ] Build out; wait about two weeks; set 'daily_roll_from'
+    [ ] Device tests

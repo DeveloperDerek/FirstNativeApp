@@ -87,6 +87,8 @@ export type ReminderState = {
   goalReachedToday: boolean;
   /** The server's current streak; null when not sharing or not known */
   streak: number | null;
+  /** The goal was reached and today's daily roll not taken, at the last refresh */
+  rollWaiting: boolean;
 };
 
 /**

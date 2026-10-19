@@ -1,4 +1,4 @@
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useMapTheme } from '@/hooks/use-map-theme';
 import { useTheme } from '@/hooks/use-theme';
+import { findShopEntry } from '@/lib/shop-entries';
 import { THEME_LIST } from '@/track/themes';
 
 /** Picks out the items someone can use, in the order they arranged them. */
@@ -179,13 +180,24 @@ function BackgroundPicker({ mine, arrange }: { mine: Collection; arrange: Arrang
   );
 }
 
+/** The character with a shop item put on: clothing in its slot, or a pet. */
+function withWorn(avatar: AvatarConfig, id: string | undefined): AvatarConfig {
+  const entry = id ? findShopEntry(id) : undefined;
+  if (entry?.kind === 'clothing') return { ...avatar, ...wear(entry.slot, entry.id) };
+  if (entry?.kind === 'pet') return { ...avatar, pet: entry.id };
+  return avatar;
+}
+
 export default function AvatarEditorScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const { theme: mapTheme } = useMapTheme();
   const { session, profile, reloadProfile } = useAuth();
-  const [avatar, setAvatar] = useState<AvatarConfig>(profile?.avatar ?? DEFAULT_AVATAR);
+  // "Wear it" on the daily roll's prize card opens the editor with the item
+  // won already on; it saves like any other change (lastSaved is the saved one)
+  const { wear: wearId } = useLocalSearchParams<{ wear?: string }>();
+  const [avatar, setAvatar] = useState<AvatarConfig>(() => withWorn(profile?.avatar ?? DEFAULT_AVATAR, wearId));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The lists from the last load (usually at sign-in), so the rows show at once
@@ -254,7 +266,7 @@ export default function AvatarEditorScreen() {
 
   // Every change saves on its own after a short pause, so tapping through
   // colors doesn't send one save per tap. Saves run one at a time, in order.
-  const lastSaved = useRef(JSON.stringify(avatar));
+  const lastSaved = useRef(JSON.stringify(profile?.avatar ?? DEFAULT_AVATAR));
   const pending = useRef<AvatarConfig | null>(null);
   const queue = useRef(Promise.resolve());
 

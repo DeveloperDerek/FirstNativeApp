@@ -21,7 +21,12 @@ Contents
   9. Achievements          (step-tracker-achievements.txt, section 8)
   10. Builds               (step-tracker-builds.txt, section 6)
   11. Coins and prices     (step-tracker-coins-items.txt, section 5)
-  12. Still open
+  12. Map restyle          (step-tracker-map-restyle.txt, sections 3-4)
+  13. Today minimap        (step-tracker-minimap.txt, section 8)
+  14. Activity board       (step-tracker-activity-board.txt, section 10)
+  15. Kudos                (step-tracker-kudos.txt, section 10)
+  16. Daily roll           (step-tracker-daily-roll.txt, section 11)
+  17. Still open
 
 ======================================================================
 1. REGISTRATION (step-tracker-register.txt, section 9)
@@ -230,8 +235,8 @@ Contents
 
   GOAL-16  The daily goal is each player's daily coin target (GOAL-2):
            7,000 to 10,000 steps in 500s, different for each player each
-           day, picked by the server. Today ("% of 8,500 goal · 150
-           coins at goal"), History, streaks and goal reminders follow
+           day, picked by the server. Today ("% of 8,500 goal · Daily
+           roll at goal"), History, streaks and goal reminders follow
            it, and reaching it pays the 150 daily coins. It started on
            the day it shipped; days before keep the goal they had. The
            step track's flag stays at 10,000 and reads "10k" (no per-
@@ -514,13 +519,225 @@ Contents
            Change to:
 
 ======================================================================
-12. STILL OPEN
+12. MAP RESTYLE (step-tracker-map-restyle.txt, sections 3 and 4)
 ======================================================================
+
+  MAP-1    Every movement in section 3 kept, except cars in the city
+           (they would crowd the road people walk on).
+           Change to:
+
+  MAP-2    Dungeon: light from high grates by day, torches only at
+           night.
+           Change to:
+
+  MAP-3    Space: the sky stays black; a harsh sun by day, an
+           Earthrise at sunset, only base lights at night.
+           Change to:
+
+  MAP-4    Ocean: sunbeams by day, amber water at sunset, deep blue
+           with glowing sea life at night.
+           Change to:
+
+  MAP-5    Neon City: gray overcast with the signs off by day; the
+           signs flicker on at sunset.
+           Change to:
+
+  MAP-6    Rain in Neon City on some nights only (about 4 in 10, the
+           same for everyone on a date).
+           Change to:
+
+  MAP-7    No preview images before building.
+           Change to:
+
+======================================================================
+13. TODAY MINIMAP (step-tracker-minimap.txt, section 8)
+======================================================================
+
+  MINI-1   Place: under the road, then moved to the top of Today's
+           list so it scrolls out of the way.
+           Change to:
+
+  MINI-2   Milestones: the 10,000 flag only (the first draft's
+           landmark diamonds and goal star were taken off in the
+           restyle).
+           Change to:
+
+  MINI-3   Tapping a head scrolls the road to them; profiles open
+           from the road, as before.
+           Change to:
+
+  MINI-4   Your daily goal is not on the minimap; the road (a star on
+           its distance markers) and the header show it.
+           Change to:
+
+  MINI-5   The road's goal star replaces a tick it lands on, and tick
+           labels within 700 steps of it give way.
+           Change to:
+
+======================================================================
+14. ACTIVITY BOARD (step-tracker-activity-board.txt, section 10)
+======================================================================
+
+  ACT-1    A third button in Friends (next to Today and Last 7 days),
+           not a new tab. Groups get it later.
+           Change to:
+
+  ACT-2    One line per person per day: the goal plus that day's
+           achievements (and, with groups later, one per won quest).
+           Change to:
+
+  ACT-3 to ACT-7 are built as the blueprint suggests but not yet
+  decided: see section 16.
+
+======================================================================
+15. KUDOS (step-tracker-kudos.txt, section 10)
+======================================================================
+
+  All decided October 2026, as the blueprint suggested. Not built yet.
+
+  KUD-1    Called "Kudos".
+           Change to:
+
+  KUD-2    A pixel-art party popper in a rounded pill: light before
+           you give kudos, gold after (was a clap until October 2026).
+           Change to:
+
+  KUD-3    One kudos per person per line, and it can't be taken back.
+           Change to:
+
+  KUD-4    Who gave kudos is listed on your own lines only; everyone
+           else sees a count.
+           Change to:
+
+  KUD-5    The count, the giver list and "new" use one live rule: the
+           giver is still the person's friend, can be seen (can_see)
+           and shares steps.
+           Change to:
+
+  KUD-6    New kudos show as a small dot (no number) on the Friends
+           tab and the Activity button, and "N new kudos" in Activity.
+           Change to:
+
+  KUD-7    No push notifications for kudos; in the app only.
+           Change to:
+
+  KUD-8    Dropped with KUD-7 (no Kudos notification switch, no
+           Android channel).
+
+  KUD-9    No coins and no achievements for receiving kudos.
+           Change to:
+
+  KUD-10   Kudos kept 35 days, then deleted by a daily job.
+           Change to:
+
+  KUD-11   "New" clears only when the "New kudos" list has shown every
+           new kudos, and only up to the newest one it showed. Opening
+           Activity doesn't clear it; a failed "seen" call keeps it.
+           Change to:
+
+  KUD-12   Kudos hidden by an unfriend, block, pause or sharing off
+           come back when that is undone; new again only if they had
+           never been shown.
+           Change to:
+
+  KUD-13   The activity board's date window: today is day 0, oldest
+           my_today - 29, newest my_today + 1, my_today checked with
+           is_today_somewhere.
+           Change to:
+
+======================================================================
+16. DAILY ROLL (step-tracker-daily-roll.txt, section 11)
+======================================================================
+
+  All decided 2026-10-18. Not built yet.
+
+  ROLL-1   Called "Daily Roll", with a pixel-art slot machine: one
+           reel, tapped to spin, the prize card popping out of its
+           tray. No Roll buttons: a small machine on Today opens the
+           roll screen. (Was a capsule machine; changed 2026-10-19.)
+           Change to:
+
+  ROLL-2   One free roll for reaching the day's goal. The prize is
+           coins, or a shop item on sale that the player doesn't own.
+           Never a duplicate item.
+           Change to:
+
+  ROLL-3   When the player owns every item: every roll is coins.
+           Change to:
+
+  ROLL-4   Today only: rolled before midnight on the phone, or lost.
+           No back-pay for late uploads.
+           Change to:
+
+  ROLL-5   Replaces the 150 daily coins (2a in the coins blueprint),
+           from a switch day set after the build is out. The
+           'daily_goal' row stays, at 0 coins, for the board and
+           kudos.
+           Change to:
+
+  ROLL-6   Chances: coins 40%, Common 31%, Uncommon 19%, Rare 6%,
+           Epic 3%, Legendary 1%. An empty rarity's share goes to the
+           other rarities; coins stay 40%.
+           Change to:
+
+  ROLL-7   Rarity comes from the price (the COIN-5 ladder).
+           Change to:
+
+  ROLL-8   The odds are not shown in the app.
+           Change to:
+
+  ROLL-9   Never sold: no paid rolls, no rerolls.
+           Change to:
+
+  ROLL-10  No pity counter.
+           Change to:
+
+  ROLL-11  Items won show on the activity board to friends; coins won
+           show on your own lines only.
+           Change to:
+
+  ROLL-12  An evening local reminder when the roll is waiting.
+           Change to:
+
+  ROLL-13  The prize is decided and saved at the tap.
+           Change to:
+
+  ROLL-14  A won item in today's shop leaves its slot empty until the
+           next refresh.
+           Change to:
+
+  ROLL-15  No achievements for rolls.
+           Change to:
+
+  ROLL-16  Coins: 100 (6 in 10), 250 (3 in 10), 500 (1 in 10).
+           Change to:
+
+======================================================================
+17. STILL OPEN
+======================================================================
+
+  ACT-3 to ACT-7  The activity board's suggested choices, built as
+          suggested (step-tracker-activity-board.txt, section 10):
+          30 days back; no live updates (open, foreground and pull to
+          refresh); no pushes and no tab badge; coins on your own
+          lines only and no step counts; a deleted day takes its goal
+          line with it.
+          Decision:
 
   COIN-F  Something to spend coins on once a player owns everything
           (step-tracker-coins-items.txt, 5f). Options: keep adding
           items, a "buy any item" option at 2x price, or seasonal
-          items.
+          items. The daily roll (ROLL-2, ROLL-5) makes this more
+          pressing: a collection fills in about 35 weeks, not ~11
+          months (step-tracker-daily-roll.txt, section 6).
+          Decision:
+
+  ROLL-17 How often each rarity shows on the slot machine's reel
+          (step-tracker-daily-roll.txt, section 11). The tiles are
+          only for show. A: the real chances (ROLL-6). B: more rare
+          tiles than the real chances, as in the preview; more
+          exciting, but it suggests rare prizes are likelier than
+          they are. Recommended: A.
           Decision:
 
   REG-F  Existing accounts and the Terms (step-tracker-register.txt,

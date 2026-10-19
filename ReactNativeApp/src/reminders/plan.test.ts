@@ -10,6 +10,7 @@ import {
   PLAIN_TEXT,
   planReminders,
   REMINDER_PREFIX,
+  ROLL_TEXT,
   syncReminders,
 } from './plan.ts';
 
@@ -44,6 +45,16 @@ test('none today once the goal is reached, or after the time', () => {
   assert.equal(plan(at(19, 1)).length, 6);
   assert.equal(plan(at(19, 0)).length, 6, 'exactly at the time is too late');
   assert.equal(plan(at(18, 59)).length, 7, 'a minute before still comes');
+});
+
+test('goal reached and the daily roll waiting: today\'s reminder says so', () => {
+  const p = planReminders({ settings: on, now: at(9), goalReachedToday: true, streak: 6, rollWaiting: true });
+  assert.equal(p.length, 7);
+  assert.equal(p[0].body, ROLL_TEXT);
+  assert.equal(p[1].body, PLAIN_TEXT);
+  // After the time: none today, as before
+  const late = planReminders({ settings: on, now: at(20), goalReachedToday: true, streak: null, rollWaiting: true });
+  assert.equal(late.length, 6);
 });
 
 test('the streak only in today\'s reminder, from 2 days', () => {

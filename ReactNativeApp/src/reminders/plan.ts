@@ -23,6 +23,8 @@ export const REMINDER_DAYS = 7;
 export const REMINDER_PREFIX = 'goal-reminder:';
 
 export const PLAIN_TEXT = 'Still time to reach your goal today.';
+/** Today's reminder when the goal is reached but the roll isn't taken (ROLL-12). */
+export const ROLL_TEXT = 'Your daily roll is waiting. Open the app before midnight.';
 /** A streak this long or longer is mentioned (decision 6). */
 export const STREAK_FROM = 2;
 
@@ -37,15 +39,17 @@ export const reminderId = (date: Date) => `${REMINDER_PREFIX}${dayKey(date)}`;
 
 /**
  * The reminders to schedule now. Today's only if its time is still to come
- * and today's goal isn't reached; then one for each of the next 6 days.
- * Only today's mentions the streak, and only one the server confirmed:
- * a later one could find it already broken.
+ * and today's goal isn't reached, or it is and the daily roll is waiting
+ * (then it says so); then one for each of the next 6 days. Only today's
+ * mentions the streak, and only one the server confirmed: a later one
+ * could find it already broken.
  */
 export function planReminders({
   settings,
   now,
   goalReachedToday,
   streak,
+  rollWaiting = false,
 }: {
   settings: ReminderSettings;
   now: Date;
@@ -53,13 +57,20 @@ export function planReminders({
   goalReachedToday: boolean;
   /** The server's current streak (null when not sharing or not known) */
   streak: number | null;
+  /** The goal is reached and today's roll not taken (step-tracker-daily-roll.txt) */
+  rollWaiting?: boolean;
 }): PlannedReminder[] {
   if (!settings.on) return [];
   const planned: PlannedReminder[] = [];
   for (let i = 0; i < REMINDER_DAYS; i++) {
     const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
     date.setHours(settings.hour, settings.minute, 0, 0);
-    if (i === 0 && (goalReachedToday || date <= now)) continue;
+    if (i === 0 && date <= now) continue;
+    if (i === 0 && rollWaiting) {
+      planned.push({ id: reminderId(date), date, body: ROLL_TEXT });
+      continue;
+    }
+    if (i === 0 && goalReachedToday) continue;
     const withStreak = i === 0 && streak !== null && streak >= STREAK_FROM;
     planned.push({
       id: reminderId(date),

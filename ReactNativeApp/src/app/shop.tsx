@@ -4,7 +4,7 @@ import { Alert, Image, StyleSheet, View } from 'react-native';
 
 import {
   type DailyShop,
-  getShopRefreshAt,
+  getShopWallet,
   listDailyShop,
   listOwnedItems,
   purchaseItem,
@@ -12,10 +12,9 @@ import {
 } from '@/api/coins';
 import { useAuth } from '@/auth/AuthProvider';
 import { Avatar } from '@/avatar/Avatar';
-import { CATALOG, type Slot, wear } from '@/avatar/catalog';
+import { wear } from '@/avatar/catalog';
 import { addOwnedItem } from '@/avatar/my-items';
 import { Pet } from '@/avatar/Pet';
-import { PETS } from '@/avatar/pets';
 import { DEFAULT_AVATAR } from '@/avatar/types';
 import { CoinBalance } from '@/components/coin-balance';
 import { GroundText } from '@/components/ground-text';
@@ -28,36 +27,10 @@ import { Spacing } from '@/constants/theme';
 import { useMapTheme } from '@/hooks/use-map-theme';
 import { useWallet } from '@/hooks/use-wallet';
 import { errorMessage } from '@/lib/error-message';
-import { THEME_LIST } from '@/track/themes';
-
-// Everything the shop can sell: clothing (remembering each item's slot),
-// pets, and map themes (with the art and sky color for a thumbnail).
-type Entry =
-  | { kind: 'clothing'; id: string; label: string; slot: Slot }
-  | { kind: 'pet'; id: string; label: string }
-  | { kind: 'map'; id: string; label: string; tile: number; sky: string };
-
-const ALL_ENTRIES: Entry[] = [
-  ...(Object.keys(CATALOG) as Slot[]).flatMap((slot) =>
-    CATALOG[slot].map((item) => ({
-      kind: 'clothing' as const,
-      id: item.id,
-      label: item.label,
-      slot,
-    }))
-  ),
-  ...PETS.map((p) => ({ kind: 'pet' as const, id: p.id, label: `${p.label} (pet)` })),
-  ...THEME_LIST.map((t) => ({
-    kind: 'map' as const,
-    id: t.id,
-    label: `${t.label} map`,
-    tile: t.tiles[0],
-    sky: t.sky,
-  })),
-];
+import { findShopEntry, type ShopEntry } from '@/lib/shop-entries';
 
 /** A window onto the map's street art, on its own sky and ground colors. */
-function MapThumb({ entry }: { entry: Extract<Entry, { kind: 'map' }> }) {
+function MapThumb({ entry }: { entry: Extract<ShopEntry, { kind: 'map' }> }) {
   return (
     <View
       style={[styles.thumb, { backgroundColor: entry.sky }]}
@@ -82,7 +55,7 @@ export default function ShopScreen() {
   const router = useRouter();
   const { session, profile } = useAuth();
   const userId = session?.user.id;
-  const { balance, setBalance, refreshBalance } = useWallet();
+  const { balance, setBalance } = useWallet();
   const { theme, refreshOwned } = useMapTheme();
   const sharing = Boolean(profile?.sharing_consent_at);
 
@@ -98,22 +71,22 @@ export default function ShopScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [s, o, r] = await Promise.all([
+      const [s, o, w] = await Promise.all([
         listDailyShop(),
         listOwnedItems(),
-        userId ? getShopRefreshAt(userId) : null,
-        refreshBalance(),
+        userId ? getShopWallet(userId) : null,
       ]);
       setShop(s);
       setOwned(o);
-      setRefreshAt(r);
+      setRefreshAt(w?.refreshAt ?? null);
+      if (w) setBalance(w.balance);
       setError(null);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setLoaded(true);
     }
-  }, [userId, refreshBalance]);
+  }, [userId, setBalance]);
 
   // Load on open, and again when coming back from the character editor.
   useFocusEffect(
@@ -157,8 +130,8 @@ export default function ShopScreen() {
   // Today's items only, in the order the server picked them
   const prices = Object.fromEntries(shop.items.map((i) => [i.id, i.price]));
   const forSale = shop.items
-    .map((s) => ALL_ENTRIES.find((e) => e.id === s.id))
-    .filter((e): e is Entry => e !== undefined);
+    .map((s) => findShopEntry(s.id))
+    .filter((e): e is ShopEntry => e !== undefined);
 
   function buy(itemId: string, label: string, price: number) {
     Alert.alert('Buy item?', `${label} for ${price.toLocaleString()} coins`, [
@@ -187,8 +160,8 @@ export default function ShopScreen() {
     return (
       <Screen title="Shop" inTabs={false}>
         <GroundText>
-          Earn 150 coins for every day you reach your coin target (7,000 to 10,000 steps, different
-          each day), then spend them on clothes for your character.
+          Reach your daily goal (7,000 to 10,000 steps, different each day) for a daily roll: a new
+          item or coins. Spend coins here on clothes for your character.
         </GroundText>
         <SharingRequired />
       </Screen>
@@ -207,8 +180,8 @@ export default function ShopScreen() {
       </View>
       <GroundText type="small">
         Your shop is unique to you and changes every day at midnight Pacific time. Refresh it every
-        12 hours for new items and 10 coins. Earn 150 coins for each day you reach your coin target
-        (shown on Today).
+        12 hours for new items and 10 coins. Reach your daily goal (shown on Today) for a daily roll:
+        a new item or coins.
       </GroundText>
 
       {error && (

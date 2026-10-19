@@ -81,6 +81,7 @@ function fakes(sync: (entries: [Date, number][]) => Promise<SyncResult> = async 
     setGoal: record('setGoal'),
     setStreak: record('setStreak'),
     setQuests: record('setQuests'),
+    setRoll: record('setRoll'),
   };
   return { deps, view, calls, tokens, syncStarted: syncStarted.promise };
 }
@@ -92,6 +93,7 @@ test('a refresh for the signed-in account sends its token and shows the answer',
   assert.deepEqual(tokens, ['token-a', 'token-a']);
   assert.ok(calls.includes('alert:Goal reached!'));
   assert.ok(calls.includes('syncQuestSteps'));
+  assert.ok(calls.includes('setRoll:null'), 'a server without the roll: no roll');
   assert.equal(calls.at(-1), 'setLoading:false');
 });
 

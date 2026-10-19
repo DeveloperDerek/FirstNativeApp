@@ -3,18 +3,21 @@ import { AppState } from 'react-native';
 
 import type { MyGoal, MyStreak } from '@/api/goals';
 import { type ReminderState, rescheduleReminders } from '@/reminders/reminders';
+import type { RollState } from '@/roll/roll';
 
 /** What a reminder needs to know, from the steps and goal the app has now. */
 export function reminderState(
   today: number | null,
   goal: MyGoal | null,
-  streak: MyStreak | null
+  streak: MyStreak | null,
+  roll: RollState = null
 ): ReminderState {
   const goalToday = goal?.today ?? (streak?.sharing ? streak.goal_today : null);
   return {
     goalReachedToday: today !== null && goalToday !== null && today >= goalToday,
     // Only a streak the server confirmed, still to be kept going today
     streak: streak?.sharing && !streak.today_done ? streak.current : null,
+    rollWaiting: roll?.state === 'ready',
   };
 }
 
@@ -29,23 +32,25 @@ export function useGoalReminders({
   today,
   goal,
   streak,
+  roll,
 }: {
   userId: string | undefined;
   loading: boolean;
   today: number | null;
   goal: MyGoal | null;
   streak: MyStreak | null;
+  roll: RollState;
 }) {
-  const latest = useRef({ userId, state: reminderState(today, goal, streak) });
+  const latest = useRef({ userId, state: reminderState(today, goal, streak, roll) });
   useEffect(() => {
-    latest.current = { userId, state: reminderState(today, goal, streak) };
-  }, [userId, today, goal, streak]);
+    latest.current = { userId, state: reminderState(today, goal, streak, roll) };
+  }, [userId, today, goal, streak, roll]);
 
   // After each refresh finishes, with what it found
   useEffect(() => {
     if (!userId || loading) return;
-    rescheduleReminders(userId, reminderState(today, goal, streak)).catch(() => {});
-  }, [userId, loading, today, goal, streak]);
+    rescheduleReminders(userId, reminderState(today, goal, streak, roll)).catch(() => {});
+  }, [userId, loading, today, goal, streak, roll]);
 
   // Every open: reminders the phone dropped, or permission given back
   useEffect(() => {

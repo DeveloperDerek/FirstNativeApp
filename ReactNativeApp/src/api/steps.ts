@@ -1,6 +1,7 @@
 import type { MyGoal, MyStreak } from '@/api/goals';
 import type { MyQuest } from '@/api/quests';
 import { pinned, type RequestAuth } from '@/lib/request-auth';
+import type { RollState } from '@/roll/roll';
 import { supabase } from '@/lib/supabase';
 import { dayKey } from '@/storage/stepStore';
 
@@ -11,6 +12,8 @@ export type SyncResult = {
   quests: MyQuest[];
   goal: MyGoal;
   streak: MyStreak;
+  /** Today's daily roll; null while it's off or not sharing, missing from an older server */
+  roll?: RollState;
 };
 
 /**
