@@ -32,7 +32,7 @@ import type { Scenery } from './lighting';
 import { AMBIENT_SPRITES } from './lighting.generated';
 import { Minimap, MINIMAP_H } from './Minimap';
 import { scrollFor } from './minimap-math';
-import { PixelGlyph, STAR } from './pixel-glyph';
+import { glyphSize, PixelGlyph, STAR, textRows } from './pixel-glyph';
 import {
   assignLanes,
   centerFor,
@@ -44,6 +44,7 @@ import {
   roadWidth,
   scaleMax,
   ticksFor,
+  tileIndex,
 } from './scale';
 import { LANDMARK_H, LANDMARK_W, ROAD_BASE, ROAD_H, TILE_H, TILE_W } from './sizes';
 import type { MapTheme } from './themes';
@@ -73,6 +74,12 @@ const LANE_SHIFT = [0, 22, -22];
 // scene is tall enough for them; the extra space at the top is sky.
 const SCENE_H = Math.max(TILE_H, ROAD_H + LANDMARK_H);
 
+// The blank board on the markers (scripts/generate-avatar-sprites.py,
+// milestone), in points from the marker's left and top: centered at x
+// 64, digits from row 41
+const MARKER_BOARD = { cx: 64, top: 41 * 2 };
+const MARKER_INK = '#3a2f28';
+
 const FLAG = require('@/assets/track/flag_goal.png');
 const FLAG_W = 12;
 const FLAG_H = 24;
@@ -81,18 +88,28 @@ const FLAG_POLE_X = 1.5; // pole center within the flag sprite, in sprite pixels
 const FEET_FROM_BOTTOM = 2 * SCALE;
 
 /**
- * Landmarks up to the end of the road. The theme's last landmark (the
- * "far" one at 15,000) repeats every 5,000 after that, so far walkers
- * always have something to reach.
+ * Landmarks up to the end of the road, each with its place in the
+ * lighting's lists (start, mid, goal, far, then the marker) for its
+ * shadow and anchors. Past the last one a numbered marker stands every
+ * 5,000 steps instead, so far walkers always have something to reach
+ * and no building is ever seen twice.
  */
 function landmarksFor(theme: MapTheme, max: number) {
-  const base = theme.landmarks.filter((l) => l.steps <= Math.min(max, 15_000));
-  const far = theme.landmarks.find((l) => l.steps === 15_000);
-  const extra = [];
-  for (let s = 20_000; far && s <= max; s += 5_000) {
-    extra.push({ ...far, steps: s, label: `${far.label} at ${s.toLocaleString()} steps` });
+  const base = theme.landmarks
+    .map((l, index) => ({ ...l, index, text: undefined as string | undefined }))
+    .filter((l) => l.steps <= max);
+  const last = theme.landmarks[theme.landmarks.length - 1].steps;
+  const markers = [];
+  for (let s = last + 5_000; s <= max; s += 5_000) {
+    markers.push({
+      steps: s,
+      label: `Marker at ${s.toLocaleString()} steps`,
+      image: theme.marker,
+      index: theme.landmarks.length,
+      text: `${s / 1000}K`,
+    });
   }
-  return [...base, ...extra];
+  return [...base, ...markers];
 }
 
 function WalkerSprite({
@@ -258,21 +275,20 @@ export function StepTrack({
   // Lit maps keep open ground at both ends of every tile, so each tile
   // starts at a landmark and the landmark stands in that clearing (tiles
   // are 12 points longer than the gap between landmarks; the overlap is
-  // open ground too). Other maps lay tiles end to end.
+  // open ground too). Other maps lay tiles end to end. Past the goal
+  // it's the map's third tile (tileIndex).
   const tiles = scenery
-    ? Array.from({ length: Math.ceil((width - ROAD_PAD) / LANDMARK_EVERY) + 1 }, (_, i) => ({
-        left: ROAD_PAD + (i - 1) * LANDMARK_EVERY,
-        index: (i + 1) % theme.tiles.length,
-      }))
-    : Array.from({ length: Math.ceil(width / TILE_W) }, (_, i) => ({
-        left: i * TILE_W,
-        index: i % theme.tiles.length,
-      }));
+    ? Array.from({ length: Math.ceil((width - ROAD_PAD) / LANDMARK_EVERY) + 1 }, (_, i) => {
+        const left = ROAD_PAD + (i - 1) * LANDMARK_EVERY;
+        return { left, index: tileIndex(left, i + 1) };
+      })
+    : Array.from({ length: Math.ceil(width / TILE_W) }, (_, i) => {
+        const left = i * TILE_W;
+        return { left, index: tileIndex(left, i) };
+      });
   const landmarks = landmarksFor(theme, max).map((l) => ({
     ...l,
     left: centerFor(l.steps) - LANDMARK_W / 2,
-    // Its place in the theme's list (the far one repeats), for its shadow and anchors
-    index: theme.landmarks.findIndex((t) => t.image === l.image),
   }));
 
   return (
@@ -386,6 +402,27 @@ export function StepTrack({
                     resizeMode="stretch"
                     style={[styles.landmark, place]}
                   />
+                );
+              })}
+
+              {/* The step count painted on each marker's board */}
+              {landmarks.map((l) => {
+                if (!l.text) return null;
+                const rows = textRows(l.text);
+                const size = glyphSize(rows);
+                // Centered on the board, on whole art pixels so the digits stay crisp
+                const dx = MARKER_BOARD.cx - Math.round(size.width / 4) * 2;
+                return (
+                  <View
+                    key={`text-${l.steps}`}
+                    style={[
+                      styles.landmark,
+                      { left: l.left + dx, width: size.width, height: LANDMARK_H },
+                    ]}>
+                    <View style={{ position: 'absolute', top: MARKER_BOARD.top }}>
+                      <PixelGlyph rows={rows} outline={MARKER_INK} fill={MARKER_INK} />
+                    </View>
+                  </View>
                 );
               })}
 

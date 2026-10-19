@@ -111,7 +111,7 @@ export default function GroupsScreen() {
 
       <QuestBanners />
 
-      <Section title="Your groups">
+      <Section title="Your groups" first={!error}>
         {groups.length === 0 && (
           <ThemedText type="small" themeColor="textSecondary">
             You are not in any groups yet. Create one or join with an invite code.

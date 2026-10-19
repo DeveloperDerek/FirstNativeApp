@@ -1,7 +1,6 @@
 import { useFocusEffect } from 'expo-router';
-import { HeaderHeightContext } from 'expo-router/react-navigation';
 import { setStatusBarStyle } from 'expo-status-bar';
-import { type ReactNode, useCallback, useContext, useState } from 'react';
+import { type ReactNode, useCallback, useState } from 'react';
 import {
   Image,
   RefreshControl,
@@ -17,7 +16,7 @@ import { ThemedText } from '@/components/themed-text';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useMapTheme } from '@/hooks/use-map-theme';
 import { FrontLayer, SkyLayer, useAmbientClock } from '@/track/ambient';
-import { centerFor, LANDMARK_EVERY, ROAD_PAD } from '@/track/scale';
+import { centerFor, LANDMARK_EVERY, ROAD_PAD, tileIndex } from '@/track/scale';
 import { LANDMARK_H, LANDMARK_W, ROAD_H, TILE_H, TILE_W } from '@/track/sizes';
 
 const SCENE_H = 192; // lit maps: the sky's depth strips start above the tiles
@@ -35,14 +34,14 @@ function SceneryBand({ height }: { height: number }) {
   // them out as Today does, with the start (and any landmark in view)
   // standing in its clearing. Other maps lay tiles end to end.
   const tiles = scenery
-    ? Array.from({ length: Math.ceil((width - ROAD_PAD) / LANDMARK_EVERY) + 1 }, (_, i) => ({
-        left: ROAD_PAD + (i - 1) * LANDMARK_EVERY,
-        index: (i + 1) % theme.tiles.length,
-      }))
-    : Array.from({ length: Math.ceil(width / TILE_W) }, (_, i) => ({
-        left: i * TILE_W,
-        index: i % theme.tiles.length,
-      }));
+    ? Array.from({ length: Math.ceil((width - ROAD_PAD) / LANDMARK_EVERY) + 1 }, (_, i) => {
+        const left = ROAD_PAD + (i - 1) * LANDMARK_EVERY;
+        return { left, index: tileIndex(left, i + 1) };
+      })
+    : Array.from({ length: Math.ceil(width / TILE_W) }, (_, i) => {
+        const left = i * TILE_W;
+        return { left, index: tileIndex(left, i) };
+      });
   const landmarks = scenery
     ? theme.landmarks
         .map((l, index) => ({ ...l, index, left: centerFor(l.steps) - LANDMARK_W / 2 }))
@@ -95,7 +94,10 @@ type ScreenProps = {
   refreshing?: boolean;
   /** Tab screens leave room for the tab bar; pushed screens and modals don't. */
   inTabs?: boolean;
-  /** Under a see-through native header: pads for the header instead of the status bar. */
+  /**
+   * Under a see-through native header: the title sits level with the back
+   * button and clear of it, so the scenery lines up with the tabs'.
+   */
   hasHeader?: boolean;
   /** false = sky header only, no strip of scenery. */
   scenery?: boolean;
@@ -119,8 +121,6 @@ export function Screen({
 }: ScreenProps) {
   const { theme } = useMapTheme();
   const insets = useSafeAreaInsets();
-  // Includes the status bar; undefined outside a navigator with a header
-  const headerHeight = useContext(HeaderHeightContext) ?? insets.top;
 
   // Status bar text that reads on this map's sky while the page is visible
   useFocusEffect(
@@ -148,13 +148,18 @@ export function Screen({
             lastAbove = e.nativeEvent.layout.height;
             setAbove(lastAbove);
           }}
-          style={{ paddingTop: hasHeader ? headerHeight : insets.top }}>
-          {(title || subtitle) && (
-            <View style={styles.header}>
+          style={{ paddingTop: insets.top }}>
+          {/* An empty title (still loading) keeps its line, so nothing jumps */}
+          {(title !== undefined || subtitle) && (
+            <View style={[styles.header, hasHeader && styles.underHeader]}>
               <View style={styles.inner}>
-                {title && (
-                  <ThemedText type="subtitle" accessibilityRole="header" style={skyText}>
-                    {title}
+                {title !== undefined && (
+                  <ThemedText
+                    type="subtitle"
+                    accessibilityRole="header"
+                    numberOfLines={hasHeader ? 1 : undefined}
+                    style={skyText}>
+                    {title || ' '}
                   </ThemedText>
                 )}
                 {subtitle && <ThemedText style={skyText}>{subtitle}</ThemedText>}
@@ -194,6 +199,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.three,
     paddingBottom: Spacing.two,
+  },
+  underHeader: {
+    paddingHorizontal: Spacing.six, // clear of the back button
   },
   band: {
     overflow: 'hidden', // wide tiles past the screen edge

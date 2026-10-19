@@ -7,9 +7,18 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 
 /** Titled rounded card, like the one on the History screen. The title sits on the map's ground. */
-export function Section({ title, children }: { title?: string; children: ReactNode }) {
+export function Section({
+  title,
+  children,
+  first,
+}: {
+  title?: string;
+  children: ReactNode;
+  /** Opens the page: no space above, so it starts level with the other tabs' first item. */
+  first?: boolean;
+}) {
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, first && styles.first]}>
       {title && (
         <GroundText type="code" style={styles.caps}>
           {title}
@@ -57,6 +66,9 @@ const styles = StyleSheet.create({
   wrapper: {
     marginTop: Spacing.three,
     gap: Spacing.two,
+  },
+  first: {
+    marginTop: 0,
   },
   caps: {
     textTransform: 'uppercase',

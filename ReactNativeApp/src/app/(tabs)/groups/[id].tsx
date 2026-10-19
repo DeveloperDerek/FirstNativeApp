@@ -50,6 +50,9 @@ export default function GroupDetailScreen() {
   const [newName, setNewName] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Shown under the name field: the page's error is at the top, out of
+  // view down here
+  const [renameError, setRenameError] = useState<string | null>(null);
 
   // Also moves the quest forward on the server: starts it, ends it, pays it
   const loadQuest = useCallback(async () => {
@@ -113,15 +116,15 @@ export default function GroupDetailScreen() {
     if (!group || !newName.trim() || newName.trim() === group.name) return;
     const check = checkName(newName, 'group');
     if (!check.ok) {
-      setError(nameProblem(check, 'group'));
+      setRenameError(nameProblem(check, 'group'));
       return;
     }
-    setError(null);
+    setRenameError(null);
     try {
       await renameGroup(group.id, check.name);
       await load();
     } catch (e) {
-      setError(errorMessage(e));
+      setRenameError(errorMessage(e));
     }
   }
 
@@ -283,7 +286,19 @@ export default function GroupDetailScreen() {
       {group && isOwner && (
         <Section title="Manage">
           {/* Longer than 15: emoji count as one name character but more here */}
-          <TextField value={newName} onChangeText={setNewName} maxLength={40} />
+          <TextField
+            value={newName}
+            onChangeText={(t) => {
+              setNewName(t);
+              setRenameError(null);
+            }}
+            maxLength={40}
+          />
+          {renameError && (
+            <ThemedText type="small" themeColor="danger" accessibilityRole="alert">
+              {renameError}
+            </ThemedText>
+          )}
           <Button
             title="Rename"
             variant="secondary"

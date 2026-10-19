@@ -6,12 +6,16 @@ import {
   type ActivityLine,
   appendPage,
   hasNew,
+  lineKey,
   nextCursor,
   showable,
+  withKudosGiven,
+  withoutKudosGiven,
   withoutPerson,
 } from '@/activity/activity';
-import { friendsActivity } from '@/api/activity';
+import { friendsActivity, giveKudos } from '@/api/activity';
 import { errorMessage } from '@/lib/error-message';
+import { boardItemName } from '@/lib/shop-entries';
 
 // Not again within this long when the view opens or the app comes back
 // (pull-to-refresh always asks)
@@ -65,7 +69,7 @@ export function useFriendsActivity(userId: string, active: boolean) {
       return friendsActivity()
         .then((page) => {
           if (ticket !== latest.current) return;
-          const first = showable(page);
+          const first = showable(page, boardItemName);
           setLoaded((b) => {
             const mine = b && b.userId === userId ? b : null;
             const base = { userId, error: null, updatedAt: Date.now() };
@@ -108,7 +112,7 @@ export function useFriendsActivity(userId: string, active: boolean) {
           b && b.userId === userId
             ? {
                 ...b,
-                lines: appendPage(b.lines, showable(page)),
+                lines: appendPage(b.lines, showable(page, boardItemName)),
                 pages: b.pages + 1,
                 cursor: nextCursor(page),
                 error: null,
@@ -127,7 +131,7 @@ export function useFriendsActivity(userId: string, active: boolean) {
   const showNew = useCallback(() => {
     setLoaded((b) =>
       b?.fresh
-        ? { ...b, lines: showable(b.fresh), pages: 1, cursor: nextCursor(b.fresh), fresh: null }
+        ? { ...b, lines: showable(b.fresh, boardItemName), pages: 1, cursor: nextCursor(b.fresh), fresh: null }
         : b
     );
   }, []);
@@ -140,6 +144,41 @@ export function useFriendsActivity(userId: string, active: boolean) {
         : b
     );
   }, []);
+
+  /** Changes the lines on screen (and a waiting fresh page), for this account only. */
+  const editLines = useCallback(
+    (edit: (lines: ActivityLine[]) => ActivityLine[]) => {
+      setLoaded((b) =>
+        b && b.userId === userId ? { ...b, lines: edit(b.lines), fresh: b.fresh && edit(b.fresh) } : b
+      );
+    },
+    [userId]
+  );
+
+  /**
+   * Kudos on a friend's line (step-tracker-kudos.txt): counted up at once,
+   * then the server's count; back as it was if it fails. True if it worked.
+   */
+  const giveKudosOn = useCallback(
+    async (line: ActivityLine) => {
+      const key = lineKey(line);
+      editLines((lines) => withKudosGiven(lines, key));
+      try {
+        const count = await giveKudos(line);
+        editLines((lines) => withKudosGiven(lines, key, count));
+        return true;
+      } catch {
+        editLines((lines) => withoutKudosGiven(lines, key));
+        return false;
+      }
+    },
+    [editLines]
+  );
+
+  /** The server confirmed the "New kudos" list was seen: the dots go. */
+  const clearNewKudos = useCallback(() => {
+    editLines((lines) => lines.map((l) => (l.new_kudos ? { ...l, new_kudos: 0 } : l)));
+  }, [editLines]);
 
   useEffect(() => {
     if (!active) return;
@@ -162,5 +201,7 @@ export function useFriendsActivity(userId: string, active: boolean) {
     loadOlder,
     showNew,
     dropPerson,
+    giveKudos: giveKudosOn,
+    clearNewKudos,
   };
 }

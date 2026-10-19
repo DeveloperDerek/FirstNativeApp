@@ -1,4 +1,12 @@
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Alert, AppState } from 'react-native';
 
 import { listOwnedItems } from '@/api/coins';
@@ -56,11 +64,15 @@ export function MapThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userId) return;
     let alive = true;
-    loadMyItems(userId).catch(() => {}); // the editor loads them itself if this fails
-    preloadItemIcons().catch(() => {}); // likewise each icon loads its own
-    listOwnedItems()
+    // The editor's lists include what's owned, so the maps unlock from the
+    // same read. If they fail (the editor loads them itself), owned is
+    // read on its own so maps still unlock.
+    loadMyItems(userId)
+      .then((items) => new Set(items.owned))
+      .catch(() => listOwnedItems())
       .then((ids) => alive && setOwned({ userId, ids }))
       .catch(() => {});
+    preloadItemIcons().catch(() => {}); // each icon loads its own if this fails
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') refreshOwned();
     });
@@ -80,9 +92,22 @@ export function MapThemeProvider({ children }: { children: ReactNode }) {
   const phase = useDayPhase();
   const theme = lightTheme(getTheme(pending ?? profile?.map_theme), phase);
 
+  // Dev only: how long a map pick takes to reach the screen, from the tap
+  // to the first frame after every page has redrawn (Metro log)
+  const pickedAt = useRef<number | null>(null);
+  useEffect(() => {
+    const start = pickedAt.current;
+    if (!__DEV__ || start === null) return;
+    pickedAt.current = null;
+    requestAnimationFrame(() => {
+      console.log(`[map theme] ${theme.id} on screen in ${Math.round(performance.now() - start)} ms`);
+    });
+  }, [theme.id]);
+
   const pickTheme = useCallback(
     async (id: string) => {
       if (!userId || id === theme.id) return;
+      if (__DEV__) pickedAt.current = performance.now();
       setPending(id); // every page switches now
       try {
         await saveMapTheme(userId, id);

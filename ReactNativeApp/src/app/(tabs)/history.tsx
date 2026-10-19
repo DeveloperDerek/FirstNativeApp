@@ -171,10 +171,7 @@ export default function HistoryScreen() {
               label={h.stats.best ? `Best day · ${short(h.stats.best.day)}` : 'Best day'}
               value={h.stats.best ? h.stats.best.steps.toLocaleString() : '--'}
             />
-            <Stat
-              label="Days at goal"
-              value={`${h.stats.daysAtGoal} of ${h.stats.daysWithData}`}
-            />
+            <Stat label="Days at goal" value={String(h.stats.daysAtGoal)} />
           </View>
           {missing > 0 &&
             (sharing ? (

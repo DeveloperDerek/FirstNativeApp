@@ -37,7 +37,7 @@ Builds on what the app already has:
 ======================================================================
 
   - Every friend's line on Friends > Activity gets a small kudos
-    button (a pixel-art clap, KUD-2) with a count next to it.
+    button (a pixel-art party popper, KUD-2) with a count next to it.
   - Tap it to give kudos. One per person per line: the button fills
     in and the count goes up by one. Tapping again does nothing
     (KUD-3: kudos can't be taken back).
@@ -100,7 +100,7 @@ Builds on what the app already has:
     line_kudos. Each person sees kudos on the lines their own board
     shows.
   - Around midnight a line can leave the window between loading the
-    board and tapping the clap (the phone's date moved on). The
+    board and tapping the button (the phone's date moved on). The
     server then refuses with BAD_DAY or NO_SUCH_LINE as it would for
     any out-of-range day; the app puts the button back and reloads.
 
@@ -234,13 +234,19 @@ Builds on what the app already has:
 ======================================================================
 
   A FRIEND'S LINE
-    [head] Sam                                       [badge]
+    [head] Sam                               [badge]  (popper 4)
            reached their goal · unlocked first 10k
-           Yesterday                             [clap] 4
+           Yesterday
 
-  - The clap is an outline when you haven't given kudos, filled in
-    (gold) when you have. The count is hidden at 0.
-  - The clap has its own touch area (at least 44 points), apart from
+  - The kudos button is at the end of the line, beside it rather than inside
+    it: the line is a button that opens the card, and a screen reader
+    can't reach a button inside a labelled button.
+
+  - A rounded pill, like a soundboard button, holding the popper and
+    the count in pixel digits (the road markers' 3 x 5 font, at 3
+    points a pixel, so it reads at the size of the line's text). The popper is light when you haven't given kudos, gold
+    (on a faint gold pill) when you have. The count is hidden at 0.
+  - The pill has its own touch area (at least 44 points), apart from
     the line, which still opens the player card.
   - Tap: fills in and counts up straight away; a small one-time
     "pop" (two frames, pixel art, no system emoji). If the server
@@ -249,9 +255,9 @@ Builds on what the app already has:
   - Already given: the button is filled and does nothing on tap.
 
   YOUR OWN LINE
-    [head] You                                       [badge]
+    [head] You                               [badge]  (popper 4) •
            reached your goal · +150 coins
-           Yesterday                          [clap] 4 •
+           Yesterday
 
   - No button to give; the count (with a dot when new) opens "Kudos
     for Thu, Oct 16": the list of givers (section 3).
@@ -280,16 +286,17 @@ Builds on what the app already has:
     cleared.
 
   ACCESSIBILITY
-  - The clap reads "Give Sam kudos, 4 so far" / "You gave Sam kudos,
+  - The button reads "Give Sam kudos, 4 so far" / "You gave Sam kudos,
     4 in all". Your own: "4 kudos, 1 new, opens who gave them".
   - Each line still reads as one sentence; the kudos part comes at
     the end: "Sam, reached their goal, yesterday, 4 kudos."
   - The tab dot reads as "Friends, new kudos".
 
   ART (PIXEL ART, PER THE MAP DIRECTION)
-  - kudos_clap and kudos_clap_filled, and a two-frame pop, drawn in
-    scripts/generate-avatar-sprites.py beside badge_goal, at the
-    same pixel scale as the badges.
+  - kudos (light) and kudos_given (gold), 20 x 20 (40 points), and two frames of
+    confetti (kudos_pop_1 / _2), drawn by kudos_poppers in
+    scripts/generate-avatar-sprites.py beside badge_goal. Original
+    pixel art after a soundboard-style party popper, not a copy.
 
 ======================================================================
 6. ORDER, LOADING AND OLD APPS
@@ -340,8 +347,9 @@ Builds on what the app already has:
     my_today - 29 <= p_day <= my_today + 1 (BAD_DAY otherwise; the
     window in section 2). Then "insert ... on conflict do nothing", so
     a double tap or two phones give one kudos. Returns the line's new
-    count. Errors: NOT_SIGNED_IN, ACCOUNT_NOT_ACTIVE,
-    SHARING_REQUIRED, CANT_SEE, NO_SUCH_LINE, BAD_DAY, SELF.
+    count. Errors: 'Not signed in' (as the other functions say it),
+    ACCOUNT_NOT_ACTIVE, SHARING_REQUIRED, CANT_SEE, NO_SUCH_LINE,
+    BAD_DAY, SELF.
   - line_kudos(p_day date, my_today date): the givers on YOUR line
     for that day (id, display name, avatar, created_at), filtered as
     in section 3. my_today checked and p_day inside the window
@@ -368,11 +376,21 @@ Builds on what the app already has:
     day).)
   - friends_activity(): replaced, same arguments, adds kudos,
     my_kudos and new_kudos (section 6).
-  - notification_counts_for() / notification_counts(): add
-    new_kudos (0 for an account that isn't active or isn't sharing,
-    like friend_requests). The push code keeps reading only
-    friend_requests and quest_votes, so the app icon number is
-    unchanged.
+  - notification_counts(my_today date default null): new_kudos needs
+    the phone's date for the window, so the counts take it now. Both
+    the count and new_kudos() read one internal query
+    (new_kudos_rows), so the tab dot can never show with an empty
+    list. Without my_today (an app from before kudos) the answer is
+    exactly as before, with no new_kudos key; new_kudos is 0 for an
+    account that isn't active or isn't sharing, and for a my_today
+    that isn't today anywhere (the counts never fail over it).
+    notification_counts_for() is unchanged, so the pushes and the app
+    icon number are too. An app with kudos talking to a server without
+    them gets PGRST202 for the date and asks again the old way.
+  - Internal (not callable from the app): kudos_counts(giver, owner),
+    the KUD-5 rule for two people (can_see only knows the caller);
+    activity_line_exists(person, day), the board's line rule; and
+    new_kudos_rows(person, my_today).
   - All: security definer, set search_path = '', revoke from public,
     anon, authenticated, execute granted to authenticated only.
 
@@ -473,10 +491,13 @@ Builds on what the app already has:
     Why:  it's what the request calls it, and one word fits the line.
     Other: "Cheer" (the activity board's earlier word).
 
-  KUD-2  Icon: a pixel-art clap (two hands), outline and gold.
+  KUD-2  Icon: a pixel-art party popper (a cone with rays bursting
+    from its mouth) in a rounded pill; light, then gold once given.
+    Changed October 2026 from a clap (two hands), at the person's
+    request, after a soundboard-style button.
     Why:  a heart reads as "like" and a thumbs-up as "approve"; a
-    clap reads as "well done", which is what a goal day earns.
-    Other: a high-five, a star, a flame.
+    popper reads as "celebrate", which is what a goal day earns.
+    Other: a clap, a high-five, a star, a flame.
 
   KUD-3  One per person per line, and it can't be taken back.
     Why:  simple, and no "they took it back" surprises. The cost is
@@ -617,7 +638,7 @@ Builds on what the app already has:
   - The daily job removes rows older than 35 days and nothing newer.
 
   APP (npm test)
-  - The clap's states (none, given, own line, new dot) and labels.
+  - The button's states (none, given, own line, new dot) and labels.
   - Giving: the +1 straight away, going back on an error, keeping the
     +1 until the next load, and a load replacing it.
   - The tab shows a number for requests, a dot for kudos only, and
@@ -644,8 +665,8 @@ Builds on what the app already has:
     dot; accept it, the dot shows.
   - Block from the card: the kudos goes from the count after a
     refresh.
-  - Airplane mode: the clap goes back to the outline with the message.
-  - VoiceOver reads the clap, the line and the tab dot as in
+  - Airplane mode: the popper goes back to light with the message.
+  - VoiceOver reads the button, the line and the tab dot as in
     section 5.
   - Android emulator: the same.
 
@@ -656,22 +677,22 @@ Builds on what the app already has:
     [x] KUD-1 to KUD-13 decided (October 2026), in
         step-tracker-decisions.txt, section 15
     [x] Activity board blueprint updated (section 12)
-    [ ] Art: kudos_clap, kudos_clap_filled and the pop, in
+    [x] Art: kudos, kudos_given and kudos_pop_1 / _2 (a party
+        popper, 20 x 20, assets/badges), drawn by kudos_poppers in
         generate-avatar-sprites.py
-    [ ] Migration: kudos table, notification_settings.kudos_seen_at,
-        give_kudos, line_kudos, new_kudos, mark_kudos_seen(up_to),
-        friends_activity and
-        notification_counts replaced, the daily cleanup job; tests in
-        supabase/tests/database/kudos.test.sql
-    [ ] App: kudos fields in src/activity/activity.ts (with tests),
-        giveKudos / lineKudos / markKudosSeen in src/api/activity.ts,
-        the clap and the "new kudos" bar in
-        src/components/activity-list.tsx, the giver list sheet, the
-        "New kudos" list (marks seen only once shown), the +1
-        handling in src/hooks/use-friends-activity.ts
-    [ ] App: new_kudos in src/hooks/use-notification-counts.tsx, the
-        dot on the Friends tab (src/components/app-tabs.tsx) and on
-        the Activity button
+    [x] Migration (written, passing locally, not yet deployed):
+        supabase/migrations/20261122000000_kudos.sql; tests in
+        supabase/tests/database/kudos.test.sql (51)
+    [x] App (written, not yet run on a phone): the kudos fields and
+        words in src/activity/activity.ts (tested), the calls in
+        src/api/activity.ts, the button (src/components/kudos-button.tsx)
+        and "N new kudos" bar in src/components/activity-list.tsx, the
+        "New kudos" and giver lists (src/components/kudos-sheet.tsx),
+        marking seen with retries (src/hooks/use-new-kudos.ts), the +1
+        in src/hooks/use-friends-activity.ts
+    [x] App: new_kudos in the counts (src/api/notifications.ts), the
+        Friends tab dot (friendsBadge in src/lib/badge-text.ts, tested)
+        and the Activity button's dot (PillPicker)
     [ ] Deploy the migration before the build ships (or either order,
         section 6)
     [ ] Device tests, iPhone and Android emulator

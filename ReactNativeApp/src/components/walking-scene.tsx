@@ -283,7 +283,9 @@ function useWalker({
  * by on its own stretch of street, then the whole trip starts over.
  */
 function Scenery({ theme, cam }: { theme: MapTheme; cam: SharedValue<number> }) {
-  const stretch = theme.tiles.length * TILE_W; // one landmark per stretch
+  // The street before the goal; the third tile is only for past it
+  const street = theme.tiles.slice(0, 2);
+  const stretch = street.length * TILE_W; // one landmark per stretch
   const stretches = Math.max(1, theme.landmarks.length);
   const lap = stretches * stretch;
 
@@ -293,7 +295,7 @@ function Scenery({ theme, cam }: { theme: MapTheme; cam: SharedValue<number> }) 
     transform: [{ translateX: -((((cam.get() % lap) + lap) % lap) | 0) }],
   }));
 
-  const tiles = Array.from({ length: 2 * stretches * theme.tiles.length }, (_, i) => theme.tiles[i % theme.tiles.length]);
+  const tiles = Array.from({ length: 2 * stretches * street.length }, (_, i) => street[i % street.length]);
   const landmarks = [...theme.landmarks, ...theme.landmarks];
 
   return (

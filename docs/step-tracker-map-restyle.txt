@@ -9,6 +9,27 @@ anything in it; it is read back before anything is built. The village
 version is done (commit 3b17665, branch updates-2026-10-15) and is the
 pattern for everything below.
 
+Status: built for all eight maps (commit 770e6ff), as marked up below.
+The art is made by scripts/generate-map-lighting.py, which writes
+src/track/lighting.generated.ts; each map's movements by time of day
+are listed in src/track/ambient.tsx (MOVEMENTS). Changed after this
+was written (October 2026):
+  - The sky runs up behind the header on every tab, not just Today
+    (src/components/ui/screen.tsx), with stars, sunbeams, snow and
+    rain carrying on behind the page title; the group screen's header
+    is see-through so there is no flat band.
+  - On the open-sky maps (village, forest, city, beach, mountain,
+    neon) a few clouds drift behind the header: white by day, peach
+    at sunset, faint at night.
+  - Neon City: rooftop billboards, neon trim over the shopfronts, a
+    few TV-lit windows, the signs' colors reflected on the wet road at
+    night and a pink city glow low in the night sky. Rain is a light
+    drizzle.
+  - Space: half as many stars baked into the sky picture; every second
+    one twinkles.
+  - The sun, moon and Earth sit about 10% higher, just under the
+    header's bottom edge.
+
 How to mark it up:
   - Movements (section 3): change [KEEP] to [CUT] or [CHANGE: ...] on
     any line, or add lines for movements you want that aren't listed.
@@ -42,7 +63,8 @@ scratch.
     day, with text contrast checked at 4.5:1 or better.
 
 Movement runs off one shared clock at 12 frames a second. It pauses
-when you leave the Today tab and stops entirely under Reduce Motion.
+when its page is out of view (Today, or any tab with the sky behind
+its header) and stops entirely under Reduce Motion.
 
 ======================================================================
 2. EACH MAP'S LOOK
@@ -213,6 +235,8 @@ meaning there.
     Recommendation: some nights only, so it feels like weather.
     Other option:   every night.
     Your pick: Recommendation
+    (Built: about 4 nights in 10, picked from the date, so it is the
+    same for everyone that night.)
 
 4f. Previews: two maps per preview (as in section 5), or all eight
     previews at once?

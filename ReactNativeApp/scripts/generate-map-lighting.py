@@ -6,8 +6,10 @@ Takes each map's art from generate-avatar-sprites.py and writes a lit copy
 of it for each part of the day (day, sunset, night) into
 assets/maps/<map>/<phase>/:
 
-  tile_a, tile_b      the street, relit, with shadows cast on the road
+  tile_a ... tile_c  the street, relit, with shadows cast on the road
+                      (tile_c is the street past the 10,000-step goal)
   start ... far       the landmarks, relit
+  marker              the post in each clearing past the far landmark
   *_shadow            each landmark's shadow on the road (drawn under it)
   *_b                 a second frame where part of the art moves (swaying
                       pines, waves, torches, signs, a waterfall...)
@@ -66,7 +68,12 @@ SKY_FULL_H = SKY_ABOVE + SKY_H
 DEPTH_H = 40
 SCALES = ((2, ''), (4, '@2x'), (6, '@3x'))  # 2 points per art pixel, like the maps
 PHASE_NAMES = ('day', 'sunset', 'night')
-LANDMARK_NAMES = ('start', 'mid', 'goal', 'far')
+# marker: the numbered post past the far landmark (StepTrack, landmarksFor)
+LANDMARK_NAMES = ('start', 'mid', 'goal', 'far', 'marker')
+# The road: tile_a and tile_b take turns up to the goal, then tile_c
+# repeats (src/track/scale.ts, tileIndex). Which tiles meet at a seam:
+TILE_NAMES = ('tile_a', 'tile_b', 'tile_c')
+TILE_NEIGHBORS = ((1,), (0, 2), (1, 2))
 
 
 # ---------------------------------------------------------------- colors
@@ -692,7 +699,7 @@ def build_theme(key, cfg):
         frames_cfg = cfg.get('tile_frames')
         frame_on = bool(frames_cfg) and ph in frames_cfg['phases']
         tiles = []
-        for i, name in enumerate(('tile_a', 'tile_b')):
+        for i, name in enumerate(TILE_NAMES):
             px, base, chimneys = draw(makers[i], cfg['outline'])
             all_chimneys[name] = chimneys + cfg.get('vents', {}).get(name, [])
             all_windows[name] = [rect_of(c) for color in cfg.get('flicker', []) for c in components(px, hexc(color))]
@@ -706,8 +713,9 @@ def build_theme(key, cfg):
                        for _, base, frames in tiles]
         for i, (name, base, frames) in enumerate(tiles):
             shade_at = cast(silhouettes[i], p, ROAD_TOP, stand - 2)
-            other = cast(silhouettes[1 - i], p, ROAD_TOP, stand - 2)
-            shade_at |= {(x - TILE_W, y) for x, y in other} | {(x + TILE_W, y) for x, y in other}
+            for j in TILE_NEIGHBORS[i]:  # shadows reaching over the seams
+                other = cast(silhouettes[j], p, ROAD_TOP, stand - 2)
+                shade_at |= {(x - TILE_W, y) for x, y in other} | {(x + TILE_W, y) for x, y in other}
             for k, fpx in enumerate(frames):
                 lit = light_image(fpx, recolor(base), outline, p, lights, share, salt=i * 13)
                 for q in shade_at:
@@ -719,7 +727,7 @@ def build_theme(key, cfg):
         # ---- landmarks, their shadows, and frame B where they have one
         road = road_colors(tiles[0][2][0])
         shadows, lframes = {}, {}
-        for i, (name, make) in enumerate(zip(LANDMARK_NAMES, makers[2:])):
+        for i, (name, make) in enumerate(zip(LANDMARK_NAMES, makers[len(TILE_NAMES):])):
             px, _, chimneys = draw(make, cfg['outline'])
             all_chimneys[name] = chimneys + cfg.get('landmark_vents', {}).get(name, [])
             all_windows[name] = [rect_of(c) for color in cfg.get('flicker', []) for c in components(px, hexc(color))]
@@ -783,9 +791,9 @@ def build_theme(key, cfg):
             'landmarkFrames': [lframes.get(n) for n in LANDMARK_NAMES],
         }
 
-    entry['chimneys'] = [all_chimneys[n] for n in ('tile_a', 'tile_b')]
+    entry['chimneys'] = [all_chimneys[n] for n in TILE_NAMES]
     entry['landmarkChimneys'] = [all_chimneys[n] for n in LANDMARK_NAMES]
-    entry['windows'] = [all_windows[n] for n in ('tile_a', 'tile_b')]
+    entry['windows'] = [all_windows[n] for n in TILE_NAMES]
     entry['landmarkWindows'] = [all_windows[n] for n in LANDMARK_NAMES]
     entry['depthTop'] = cfg.get('depth_top', SKY_H - DEPTH_H)
     entry['horizon'] = cfg.get('horizon')
@@ -1022,8 +1030,9 @@ h = to_hex
 
 THEMES = {
     'village': dict(
-        makers=(gen.village_tile_a, gen.village_tile_b, gen.landmark_gate, gen.landmark_bakery,
-                gen.landmark_townhall, gen.landmark_windmill),
+        makers=(gen.village_tile_a, gen.village_tile_b, gen.village_tile_c,
+                gen.landmark_gate, gen.landmark_bakery, gen.landmark_townhall, gen.landmark_windmill,
+                gen.village_marker),
         outline='#6b5a50', depth_style='hills',
         lights={'night': {h(V['window']): '#ffd77a', h(V['light']): None}},
         flicker=[h(V['window'])], window_lit='#ffd77a',
@@ -1040,8 +1049,8 @@ THEMES = {
         ),
     ),
     'forest': dict(
-        makers=(gen.forest_tile_a, gen.forest_tile_b, gen.forest_start, gen.forest_mid,
-                gen.forest_goal, gen.forest_far),
+        makers=(gen.forest_tile_a, gen.forest_tile_b, gen.forest_tile_c,
+                gen.forest_start, gen.forest_mid, gen.forest_goal, gen.forest_far, gen.forest_marker),
         outline='#2f3f25', depth_style='pines',
         tile_frames=dict(phases=PHASE_NAMES, mode='sway', rate=1.5, swaps={'pine': leaning_pine}),
         landmark_frames={'far': dict(phases=PHASE_NAMES, mode='sway', rate=5),
@@ -1061,7 +1070,8 @@ THEMES = {
         ),
     ),
     'city': dict(
-        makers=(gen.city_tile_a, gen.city_tile_b, gen.city_start, gen.city_mid, gen.city_goal, gen.city_far),
+        makers=(gen.city_tile_a, gen.city_tile_b, gen.city_tile_c,
+                gen.city_start, gen.city_mid, gen.city_goal, gen.city_far, gen.city_marker),
         outline='#353a44', depth_style='skyline', stand=gen.CITY_GROUND + 1,
         lights={'sunset': {h(CI['window']): '#ffe08a'},
                 'night': {h(CI['window']): '#ffe08a', h(CI['light']): None}},
@@ -1082,7 +1092,8 @@ THEMES = {
         ),
     ),
     'beach': dict(
-        makers=(gen.beach_tile_a, gen.beach_tile_b, gen.beach_start, gen.beach_mid, gen.beach_goal, gen.beach_far),
+        makers=(gen.beach_tile_a, gen.beach_tile_b, gen.beach_tile_c,
+                gen.beach_start, gen.beach_mid, gen.beach_goal, gen.beach_far, gen.beach_marker),
         outline='#7a6a4a', depth_style='islands', horizon=41,
         tile_frames=dict(phases=PHASE_NAMES, mode='sway', rate=0.8,
                          swaps={'beach_base': rolling_beach, 'umbrella': fluttering_umbrella}),
@@ -1103,8 +1114,9 @@ THEMES = {
         ),
     ),
     'mountain': dict(
-        makers=(gen.mountain_tile_a, gen.mountain_tile_b, gen.mountain_start, gen.mountain_mid,
-                gen.mountain_goal, gen.mountain_far),
+        makers=(gen.mountain_tile_a, gen.mountain_tile_b, gen.mountain_tile_c,
+                gen.mountain_start, gen.mountain_mid, gen.mountain_goal, gen.mountain_far,
+                gen.mountain_marker),
         outline='#3f4250', depth_style='range',
         landmark_frames={'goal': dict(phases=PHASE_NAMES, mode='sway', rate=2.5)},
         extras={'goal': [flag_wave]},
@@ -1123,8 +1135,8 @@ THEMES = {
         ),
     ),
     'dungeon': dict(
-        makers=(gen.dungeon_tile_a, gen.dungeon_tile_b, gen.dungeon_start, gen.dungeon_mid,
-                gen.dungeon_goal, gen.dungeon_far),
+        makers=(gen.dungeon_tile_a, gen.dungeon_tile_b, gen.dungeon_tile_c,
+                gen.dungeon_start, gen.dungeon_mid, gen.dungeon_goal, gen.dungeon_far, gen.dungeon_marker),
         outline='#1e1a26', depth_style='arches', sky_style='ceiling', depth_top=-4,
         tile_frames=dict(phases=PHASE_NAMES, mode='sway', rate=4, swaps={'torch': flickering_torch}),
         landmark_frames={'start': dict(phases=PHASE_NAMES, mode='sway', rate=4, swaps={'torch': flickering_torch}),
@@ -1150,7 +1162,8 @@ THEMES = {
         ),
     ),
     'space': dict(
-        makers=(gen.space_tile_a, gen.space_tile_b, gen.space_start, gen.space_mid, gen.space_goal, gen.space_far),
+        makers=(gen.space_tile_a, gen.space_tile_b, gen.space_tile_c,
+                gen.space_start, gen.space_mid, gen.space_goal, gen.space_far, gen.space_marker),
         outline='#2a2f4a', depth_style='ridges', sky_style='space', shadow_from=30,
         tile_frames=dict(phases=PHASE_NAMES, mode='pulse', rate=1, swaps={'antenna': dark_antenna}),
         landmark_frames={'goal': dict(phases=PHASE_NAMES, mode='pulse', rate=1),
@@ -1176,7 +1189,8 @@ THEMES = {
         ),
     ),
     'ocean': dict(
-        makers=(gen.ocean_tile_a, gen.ocean_tile_b, gen.ocean_start, gen.ocean_mid, gen.ocean_goal, gen.ocean_far),
+        makers=(gen.ocean_tile_a, gen.ocean_tile_b, gen.ocean_tile_c,
+                gen.ocean_start, gen.ocean_mid, gen.ocean_goal, gen.ocean_far, gen.ocean_marker),
         outline='#1f4a66', depth_style='shelves', sky_style='water',
         tile_frames=dict(phases=PHASE_NAMES, mode='sway', rate=1.2, swaps={'kelp': swaying_kelp}),
         lights={'night': {h(OC['glass']): '#ffe08a', '#f8d0d6': '#ff9ad0', h(OC['pearl']): None}},
@@ -1195,14 +1209,15 @@ THEMES = {
         ),
     ),
     'neon': dict(
-        makers=(gen.neon_tile_a, gen.neon_tile_b, gen.neon_start, gen.neon_mid, gen.neon_goal, gen.neon_far),
+        makers=(gen.neon_tile_a, gen.neon_tile_b, gen.neon_tile_c,
+                gen.neon_start, gen.neon_mid, gen.neon_goal, gen.neon_far, gen.neon_marker),
         outline='#1c1828', depth_style='skyline', stand=gen.NEON_GROUND + 1,
         tile_frames=dict(phases=('sunset', 'night'), mode='flicker', rate=1, swaps={'neon_sign': dark_sign}),
         landmark_frames={'goal': dict(phases=('sunset', 'night'), mode='flicker', rate=1,
                                       swaps={'neon_sign': dark_sign}),
                          'far': dict(phases=PHASE_NAMES, mode='pulse', rate=1)},
         extras={'far': [crane_light]},
-        vents={'tile_a': [[88, 49]], 'tile_b': [[147, 49]]},
+        vents={'tile_a': [[88, 49]], 'tile_b': [[147, 49]], 'tile_c': [[82, 49]]},
         smoke='#c8c0d8',
         swaps={'day': {h(NE['pink']): '#5a5068', h(NE['cyan']): '#4e5a68', h(NE['lime']): '#58604e',
                        h(NE['lit']): '#8a8ea0', h(NE['tv']): '#8a8ea0', h(NE['far_lit']): h(NE['far']),
@@ -1414,8 +1429,8 @@ def ts_table(entries, sprites):
                 f"        sky: '{v['sky']}', skyInk: '{v['skyInk']}', statusBar: '{v['statusBar']}',",
                 f"        ground: '{v['ground']}', ink: '{v['ink']}', shadowColor: '{v['shadowColor']}',",
                 f"        smokeColor: '{v['smokeColor']}', windowAlt: '{v['windowAlt']}',",
-                f"        tiles: [{req('tile_a')}, {req('tile_b')}],",
-                (f"        tileFrames: {{ sources: [{req('tile_a_b')}, {req('tile_b_b')}], "
+                f"        tiles: [{', '.join(req(n) for n in TILE_NAMES)}],",
+                (f"        tileFrames: {{ sources: [{', '.join(req(n + '_b') for n in TILE_NAMES)}], "
                  f"mode: '{frames['mode']}', rate: {frames['rate']} }}," if frames else '        tileFrames: null,'),
                 f"        landmarks: [{', '.join(req(n) for n in LANDMARK_NAMES)}],",
                 '        landmarkFrames: [' + ', '.join(

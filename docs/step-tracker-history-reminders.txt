@@ -329,8 +329,8 @@ suggested order.
 
   WHEN SOMETHING GETS IN THE WAY
   - Permission refused when turning reminders on: the switch stays
-    off, and Profile > Reminders says "Notifications are off for this
-    app" with a button to the phone's Settings.
+    off, and Profile > Reminders says "Notifications are off for
+    StepTracker" with a button to the phone's Settings.
   - Permission taken away later in Settings: each time the app opens it
     checks the permission before scheduling. If it is gone, nothing is
     scheduled and Profile > Reminders shows the same line and button.

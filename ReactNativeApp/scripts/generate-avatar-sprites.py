@@ -1710,6 +1710,67 @@ def badge_goal():
     save_badge(layer, 'badge_goal')
 
 
+def kudos_poppers():
+    """The kudos button (step-tracker-kudos.txt): a party popper, 20 x 20,
+    its tip bottom left, the open mouth top right with rays bursting out.
+    kudos is the light look (not given yet), kudos_given the gold one, and
+    kudos_pop_1 / _2 the two frames of confetti when you give one. The
+    shape is measured on a 16 grid and scaled by k."""
+    n = 20
+    k = n / 16
+
+    def inside(test):
+        return {(x, y) for x in range(n) for y in range(n) if test(x + 0.5, y + 0.5)}
+
+    def oval(cx, cy, a, b, ang):
+        ca, sa = math.cos(ang), math.sin(ang)
+        return inside(lambda x, y: (((x - cx) * ca + (y - cy) * sa) / a) ** 2
+                      + ((-(x - cx) * sa + (y - cy) * ca) / b) ** 2 <= 1)
+
+    def cone(tip, mouth, r0, r1):
+        (ax, ay), (bx, by) = tip, mouth
+        dx, dy = bx - ax, by - ay
+
+        def test(x, y):
+            t = ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)
+            r = r0 + (r1 - r0) * t
+            return 0 <= t <= 1 and (x - ax - t * dx) ** 2 + (y - ay - t * dy) ** 2 <= r * r
+        return inside(test)
+
+    def ray(deg, r0, r1):
+        a = math.radians(deg)
+        cx, cy = mouth[0] - 0.5, mouth[1] - 0.5
+        steps = max(1, round(r1 - r0))
+        return {(round(cx + (r0 + (r1 - r0) * i / steps) * math.cos(a)),
+                 round(cy + (r0 + (r1 - r0) * i / steps) * math.sin(a))) for i in range(steps + 1)}
+
+    tip, mouth = (2.0 * k, 14.5 * k), (9.6 * k, 6.6 * k)
+    ang = math.atan2(mouth[1] - tip[1], mouth[0] - tip[0])
+    body = cone(tip, mouth, 0.7 * k, 3.6 * k) | oval(*mouth, 2.5 * k, 4.1 * k, ang)
+    rim = oval(*mouth, 1.8 * k, 3.2 * k, ang)
+    hole = oval(*mouth, 1.0 * k, 2.3 * k, ang)
+    rays = (ray(-105, 5.4 * k, 7.0 * k) | ray(-65, 5.4 * k, 7.2 * k)
+            | ray(-25, 5.4 * k, 7.0 * k) | ray(15, 5.2 * k, 6.6 * k))
+
+    def popper(fill, shade, light, ray_color, confetti=()):
+        layer = Layer((n, n)).part(body, fill, shade, OUTLINE, light)
+        layer.dots(light, rim)
+        layer.dots(OUTLINE, hole)
+        layer.dots(ray_color, rays)
+        for color, points in confetti:
+            layer.dots(color, points)
+        return layer
+
+    gold = (GOLD, GOLD_DARK, hexc('#fff3b0'), hexc('#e8a33c'))
+    red, blue = hexc('#e05a5a'), hexc('#5aa9e0')
+    os.makedirs(BADGES_OUT, exist_ok=True)
+    popper(hexc('#ece6dc'), hexc('#c9c0b4'), hexc('#ffffff'), hexc('#c9c0b4')).save('kudos', folder=BADGES_OUT)
+    popper(*gold).save('kudos_given', folder=BADGES_OUT)
+    popper(*gold, [(red, [(6, 4), (19, 15)]), (blue, [(3, 8), (16, 18)])]).save('kudos_pop_1', folder=BADGES_OUT)
+    popper(*gold, [(red, [(5, 1), (19, 19)]), (blue, [(1, 5), (13, 19)]), (GOLD, [(1, 1), (8, 0)])]).save(
+        'kudos_pop_2', folder=BADGES_OUT)
+
+
 def achievement_rewards():
     shoes_winged('shoes_winged')
     cape_ember('cape_ember')
@@ -1722,6 +1783,7 @@ def achievement_rewards():
     badge_streak()
     badge_quests()
     badge_goal()
+    kudos_poppers()
 
 
 # ---------------------------------------------------------------- step track
@@ -1744,7 +1806,8 @@ def goal_flag():
 # ---------------------------------------------------------------- maps
 # Backgrounds for the scrolling step road (the step track and map
 # themes). One folder per theme in assets/maps/, each
-# with tile_a, tile_b (256 x 80) and start, mid, goal, far landmarks
+# with tile_a, tile_b, tile_c (256 x 80; tile_c is the street past the
+# goal) and start, mid, goal, far landmarks
 # (up to 64 x 72), exported at 2x, 4x and 6x with nearest neighbor as
 # name.png, name@2x.png, name@3x.png.
 #
@@ -1928,6 +1991,23 @@ def village_tile_b():
     return layer
 
 
+# Past the 10,000-step goal the road opens into country: only things that
+# repeat anyway (trees, fences, lamps), never a building, so walking on
+# never shows the same house twice. The road repeats it from the goal on
+# (src/track/scale.ts, tileIndex); markers stand in its clearings.
+def village_tile_c():
+    layer = street_base()
+    fence(layer, 40, 64)
+    tree(layer, 78, h=26, r=9)
+    lamp(layer, 96)
+    tree(layer, 112, h=20, r=7)
+    fence(layer, 126, 154)
+    tree(layer, 170, h=24, r=8)
+    lamp(layer, 188)
+    tree(layer, 206, h=22, r=7)
+    return layer
+
+
 # Landmarks: up to 64 x 72, bottom row sits on the road line.
 LANDMARK = (64, 72)
 LB = 71  # bottom row
@@ -2103,6 +2183,23 @@ def forest_tile_b():
     return layer
 
 
+def forest_tile_c():  # past the goal: deeper woods
+    layer = forest_base()
+    set_outline('#2f3f25')
+    log(layer, 38)
+    pine(layer, 64, 44, 10)
+    mushroom(layer, 80)
+    fern(layer, 92)
+    bush(layer, 108, 6)
+    pine(layer, 130, 56, 13, FO['pine2'])
+    fern(layer, 148)
+    log(layer, 158)
+    pine(layer, 188, 40, 9, FO['pine2'])
+    bush(layer, 206)
+    mushroom(layer, 216)
+    return layer
+
+
 def forest_start():  # trailhead sign
     layer = Layer(LANDMARK)
     for x0 in (14, 47):
@@ -2244,6 +2341,23 @@ def city_tile_b():
     building(layer, 145, 34, 28, hexc('#b39cc0'))
     bench(layer, 182)
     building(layer, 198, 22, 30, hexc('#d8c38f'), awning=CI['red'])
+    return layer
+
+
+def city_tile_c():  # past the goal: a park, no buildings
+    layer = city_base()
+    set_outline('#353a44')
+    planter(layer, 46)
+    bench(layer, 58)
+    city_lamp(layer, 78)
+    planter(layer, 96)
+    planter(layer, 112)
+    hydrant(layer, 128)
+    bench(layer, 140)
+    city_lamp(layer, 160)
+    planter(layer, 178)
+    bench(layer, 190)
+    planter(layer, 212)
     return layer
 
 
@@ -2399,6 +2513,21 @@ def beach_tile_b():
     return layer
 
 
+def beach_tile_c():  # past the goal: open sand, no castles
+    layer = beach_base()
+    set_outline('#7a6a4a')
+    palm(layer, 46, 36, 5)
+    dune_grass(layer, 66)
+    umbrella(layer, 90, BE['yellow'])
+    beach_ball(layer, 106)
+    palm(layer, 128, 42, -4)
+    dune_grass(layer, 148)
+    umbrella(layer, 172, BE['green'])
+    dune_grass(layer, 190)
+    palm(layer, 208, 30, 4)
+    return layer
+
+
 def beach_start():  # boardwalk arch
     layer = Layer(LANDMARK)
     vpart(layer, rect(2, 66, 61, LB), BE['wood'])
@@ -2514,6 +2643,20 @@ def mountain_tile_b():
     pine(layer, 136, 42, 10, MO['pine'], MO['snow'])
     boulder(layer, 164, 4)
     pine(layer, 206, 36, 9, MO['pine'], MO['snow'])
+    return layer
+
+
+def mountain_tile_c():  # past the goal: higher country
+    layer = mountain_base([(84, 34, 38), (180, 24, 30)])
+    set_outline('#3f4250')
+    boulder(layer, 42, 3)
+    pine(layer, 58, 40, 9, MO['pine'], MO['snow'])
+    pine(layer, 74, 30, 7, MO['pine'], MO['snow'])
+    boulder(layer, 110, 5)
+    pine(layer, 140, 38, 9, MO['pine'], MO['snow'])
+    pine(layer, 154, 26, 6, MO['pine'], MO['snow'])
+    boulder(layer, 180, 4)
+    pine(layer, 206, 42, 10, MO['pine'], MO['snow'])
     return layer
 
 
@@ -2693,6 +2836,25 @@ def dungeon_tile_b():
     return layer
 
 
+def dungeon_tile_c():  # past the goal: a plain hall, no arches or banners
+    layer = dungeon_base()
+    set_outline('#1e1a26')
+    torch(layer, 42)
+    crate(layer, 48)
+    pillar(layer, 70)
+    chain(layer, 86)
+    barrel(layer, 96)
+    torch(layer, 108)
+    bars_window(layer, 118)
+    pillar(layer, 142)
+    barrel(layer, 156)
+    crate(layer, 164)
+    torch(layer, 182)
+    chain(layer, 192)
+    pillar(layer, 210)
+    return layer
+
+
 def dungeon_start():  # iron gate
     layer = Layer(LANDMARK)
     frame = rect(4, 22, 59, LB) | ell(32, 24, 28, 16)
@@ -2865,6 +3027,23 @@ def space_tile_b():
     moon_rock(layer, 160, 2)
     antenna(layer, 172, 16)
     habitat(layer, 204, 12)
+    return layer
+
+
+def space_tile_c():  # past the goal: open ground, no domes or planets
+    layer = space_base(3)
+    set_outline('#2a2f4a')
+    moon_rock(layer, 42, 3)
+    antenna(layer, 54, 20)
+    moon_rock(layer, 70, 5)
+    mini_dish(layer, 90)
+    moon_rock(layer, 108, 2)
+    antenna(layer, 124)
+    moon_rock(layer, 142, 4)
+    mini_dish(layer, 162)
+    moon_rock(layer, 180, 3)
+    antenna(layer, 196, 16)
+    moon_rock(layer, 212, 4)
     return layer
 
 
@@ -3044,6 +3223,24 @@ def ocean_tile_b():
     return layer
 
 
+def ocean_tile_c():  # past the goal: a deeper reef
+    layer = ocean_base()
+    set_outline('#1f4a66')
+    coral(layer, 42, OC['coral2'], 14)
+    kelp(layer, 56, 50, OC['kelp2'])
+    sea_rock(layer, 78, 6, OC['coral'])
+    starfish(layer, 94)
+    kelp(layer, 108, 40)
+    kelp(layer, 116, 34, OC['kelp2'])
+    coral(layer, 136, OC['coral'], 16)
+    sea_rock(layer, 158, 5)
+    starfish(layer, 172)
+    kelp(layer, 188, 44)
+    coral(layer, 202, OC['coral2'], 13)
+    kelp(layer, 214, 38)
+    return layer
+
+
 def ocean_start():  # anchor in the sand
     layer = Layer(LANDMARK)
     vpart(layer, rect(29, 18, 34, 64), OC['iron'])
@@ -3104,6 +3301,70 @@ def ocean_far():  # yellow submarine
     layer.dots(OC['iron'], [(x, 64) for x in range(10, 50) if x % 2])
     bubbles(layer, 60, 40)
     return layer
+
+
+# ---------------------------------------------------------------- markers
+# Past the far landmark (15,000 steps) a plain post stands in each
+# clearing instead of the landmark again, so nothing one-off is ever
+# seen twice. The app paints the step count on the board (MARKER_BOARD
+# in src/track/StepTrack.tsx), so the board stays blank here.
+def milestone(layer, post, frame, board=hexc('#efe6d2')):
+    vpart(layer, rect(30, 49, 33, LB), post)
+    vpart(layer, rect(20, 38, 43, 49), frame)
+    layer.dots(board, [(x, y) for x in range(22, 42) for y in range(40, 48)])
+    return layer
+
+
+def village_marker():
+    layer = milestone(Layer(LANDMARK), V['timber'], V['brown'])
+    vpart(layer, tri(18, 45, 37, 4), V['red'])  # a little roof
+    return layer
+
+
+def forest_marker():
+    layer = milestone(Layer(LANDMARK), FO['trunk'], FO['wood'])
+    vpart(layer, ell(26.5, LB - 1.5, 4.5, 3.5), FO['fern'])  # a fern at its foot
+    return layer
+
+
+def city_marker():
+    return milestone(Layer(LANDMARK), CI['post'], hexc('#4f8a6a'))
+
+
+def beach_marker():
+    layer = milestone(Layer(LANDMARK), BE['trunk'], BE['trunk'])
+    vpart(layer, ell(37.5, LB - 1, 4, 2.5), BE['frond'])  # tuft of grass
+    return layer
+
+
+def mountain_marker():
+    layer = milestone(Layer(LANDMARK), MO['boulder'], darker(MO['boulder'], 0.85))
+    for cx, cy, r in ((25, LB - 2, 4), (38, LB - 2, 4), (31.5, LB - 6, 3.5)):  # cairn
+        vpart(layer, ell(cx + 0.5, cy, r + 1, r - 1), MO['boulder'])
+    return layer
+
+
+def dungeon_marker():
+    layer = milestone(Layer(LANDMARK), DU['pillar'], DU['stone'])
+    vpart(layer, rect(26, LB - 2, 37, LB), DU['stone'])  # a foot like the pillars'
+    return layer
+
+
+def space_marker():
+    layer = milestone(Layer(LANDMARK), SP['metal'], SP['hull'])
+    layer.dots(SP['red'], [(31, 37), (32, 37)])  # beacon
+    return layer
+
+
+def ocean_marker():
+    layer = milestone(Layer(LANDMARK), OC['rock'], hexc('#c9a96a'))
+    vpart(layer, ell(26.5, LB - 1, 4, 2.5), OC['rock'])  # stones at its foot
+    vpart(layer, ell(37.5, LB - 0.5, 3, 2), OC['rock'], 0.92)
+    return layer
+
+
+def neon_marker():
+    return milestone(Layer(LANDMARK), NE['shutter'], NE['concrete'])
 
 
 # ---------------------------------------------------------------- build
@@ -3299,6 +3560,29 @@ def neon_tile_b():
     return layer
 
 
+def chain_fence(layer, x0, x1, h=14):
+    """A chain-link fence round an empty lot: posts, a rail, open mesh."""
+    top = NEON_GROUND - h + 1
+    layer.dots(NE['iron'], [(x, y) for x in range(x0, x1 + 1) for y in range(top + 1, NEON_GROUND)
+                            if (x + y) % 4 == 0 or (x - y) % 4 == 0])
+    layer.dots(NE['shutter'], [(x, top) for x in range(x0, x1 + 1)])
+    for x in range(x0, x1 + 1, 12):
+        vpart(layer, rect(x, top, x + 1, NEON_GROUND), NE['shutter'], 0.85)
+
+
+def neon_tile_c():  # past the goal: empty lots, no buildings or signs
+    layer = neon_base(2)
+    set_outline('#1c1828')
+    chain_fence(layer, 40, 76)
+    street_light(layer, 82)
+    trash_can(layer, 94)
+    chain_fence(layer, 104, 152)
+    cone(layer, 160)
+    street_light(layer, 170)
+    chain_fence(layer, 180, 214)
+    return layer
+
+
 def neon_start():  # subway stairs going down under the street
     layer = Layer(LANDMARK)
     vpart(layer, rect(10, 52, 53, LB), NE['unlit'], 0.95)
@@ -3433,24 +3717,28 @@ if __name__ == '__main__':
     goal_flag()
 
     THEMES = {
-        'village': (village_tile_a, village_tile_b, landmark_gate, landmark_bakery,
-                    landmark_townhall, landmark_windmill),
-        'forest': (forest_tile_a, forest_tile_b, forest_start, forest_mid, forest_goal, forest_far),
-        'city': (city_tile_a, city_tile_b, city_start, city_mid, city_goal, city_far),
-        'beach': (beach_tile_a, beach_tile_b, beach_start, beach_mid, beach_goal, beach_far),
-        'mountain': (mountain_tile_a, mountain_tile_b, mountain_start, mountain_mid,
-                     mountain_goal, mountain_far),
-        'dungeon': (dungeon_tile_a, dungeon_tile_b, dungeon_start, dungeon_mid, dungeon_goal,
-                    dungeon_far),
-        'space': (space_tile_a, space_tile_b, space_start, space_mid, space_goal, space_far),
-        'ocean': (ocean_tile_a, ocean_tile_b, ocean_start, ocean_mid, ocean_goal, ocean_far),
-        'neon': (neon_tile_a, neon_tile_b, neon_start, neon_mid, neon_goal, neon_far),
+        'village': (village_tile_a, village_tile_b, village_tile_c,
+                    landmark_gate, landmark_bakery, landmark_townhall, landmark_windmill, village_marker),
+        'forest': (forest_tile_a, forest_tile_b, forest_tile_c,
+                   forest_start, forest_mid, forest_goal, forest_far, forest_marker),
+        'city': (city_tile_a, city_tile_b, city_tile_c, city_start, city_mid, city_goal, city_far, city_marker),
+        'beach': (beach_tile_a, beach_tile_b, beach_tile_c,
+                  beach_start, beach_mid, beach_goal, beach_far, beach_marker),
+        'mountain': (mountain_tile_a, mountain_tile_b, mountain_tile_c,
+                     mountain_start, mountain_mid, mountain_goal, mountain_far, mountain_marker),
+        'dungeon': (dungeon_tile_a, dungeon_tile_b, dungeon_tile_c,
+                    dungeon_start, dungeon_mid, dungeon_goal, dungeon_far, dungeon_marker),
+        'space': (space_tile_a, space_tile_b, space_tile_c,
+                  space_start, space_mid, space_goal, space_far, space_marker),
+        'ocean': (ocean_tile_a, ocean_tile_b, ocean_tile_c,
+                  ocean_start, ocean_mid, ocean_goal, ocean_far, ocean_marker),
+        'neon': (neon_tile_a, neon_tile_b, neon_tile_c, neon_start, neon_mid, neon_goal, neon_far, neon_marker),
     }
     OUTLINES = {'village': '#6b5a50', 'forest': '#2f3f25', 'city': '#353a44',
                 'beach': '#7a6a4a', 'mountain': '#3f4250', 'dungeon': '#1e1a26',
                 'space': '#2a2f4a', 'ocean': '#1f4a66', 'neon': '#1c1828'}
     for theme, makers in THEMES.items():
-        for name, make in zip(('tile_a', 'tile_b', 'start', 'mid', 'goal', 'far'), makers):
+        for name, make in zip(('tile_a', 'tile_b', 'tile_c', 'start', 'mid', 'goal', 'far', 'marker'), makers):
             set_outline(OUTLINES[theme])
             save_scaled(make(), theme, name)
 

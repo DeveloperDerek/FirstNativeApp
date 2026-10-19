@@ -24,7 +24,7 @@ export type PhaseLighting = {
   tiles: number[];
   /** A second frame of the tiles where something sways or flickers */
   tileFrames: Frames | null;
-  /** start, mid, goal, far: the order of MapTheme.landmarks */
+  /** start, mid, goal, far (the order of MapTheme.landmarks), then the marker */
   landmarks: number[];
   landmarkFrames: (LandmarkFrames | null)[];
   landmarkShadows: number[];
@@ -54,10 +54,10 @@ export type LandmarkFrames = { source: number; mode: Frames['mode']; rate: numbe
 
 export type ThemeLighting = {
   phases: Record<DayPhase, PhaseLighting>;
-  /** Chimney tops [x, y] on tile_a and tile_b */
+  /** Chimney tops [x, y] on each tile */
   chimneys: number[][][];
   landmarkChimneys: number[][][];
-  /** Window glass [x, y, w, h] on tile_a and tile_b */
+  /** Window glass [x, y, w, h] on each tile */
   windows: number[][][];
   landmarkWindows: number[][][];
   /** Scene row (art pixels) where the depth strips start */
@@ -95,6 +95,7 @@ export function lightTheme(theme: MapTheme, phase: DayPhase): MapTheme {
     ink: lit.ink,
     tiles: lit.tiles,
     landmarks: theme.landmarks.map((l, i) => ({ ...l, image: lit.landmarks[i] ?? l.image })),
+    marker: lit.landmarks[theme.landmarks.length] ?? theme.marker,
     scenery: { ...lit, ...anchors, map: mapKey(theme), phase },
   };
 }

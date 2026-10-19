@@ -103,9 +103,11 @@ select is((pg_temp.line((select f from a_feed), 1, 2)->>'goal')::boolean, false,
           'an achievement without the goal: a line of its own, no goal');
 select is((pg_temp.line((select f from a_feed), 2, 3)->>'goal')::boolean, true,
           'a day corrected below the goal keeps its line (the coins stay)');
-select is(pg_temp.line((select f from a_feed), 2, 4) - 'at' - 'avatar' - 'display_name',
+select is(pg_temp.line((select f from a_feed), 2, 4) - 'at' - 'avatar' - 'display_name'
+            - 'kudos' - 'my_kudos' - 'new_kudos',
           jsonb_build_object('day', current_date - 4, 'user_id', pg_temp.u(2), 'goal', false,
-                             'coins', null, 'achievements', '["big_day"]'::jsonb),
+                             'coins', null, 'achievements', '["big_day"]'::jsonb,
+                             'items', '[]'::jsonb),
           'a deleted day loses its goal and keeps its achievement');
 select is(pg_temp.line((select f from a_feed), 2, 25), null, 'a day before the switch day: no line');
 select is((select count(*)::integer from jsonb_array_elements((select f from a_feed)) l

@@ -63,7 +63,7 @@ begin
     raise exception 'derekqho@gmail.com has not signed up yet. Sign in once in the app, then run this again.';
   end if;
 
-  drop table if exists fake_players, won;
+  drop table if exists fake_players, won, my_lines;
   create temp table fake_players on commit drop as
   select * from (values
     -- id, username, display name, relation to you, background, typical
@@ -289,10 +289,193 @@ begin
   from fake_players f
   where f.relation in ('asks_me', 'i_asked');
 
+  -- Shop purchases on the activity board (20261123000000_activity_
+  -- purchases.sql): the item, its 'purchase' coin row on that shop day
+  -- and the coins out of the wallet, made fresh each run (the last run's
+  -- purchases go first, coins back). None of them worn, so they only show
+  -- on the board. Four picked, each kind of picture once:
+  --   Hana   Red cap, an hour ago             clothing
+  --   Ava    Snail, yesterday evening          pet (her only line)
+  --   Theo   City map, 2 days ago              map
+  --   Sam    Heart shades, then Pirate hat,    two on one line; the
+  --          4 days ago                        newer one is the picture
+  -- and then, to fill the board, every friend buys something they don't
+  -- own on about half of the last 14 days (now and then two things).
+  -- Only once the purchases migration is in: before it, the board
+  -- doesn't show them.
+  if to_regprocedure('public.bought_on(uuid, date)') is not null then
+    with gone as (
+      delete from public.coin_transactions c
+      using fake_players f
+      where c.user_id = f.id and c.reason = 'purchase'
+      returning c.user_id, c.ref, c.amount
+    ),
+    refunded as (
+      update public.wallets w set balance = w.balance - g.total
+      from (select user_id, sum(amount)::int as total from gone group by user_id) g
+      where w.user_id = g.user_id
+    )
+    -- Bought here, so not worn and not their background (see above)
+    delete from public.user_items u
+    using gone g
+    where u.user_id = g.user_id and u.item_id = g.ref;
+
+    drop table if exists fake_buys;
+    create temp table fake_buys on commit drop as
+    select f.id as user_id, b.item_id, s.price,
+           least(now() - interval '1 minute',
+                 coalesce(((public.shop_day() - b.ago)::timestamp + b.at) at time zone 'America/Los_Angeles',
+                          now() - interval '1 hour')) as paid_at
+    from (values
+      ('hana_k', 'hat_cap_red', 0, null::interval),   -- an hour ago, whatever the time of day
+      ('ava_rossi', 'pet_snail', 1, interval '18 hours'),
+      ('theo_b', 'map_city', 2, interval '20 hours'),
+      ('sam_rivera', 'glasses_heart', 4, interval '12 hours'),
+      ('sam_rivera', 'hat_pirate', 4, interval '12 hours 30 minutes')
+    ) as b(username, item_id, ago, at)
+    join fake_players f on f.username = b.username
+    join public.shop_items s on s.id = b.item_id;
+
+    -- The rest: on about half the days, one or two items, from 9am to 9pm
+    -- in the shop's time zone; each a different item they don't own yet
+    insert into fake_buys (user_id, item_id, price, paid_at)
+    select distinct on (pick.user_id, pick.item_id) pick.user_id, pick.item_id, pick.price, pick.paid_at
+    from (
+      select f.id as user_id, s.id as item_id, s.price,
+             least(now() - interval '1 minute',
+                   ((public.shop_day() - d.ago)::timestamp
+                     + make_interval(hours => 9, mins => (random() * 720)::int))
+                   at time zone 'America/Los_Angeles') as paid_at
+      from fake_players f
+      cross join lateral generate_series(0, 13) as d(ago)
+      cross join lateral (
+        select s.id, s.price from public.shop_items s
+        where s.active and s.unlocked_by is null and d.ago is not null and f.id is not null
+          and not exists (select 1 from public.user_items u where u.user_id = f.id and u.item_id = s.id)
+          and not exists (select 1 from fake_buys b where b.user_id = f.id and b.item_id = s.id)
+        order by random()
+        limit case when random() < 0.5 then 0 when random() < 0.75 then 1 else 2 end
+      ) s
+      where f.relation = 'friend'
+    ) pick
+    order by pick.user_id, pick.item_id, pick.paid_at;
+
+    insert into public.user_items (user_id, item_id, acquired_at)
+    select user_id, item_id, paid_at from fake_buys
+    on conflict (user_id, item_id) do nothing;
+    insert into public.coin_transactions (user_id, amount, reason, ref, created_at)
+    select user_id, -price, 'purchase', item_id, paid_at from fake_buys;
+    update public.wallets w set balance = greatest(0, w.balance - b.total)
+    from (select user_id, sum(price)::int as total from fake_buys group by user_id) b
+    where w.user_id = b.user_id;
+
+    raise notice 'Purchases: % items bought by % friends over the last 14 days',
+      (select count(*) from fake_buys), (select count(distinct user_id) from fake_buys);
+  end if;
+
   raise notice 'Added % fake friends and 2 friend requests for derekqho@gmail.com; % achievements earned; % goal days in the last 30',
     (select count(*) from fake_players where relation = 'friend'),
     (select count(*) from public.user_achievements a join fake_players f on f.id = a.user_id),
     (select count(*) from public.coin_transactions c join fake_players f on f.id = c.user_id
      where c.reason = 'daily_goal' and c.ref >= to_char(current_date - 29, 'YYYY-MM-DD'));
+
+  -- Kudos (step-tracker-kudos.txt), on each line (a goal, an achievement
+  -- or a purchase: 20261124000000_activity_separate_lines.sql), only once
+  -- that migration is in. Made fresh each run:
+  --   - the eight friends are friends with each other too (a kudos only
+  --     counts from the line owner's friend), and give each other kudos
+  --     on about a third of their lines from the last 10 days
+  --   - you have given kudos on Priya's and Luna's latest lines, to show
+  --     the gold "given" look without tapping
+  --   - your own lines get kudos from 1 to 4 friends: the older ones
+  --     already seen, and 3 from the last hour still new (the Friends
+  --     tab dot, "3 new kudos"), one of them on a line over a week old
+  --     (under "Show older") when you have one
+  if to_regprocedure('public.activity_parts(uuid[], date, date)') is not null then
+    delete from public.kudos k
+    using fake_players f
+    where f.relation = 'friend' and (k.giver_id = f.id or k.user_id = f.id);
+
+    insert into public.friendships (requester_id, addressee_id, status)
+    select a.id, b.id, 'accepted'
+    from fake_players a
+    join fake_players b on a.id < b.id and b.relation = 'friend'
+    where a.relation = 'friend'
+      and not exists (select 1 from public.friendships fr
+                      where fr.status in ('pending', 'accepted')
+                        and least(fr.requester_id, fr.addressee_id) = a.id
+                        and greatest(fr.requester_id, fr.addressee_id) = b.id);
+    update public.friendships fr set status = 'accepted'
+    from fake_players a, fake_players b
+    where a.relation = 'friend' and b.relation = 'friend' and a.id < b.id
+      and fr.status = 'pending'
+      and least(fr.requester_id, fr.addressee_id) = a.id
+      and greatest(fr.requester_id, fr.addressee_id) = b.id;
+
+    -- Between the friends, the evening after each line's day
+    insert into public.kudos (giver_id, user_id, day, kind, ref, created_at)
+    select g.id, o.id, d.day, d.kind, d.ref,
+           least(now() - interval '2 hours',
+                 (d.day + time '19:00')::timestamptz + make_interval(mins => (random() * 600)::int))
+    from fake_players o
+    cross join lateral public.activity_parts(array[o.id], current_date - 9, current_date) d
+    join fake_players g on g.relation = 'friend' and g.id <> o.id
+    where o.relation = 'friend'
+      and random() < 0.33;
+
+    -- Yours on Priya's and Luna's latest lines
+    insert into public.kudos (giver_id, user_id, day, kind, ref, created_at)
+    select me, o.id, latest.day, latest.kind, latest.ref, now() - interval '3 hours'
+    from fake_players o
+    cross join lateral (select p.day, p.kind, p.ref
+                        from public.activity_parts(array[o.id], current_date - 9, current_date) p
+                        order by p.day desc, p.at desc limit 1) latest
+    where o.username in ('priya_walks', 'luna_okafor')
+    on conflict do nothing;
+
+    -- On your lines: seen up to 2 hours ago, so only the newest are new
+    delete from public.kudos k using fake_players f where k.user_id = me and k.giver_id = f.id;
+    create temp table my_lines on commit drop as
+    select p.day, p.kind, p.ref, row_number() over (order by p.day desc, p.at desc, p.kind, p.ref) as newest
+    from public.activity_parts(array[me], current_date - 29, current_date) p;
+
+    insert into public.kudos (giver_id, user_id, day, kind, ref, created_at)
+    select g.id, me, l.day, l.kind, l.ref,
+           least(now() - interval '3 hours',
+                 (l.day + time '20:00')::timestamptz + make_interval(mins => (random() * 600)::int))
+    from my_lines l
+    -- (refers to the line, so it is picked again for each one)
+    cross join lateral (select f.id from fake_players f
+                        where f.relation = 'friend' and l.day is not null
+                        order by random() limit 1 + (random() * 3)::int) g;
+
+    insert into public.notification_settings (user_id, kudos_seen_at)
+    values (me, now() - interval '2 hours')
+    on conflict (user_id) do update set kudos_seen_at = excluded.kudos_seen_at;
+
+    -- The 3 new ones: on your newest line, the next, and an old one
+    insert into public.kudos (giver_id, user_id, day, kind, ref, created_at)
+    select g.id, me, l.day, l.kind, l.ref, now() - make_interval(mins => 10 * l.pick::int)
+    from (
+      select day, kind, ref, row_number() over (order by newest) as pick from (
+        (select day, kind, ref, newest from my_lines order by newest limit 2)
+        union
+        (select day, kind, ref, newest from my_lines where day <= current_date - 8 order by newest limit 1)
+      ) x
+    ) l
+    -- Someone who hasn't given kudos on that line yet (Luna, Theo, Hana in turn)
+    cross join lateral (select f.id from fake_players f
+                        where f.username = (array['luna_okafor', 'theo_b', 'hana_k'])[l.pick]) g
+    on conflict (giver_id, user_id, day, kind, ref) do update set created_at = excluded.created_at;
+
+    raise notice 'Kudos: % between your friends, % on your % lines (% new)',
+      (select count(*) from public.kudos k join fake_players f on f.id = k.user_id),
+      (select count(*) from public.kudos where user_id = me),
+      (select count(*) from my_lines),
+      (select count(*) from public.kudos where user_id = me and created_at > now() - interval '2 hours');
+    if not exists (select 1 from my_lines) then
+      raise notice 'You have no lines on the board in the last 30 days (reach your goal, earn an achievement or buy something), so no kudos on yours yet';
+    end if;
+  end if;
 end;
 $$;

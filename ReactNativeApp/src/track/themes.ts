@@ -21,8 +21,11 @@ export type MapTheme = {
   statusBar: 'dark' | 'light'; // status bar text over the sky
   button: string;
   buttonText: string;
+  /** Street tiles: the first two take turns up to the goal, the third repeats past it */
   tiles: number[];
   landmarks: { steps: number; label: string; image: number }[];
+  /** The numbered post in each clearing past the last landmark */
+  marker: number;
   /** Sky, hills, shadows and moving things; set by lightTheme() */
   scenery?: Scenery;
 };
@@ -43,7 +46,9 @@ export const THEMES: Record<string, MapTheme> = {
     tiles: [
       require('@/assets/maps/village/tile_a.png'),
       require('@/assets/maps/village/tile_b.png'),
+      require('@/assets/maps/village/tile_c.png'),
     ],
+    marker: require('@/assets/maps/village/marker.png'),
     landmarks: [
       { steps: 0, label: 'Village gate', image: require('@/assets/maps/village/start.png') },
       { steps: 5_000, label: 'Bakery', image: require('@/assets/maps/village/mid.png') },
@@ -69,7 +74,9 @@ export const THEMES: Record<string, MapTheme> = {
     tiles: [
       require('@/assets/maps/forest/tile_a.png'),
       require('@/assets/maps/forest/tile_b.png'),
+      require('@/assets/maps/forest/tile_c.png'),
     ],
+    marker: require('@/assets/maps/forest/marker.png'),
     landmarks: [
       { steps: 0, label: 'Trailhead sign', image: require('@/assets/maps/forest/start.png') },
       { steps: 5_000, label: 'Log bridge', image: require('@/assets/maps/forest/mid.png') },
@@ -92,7 +99,12 @@ export const THEMES: Record<string, MapTheme> = {
     statusBar: 'dark',
     button: '#ff9a3d',
     buttonText: '#2a1a1a',
-    tiles: [require('@/assets/maps/city/tile_a.png'), require('@/assets/maps/city/tile_b.png')],
+    tiles: [
+      require('@/assets/maps/city/tile_a.png'),
+      require('@/assets/maps/city/tile_b.png'),
+      require('@/assets/maps/city/tile_c.png'),
+    ],
+    marker: require('@/assets/maps/city/marker.png'),
     landmarks: [
       { steps: 0, label: 'Subway entrance', image: require('@/assets/maps/city/start.png') },
       { steps: 5_000, label: 'Coffee cart', image: require('@/assets/maps/city/mid.png') },
@@ -115,7 +127,12 @@ export const THEMES: Record<string, MapTheme> = {
     statusBar: 'dark',
     button: '#0f5f5d',
     buttonText: '#ffffff',
-    tiles: [require('@/assets/maps/beach/tile_a.png'), require('@/assets/maps/beach/tile_b.png')],
+    tiles: [
+      require('@/assets/maps/beach/tile_a.png'),
+      require('@/assets/maps/beach/tile_b.png'),
+      require('@/assets/maps/beach/tile_c.png'),
+    ],
+    marker: require('@/assets/maps/beach/marker.png'),
     landmarks: [
       { steps: 0, label: 'Boardwalk arch', image: require('@/assets/maps/beach/start.png') },
       { steps: 5_000, label: 'Surf shack', image: require('@/assets/maps/beach/mid.png') },
@@ -141,7 +158,9 @@ export const THEMES: Record<string, MapTheme> = {
     tiles: [
       require('@/assets/maps/mountain/tile_a.png'),
       require('@/assets/maps/mountain/tile_b.png'),
+      require('@/assets/maps/mountain/tile_c.png'),
     ],
+    marker: require('@/assets/maps/mountain/marker.png'),
     landmarks: [
       { steps: 0, label: 'Base camp', image: require('@/assets/maps/mountain/start.png') },
       { steps: 5_000, label: 'Rope bridge', image: require('@/assets/maps/mountain/mid.png') },
@@ -168,7 +187,9 @@ export const THEMES: Record<string, MapTheme> = {
     tiles: [
       require('@/assets/maps/dungeon/tile_a.png'),
       require('@/assets/maps/dungeon/tile_b.png'),
+      require('@/assets/maps/dungeon/tile_c.png'),
     ],
+    marker: require('@/assets/maps/dungeon/marker.png'),
     landmarks: [
       { steps: 0, label: 'Iron gate', image: require('@/assets/maps/dungeon/start.png') },
       { steps: 5_000, label: 'Treasure chest', image: require('@/assets/maps/dungeon/mid.png') },
@@ -191,7 +212,12 @@ export const THEMES: Record<string, MapTheme> = {
     statusBar: 'light',
     button: '#3d2a9e',
     buttonText: '#ffffff',
-    tiles: [require('@/assets/maps/space/tile_a.png'), require('@/assets/maps/space/tile_b.png')],
+    tiles: [
+      require('@/assets/maps/space/tile_a.png'),
+      require('@/assets/maps/space/tile_b.png'),
+      require('@/assets/maps/space/tile_c.png'),
+    ],
+    marker: require('@/assets/maps/space/marker.png'),
     landmarks: [
       { steps: 0, label: 'Launch pad', image: require('@/assets/maps/space/start.png') },
       { steps: 5_000, label: 'Moon rover', image: require('@/assets/maps/space/mid.png') },
@@ -215,7 +241,12 @@ export const THEMES: Record<string, MapTheme> = {
     statusBar: 'light',
     button: '#1d3f73',
     buttonText: '#ffffff',
-    tiles: [require('@/assets/maps/ocean/tile_a.png'), require('@/assets/maps/ocean/tile_b.png')],
+    tiles: [
+      require('@/assets/maps/ocean/tile_a.png'),
+      require('@/assets/maps/ocean/tile_b.png'),
+      require('@/assets/maps/ocean/tile_c.png'),
+    ],
+    marker: require('@/assets/maps/ocean/marker.png'),
     landmarks: [
       { steps: 0, label: 'Anchor', image: require('@/assets/maps/ocean/start.png') },
       { steps: 5_000, label: 'Giant clam', image: require('@/assets/maps/ocean/mid.png') },
@@ -239,7 +270,12 @@ export const THEMES: Record<string, MapTheme> = {
     statusBar: 'light',
     button: '#ff5fae',
     buttonText: '#1c1828',
-    tiles: [require('@/assets/maps/neon/tile_a.png'), require('@/assets/maps/neon/tile_b.png')],
+    tiles: [
+      require('@/assets/maps/neon/tile_a.png'),
+      require('@/assets/maps/neon/tile_b.png'),
+      require('@/assets/maps/neon/tile_c.png'),
+    ],
+    marker: require('@/assets/maps/neon/marker.png'),
     landmarks: [
       { steps: 0, label: 'Subway stairs', image: require('@/assets/maps/neon/start.png') },
       { steps: 5_000, label: 'Hideout', image: require('@/assets/maps/neon/mid.png') },

@@ -10,12 +10,23 @@ describes what changes, what it needs from you (accounts, money), and
 the decisions made (section 6). Items 1f, 1e and 3g
 of step-tracker-recommendations.txt.
 
+Status (October 2026): all three are built.
+  A  eas.json with the three profiles; the EAS project exists
+     (@derekqho/ReactNativeApp, its id in app.json). How to build:
+     README.md, "Making a build (EAS)".
+  B  Built, and the Sentry project is set up: the DSN, org and project
+     are in .env. Left to check: the auth token as an EAS secret
+     (README.md, "Crash reports", step 3) and a test crash from a
+     preview build (section 5).
+  C  .github/workflows/ci.yml: the app job and the database job.
+Section 1 describes how things were before these.
+
 Why now: the hosted Supabase is ahead of every app build. Blocking,
 reports, Leave group for owners and the new name messages only reach
 people in a new build, and there is no set way to make one.
 
 ======================================================================
-1. HOW IT WORKS TODAY
+1. HOW IT WORKED BEFORE
 ======================================================================
 
   - Builds are made on this Mac with `npx expo run:ios` (a development
@@ -30,6 +41,8 @@ people in a new build, and there is no set way to make one.
   - Nothing reports crashes or errors from phones.
   - About 1,300 checks exist (npm test, supabase test db, three race
     scripts, typecheck, lint), but they only run when someone runs them.
+    (There are four race scripts now, in supabase/tests/concurrency;
+    CI runs them all.)
   - The GitHub repo is PUBLIC: anything committed is readable by anyone.
     Today nothing secret is committed (.env and supabase/.temp are
     ignored). Every step below keeps it that way.
@@ -126,7 +139,7 @@ people in a new build, and there is no set way to make one.
     an EXPO_PUBLIC_ value. The Sentry auth token (for uploading source
     maps) is a secret: an EAS secret only, never in the repo.
 
-  BUILT (waiting for the Sentry account)
+  BUILT (the Sentry account now exists; see Status at the top)
   - src/lib/crash-reports.ts starts Sentry only in real builds with
     EXPO_PUBLIC_SENTRY_DSN set; src/lib/crash-scrub.ts filters every
     report and breadcrumb (tested by npm test). No tracing, screen
@@ -143,8 +156,8 @@ people in a new build, and there is no set way to make one.
   1. Install (npm ci), typecheck (tsc), lint (expo lint), npm test.
      About a minute.
   2. The database: start Supabase in the CI machine (Docker), apply all
-     migrations from scratch, run `supabase test db`, and the three race
-     scripts. A few minutes. This also proves every migration still
+     migrations from scratch, run `supabase test db`, and every race
+     script in supabase/tests/concurrency (four today). A few minutes. This also proves every migration still
      applies to an empty database.
   - A red cross on GitHub when anything fails, and a pull request into
     main needs it green before merging (decided; a branch protection

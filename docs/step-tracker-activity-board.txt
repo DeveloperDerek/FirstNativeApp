@@ -40,9 +40,9 @@ Builds on what the app already has:
 
   - Friends gets a third button next to Today and Last 7 days:
     Activity. (Each group gets the same view later, section 11.)
-  - One line per person per day, saying what they did that day: reached
-    their goal, unlocked achievements, or both. A group's view also has
-    a line for each quest the group won.
+  - One line per thing done (ACT-2, changed): reached their goal,
+    unlocked an achievement, bought an item. A group's view also has a
+    line for each quest the group won.
   - Newest day first. "Show older" at the bottom for older days, up to
     30 days back.
   - Tap a line to open that person's player card.
@@ -56,16 +56,31 @@ Builds on what the app already has:
 2. WHAT A LINE SAYS
 ======================================================================
 
+  SINCE ACT-2 CHANGED: each part below (the goal, each achievement,
+  each purchase) is a line of its own, with its own kudos and picture:
+    Sam reached their goal                         Today
+    Sam unlocked first 10k                         Today
+    Lee bought red cap                             Sun, Oct 11
+  The rest of this section describes the original one-line-per-day
+  board, which older builds still get from friends_activity.
+
   THE DAY LINE (Friends and groups)
   One per person per day, when that day has any of:
     - the goal reached: there is a 'daily_goal' coin row for that day
       AND the uploaded day still exists (section 4)
     - achievements earned that day (earned_on)
+    - items bought in the shop that day (added October 2026, migration
+      20261123000000_activity_purchases.sql): the 'purchase' coin row,
+      on the shop day it was paid (shop_day()'s time zone), while the
+      item is still owned. A refunded item leaves with it; free
+      starter items, starter pets and grandfathered items have no
+      purchase row, so they never make a line. Never the price.
 
     Sam reached their goal                         Today
     Sam reached their goal · unlocked first 10k    Yesterday
     Ana unlocked a week in a row                   Tue, Oct 13
     Ana unlocked a million steps and 100 days ...  Mon, Oct 12
+    Lee reached their goal · bought red cap        Sun, Oct 11
 
   - Your own lines are in the list too (the ranking includes you), and
     only yours add the coins: "You reached your goal · +150 coins". The
@@ -105,6 +120,12 @@ Builds on what the app already has:
     scripts/generate-avatar-sprites.py) for a goal day. A quest
     line uses the quest badge (badge_quests, the flag). No new art
     beyond the goal badge.
+  - A line with a purchase shows the newest item bought instead of a
+    badge, beside the kudos: the clothing piece on its own (ItemIcon,
+    hair and faces in the buyer's colors), the pet, or a window onto
+    the map (src/components/shop-item-icon.tsx). An item id this app
+    doesn't know falls back to the badge, and a line with nothing else
+    is not shown.
 
 ======================================================================
 3. WHO SEES WHAT
@@ -296,7 +317,7 @@ Builds on what the app already has:
     refresh payout. They say nothing to friends, and the wallet is private.
   - Character and outfit changes, passing someone on the road, new
     friends, joining a group: possible later, each as its own choice
-    (section 11).
+    (section 11). (Buying an item is on the board; wearing one isn't.)
 
 ======================================================================
 9. TRICKY CASES
@@ -332,11 +353,19 @@ Builds on what the app already has:
     Why:  five tabs already, and the board is about the same people
     the rankings are about.
 
-  ACT-2  One line per person per day (DECIDED): the goal plus that
-         day's achievements, and (with groups, later) one per won
-         quest.
-    Why:  a busy day doesn't flood the list, and nothing has to be
-    merged or deduplicated.
+  ACT-2  One line per thing done (CHANGED October 2026; was one line
+         per person per day): the day's goal, each achievement and each
+         purchase is its own line with its own kudos, and (with groups,
+         later) one per won quest. Migration
+         20261124000000_activity_separate_lines.sql: activity_feed
+         serves the lines, a line is (person, day, kind, ref), and
+         kudos are on a line. Older builds still get one line per day
+         from friends_activity, and their kudos go on the day's first
+         line (the goal, else its first achievement, else its first
+         purchase).
+    Why:  each thing can be cheered on its own, and a line says one
+    thing. Nothing is merged, so there is still nothing to
+    deduplicate.
 
   ACT-3  30 days back.
     Why:  enough to scroll a month, and it keeps every load small.
@@ -394,7 +423,7 @@ Builds on what the app already has:
   - An activities table with dedupe keys, update cursors and removal
     messages: not needed, since every line is read live (section 7).
   - Cheers on lines: now kudos, in their own blueprint
-    (step-tracker-kudos.txt): a clap on each line, an in-app notice,
+    (step-tracker-kudos.txt): a party popper on each line, an in-app notice,
     no pushes (so ACT-5 still holds).
   - A "synced 3h ago" label: the board shows past days only, never
     live progress, so nothing on it claims to be live.
@@ -458,8 +487,9 @@ Builds on what the app already has:
 ======================================================================
 
     [x] ACT-1 and ACT-2 decided
-    [ ] ACT-3 to ACT-7 settled, and all seven copied to
-        step-tracker-decisions.txt
+    [ ] ACT-3 to ACT-7 settled (built as suggested). ACT-1 and ACT-2
+        are in step-tracker-decisions.txt, section 14; ACT-3 to ACT-7
+        wait under "Still open" there
     [x] Goal badge art: a green check mark on the badge frame
         (assets/badges/badge_goal.png and _locked), drawn by badge_goal
         in scripts/generate-avatar-sprites.py

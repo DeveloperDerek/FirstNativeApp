@@ -232,9 +232,11 @@ step-tracker-recommendations.txt; step 7 of its suggested order.
     item exists, and an item is never given without its achievement.
   - Admins: they already get every shop_items row, so they get these
     too; it's how they test items.
-  - In the Customize screen, a locked reward item shows with a lock and
-    "Earn A million steps to unlock", which tells people the
-    achievements exist.
+  - In the Customize screen, a reward item appears only once its
+    achievement is earned. (It first showed faded with a lock and "Earn
+    A million steps to unlock"; since October 2026 it is hidden until
+    earned.) The Achievements list in Profile names the item each one
+    unlocks, which is how people learn the items exist.
 
   THE CHEATING RISK (ACCEPTED WITH CHOICE 7)
   - Steps are counted by the phone and uploaded; the server's checks
@@ -462,7 +464,7 @@ step-tracker-recommendations.txt; step 7 of its suggested order.
     reward item line; ids being shown aren't shown again by a second
     fetch; acknowledged only after being shown.
   - The four new items are in the catalog (and pets list) with their
-    sprites, and the lock text names the right achievement.
+    sprites, and each names the right achievement (unlockedBy).
 
   ON A PHONE (DEVICE-TESTS.md)
   - Walk past 10,000 (or use a test account): the message comes once,
@@ -473,8 +475,8 @@ step-tracker-recommendations.txt; step 7 of its suggested order.
     it after its next refresh.
   - A quest won while the app was closed: the message on next open,
     and the Mimic walking beside the character once chosen.
-  - A reward item: locked in Customize before, wearable after; each of
-    the four looks right on the character and the player card.
+  - A reward item: not in Customize before, there and wearable after;
+    each of the four looks right on the character and the player card.
   - Not sharing: the "Share your steps" note on the list.
   - A small phone: the card's badge row fits on one line.
 
@@ -519,13 +521,14 @@ step-tracker-recommendations.txt; step 7 of its suggested order.
      everyone.
   3. Profile > Achievements and the full list with progress, the
      unlock message (acknowledged after showing; one summary the first
-     time), and the lock on reward items in Customize (written): the
+     time), and keeping reward items out of Customize until earned
+     (written; first built as a locked, faded tile): the
      names, badge numbers and reward items in
      src/achievements/achievements.ts (tested against the migration's
      ids, thresholds and reward rows), src/app/achievements.tsx, the
      Profile section, src/hooks/use-achievement-notices.ts. Customize
      now counts any shop_items row (active or not) as not free, and
-     keeps an item from that list locked unless owned even if its row
+     leaves an item from that list out unless owned even if its row
      is missing; only then were the four items added to catalog.ts and
      pets.ts. The migration must still be deployed before this build
      ships (RELEASE-GATE.md step 12).

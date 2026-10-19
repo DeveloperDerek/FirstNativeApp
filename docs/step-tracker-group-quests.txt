@@ -375,15 +375,18 @@ member opens the app.
      - Group stats: quests completed, best Sprint time, longest
        success streak.
 
-  Notifications (needs push notifications, which the app does not
-  have yet; until then, show these as banners when the app opens):
-  - "Priya started a Forest Sprint. It begins at 6:00 PM."
-  - "Your Forest Sprint is on: 4,000 / 9,600 with 1h left."
-  - "Halfway there: 4,800 / 9,600 with 1h left"
-  - "30 minutes left, 800 steps to go!"
-  - "Time's up! Open the app within an hour so your steps are added."
+  Notifications (push would need quest messages on the server; push is
+  built for friend requests only, so these show as banners when the
+  app opens: src/quests/banners.ts). Built:
+  - "Priya started a Sprint. It begins at 6:00 PM."
+  - "Your Sprint is on: 4,000 / 9,600 with 1h left."
+  - "Time's up! Steps sent in the next 45m still count."
   - "Goal reached! Keep walking until 8:15 PM to earn more coins."
   - "Quest finished: 10,000 steps. +20 coins"
+  - "The party reached 87% of the Sprint. Try again soon!"
+  Not built (they need a moment to be sent, which only push has):
+  - "Halfway there: 4,800 / 9,600 with 1h left"
+  - "30 minutes left, 800 steps to go!"
 
 ======================================================================
 8. TRICKY CASES

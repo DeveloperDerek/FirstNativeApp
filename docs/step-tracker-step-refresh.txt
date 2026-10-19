@@ -9,9 +9,13 @@ Status: built (October 2026). There is no code in this file. It
 describes what changes, why, and how to check it. Items 3a, 3b and 3c
 of step-tracker-recommendations.txt.
 
-Everything here lives in three files:
+Everything here lives in these files:
   src/hooks/use-steps.tsx      the shared steps state (StepsProvider)
+  src/lib/single-flight.ts     the "join the running refresh" helper
+                               (tested in single-flight.test.ts)
   src/storage/stepStore.ts     the step history saved on the phone
+  src/storage/step-log.ts      its per-account key and the 7-day pruning
+                               (tested in step-log.test.ts)
   src/auth/local-data.ts       what is wiped from the phone on sign-out
 
 Nothing changes in the database, and nothing changes on screen. Build
@@ -99,10 +103,11 @@ in the order A, B, C: B reuses A's split, and C reuses B's checks.
   - Coming back to the app after a few seconds (e.g. checking a text)
     doesn't need fresh Health data. Skip an automatic refresh if the
     last one STARTED less than 60 seconds ago. (Counting from the
-    start, not the finish, so the Today timer still refreshes once a
+    start, not the finish, so the Today timer still refreshed once a
     minute instead of every other minute.)
-  - Automatic means: coming to the foreground and the Today timer
-    (it keeps its refresh, under this same quiet time).
+  - Automatic means: coming to the foreground (refreshIfStale). The
+    Today timer was automatic too, under this same quiet time, until
+    it was removed (section 6).
   - The first refresh after launch or sign-in always runs.
   - Pull to refresh and the button always run (or join a running one).
 
@@ -113,11 +118,6 @@ in the order A, B, C: B reuses A's split, and C reuses B's checks.
   - After each await, check the signed-in account is still the one the
     refresh started for. If not, stop quietly.
 
-  WHAT YOU'D NOTICE
-  - Overlapping requests read Health and upload once, not twice.
-  - Never two "Goal reached!" alerts. (The database already pays each
-    day only once, so coins were always correct; this stops the
-    duplicate work and alerts.)
   WHAT A CHECK CAN AND CAN'T DO
   - A check after an await stops the work that comes AFTER it: later
     saves, alerts, state and requests. It can't take back a request
@@ -193,6 +193,11 @@ in the order A, B, C: B reuses A's split, and C reuses B's checks.
     ref updated a render late, and the history save could write A's
     days back after sign-out had removed them.
 
+  WHAT YOU'D NOTICE
+  - Overlapping requests read Health and upload once, not twice.
+  - Never two "Goal reached!" alerts. (The database already pays each
+    day only once, so coins were always correct; this stops the
+    duplicate work and alerts.)
 
 ======================================================================
 4. PART C - STEP HISTORY PER ACCOUNT
@@ -244,11 +249,6 @@ in the order A, B, C: B reuses A's split, and C reuses B's checks.
       - two requests at once run the work once and both get the answer
       - a request with a different setting runs once more afterwards
       - a failed run is cleared, so the next request starts fresh
-  - The key name: each account gets its own key; there's no key
-    without an account.
-  - Pruning: saving keeps the last 7 days and drops older ones.
-
-  CHECKS
   - A to B while A's upload is in flight (the refresh steps run as a
     plain function with fake Health, storage and server):
       1. Sign in as A, start a refresh, hold A's sync_day answer.
@@ -265,6 +265,11 @@ in the order A, B, C: B reuses A's split, and C reuses B's checks.
   - Sharing turned off while a refresh runs: no quest upload starts
     afterwards, no error is shown, and one more refresh runs with
     sharing off.
+  - The key name: each account gets its own key; there's no key
+    without an account.
+  - Pruning: saving keeps the last 7 days and drops older ones.
+
+  CHECKS
   - `npx expo lint` has no errors.
   - `npx tsc --noEmit` passes.
 
@@ -272,19 +277,14 @@ in the order A, B, C: B reuses A's split, and C reuses B's checks.
   - Launch: one Health read, one upload (watch the Supabase logs or
     add a temporary log line).
   - Leave the app and come back within a minute: no refresh. Come back
-    after a minute: one refresh. The Today timer never refreshes
-    more than once a minute.
+    after a minute: one refresh. Leaving Today open without touching
+    it never refreshes (there is no timer).
   - Pull to refresh twice quickly: one refresh, the spinner stops
     once.
   - Sign in as A, open History, sign out, sign in as B: History shows
     only B's days (or "--" until they load), never A's.
   - Turn on step sharing while a refresh is running: the steps still
     upload without a second pull.
-
-======================================================================
-6. DECISIONS
-======================================================================
-
   - Sign out and into B while A's upload is in flight: slow the
     network (Network Link Conditioner, "Very Bad Network"), sign in as
     A, pull to refresh, then at once sign out and sign in as B. In
@@ -293,6 +293,11 @@ in the order A, B, C: B reuses A's split, and C reuses B's checks.
     the phone: no "Goal reached!" alert for A's coins, B's balance and
     history only, and A's coins (if the day reached the goal) are on
     A's account when A signs back in.
+
+======================================================================
+6. DECISIONS
+======================================================================
+
   - Quiet time: 60 seconds, counted from when the last refresh
     started, for coming back to the app. Never for the first
     refresh, pull to refresh or the button.

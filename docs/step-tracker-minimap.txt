@@ -39,7 +39,9 @@ drawn from Views and the existing character layers.
     after that (landmarksFor).
   - The goal flag stands at 10,000. Each player's own daily goal is
     their coin target (7,000 to 10,000), shown as a percentage in the
-    header ("62% of 8,000 goal"), but nowhere on the road.
+    header ("62% of 8,000 goal"). Before the minimap it was nowhere on
+    the road; it now has a star on the road's distance markers
+    (decision 5).
   - Up to 30 people are drawn (pickShown: the top 30 and you). The
     road opens centered on you and follows your count until you
     scroll by hand.
@@ -138,17 +140,21 @@ One strip, the full width of the screen, that never scrolls:
 
   4b. Minimap.tsx
       - Props: walkers (the same list the road draws), max, the theme,
-        your daily goal, the road's scrollX (a shared value StepTrack
-        already keeps for the hills) and the viewport width, plus
-        onJump(steps) and onScrub(steps).
-      - The bar, fill, markers and labels are plain Views, sized in
-        whole points, in the theme's ink, ground and sky colors.
+        your place in the ranking (for the screen-reader summary), the
+        road's scrollX (a shared value StepTrack already keeps for the
+        hills), the minimap's width and the road's viewport width,
+        onJump(steps) and onScrub(steps), and viewCenter() (the steps
+        at the middle of the screen, for the screen reader's swipes).
+      - The pill, track, dashes, heads and flag ring are plain Views,
+        sized in whole points, in the theme's ink, ground and button
+        colors.
       - The viewport bracket is a Reanimated view whose left and width
         follow scrollX on the UI thread: no re-render while scrolling.
-      - Touch uses one Pressable for taps and a pan gesture for drags
-        (react-native-gesture-handler, already used by the
-        leaderboard and the draggable rows). Dragging calls scrollTo on the road without
-        animation, so the road keeps up with the finger.
+      - Touch is a tap gesture and a pan gesture, only one of which
+        runs at a time (react-native-gesture-handler, already used by
+        the leaderboard and the draggable rows). Dragging calls
+        scrollTo on the road without animation, so the road keeps up
+        with the finger.
       - Icons are positioned with the same "walk to the new spot"
         animation the road uses (600 ms) when counts change.
 
@@ -163,11 +169,15 @@ One strip, the full width of the screen, that never scrolls:
         doesn't stick into the next icon.
 
   4d. StepTrack.tsx
-      - Renders <Minimap> under the distance markers, passing what it
-        already computes (walkers, max, scrollX, viewport).
-      - onJump / onScrub call scrollRef.current.scrollTo with the
-        road's x for those steps (centerFor(steps) - viewport / 2),
-        and set userScrolled so the road stops auto-following.
+      - useRoadLink() holds the road's scrolling (scrollRef, scrollX,
+        userScrolledRef, viewport). Today makes one link and passes it
+        to both StepTrack and RoadMinimap, which renders <Minimap> at
+        the top of the list with the same walkers and the road's max.
+      - onJump / onScrub call scrollRef.current.scrollTo with
+        scrollFor(steps, max, viewport) (minimap-math.ts: the road's x
+        that centers those steps, kept inside the road), animated for
+        a tap unless Reduce Motion is on, and set userScrolledRef so
+        the road stops auto-following.
       - The daily goal is passed in from Today (index.tsx already has
         it as dailyGoal) as a new optional prop, myGoal, for the road's
         goal star. The minimap doesn't use it.
@@ -207,25 +217,27 @@ One strip, the full width of the screen, that never scrolls:
 
   - npm test: the new minimap tests pass with the old ones.
   - Solo, 0 steps: only your icon, at the left end; nothing filled.
-  - A group where someone has 23,000: the bar ends at 25,000, labels
-    every 5k, and the 10,000 flag moves left on the bar (the bar is
-    the whole road).
-  - Five people within 300 steps of each other: one icon and "+4"
-    below the bar; you stay above.
+  - A group where someone has 23,000: the bar ends at 25,000 and the
+    10,000 flag moves left on the bar (the bar is the whole road).
+  - Several people within 300 steps of each other: their heads stack
+    upward, up to three rows; your head stays on the line, in front.
   - Scroll the road: the bracket slides with it, smoothly.
   - Tap the far end of the bar: the road scrolls there. Drag along the
     bar: the road follows.
   - VoiceOver: the summary reads correctly; swiping up and down moves
     the road from milestone to milestone.
-  - Small screen (iPhone SE) and large: labels don't overlap, icons
-    stay inside the bar's ends.
+  - Small screen (iPhone SE) and large: the flag's tag doesn't overlap
+    the heads, and heads stay inside the bar's ends.
+  - Scroll Today's list down: the minimap goes up with it and is gone
+    by two thirds of the way; scrolling back to the top brings it back.
 
 ======================================================================
 8. DECISIONS FOR YOU
 ======================================================================
 
   Decided October 2026:
-  1. Place: under the road, on the ground.
+  1. Place: under the road, on the ground. (Then moved to the top of
+     Today's list, so it scrolls out of the way: section 3.)
   2. Milestones: the pixel diamonds, flag and star (not tiny landmarks).
   3. Tapping an icon scrolls the road to them; profiles open from the
      road as before.

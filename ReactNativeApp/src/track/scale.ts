@@ -19,6 +19,16 @@ export const ROAD_PAD = 64; // empty road before 0 and after the end
 // Landmarks stand every 5,000 steps
 export const LANDMARK_EVERY = 5_000 * PX_PER_STEP;
 
+/**
+ * Which of a map's three street tiles to lay with its left edge at
+ * `left`: the first two take turns up to the goal (`turn` counts tiles
+ * from the start of the road), and the third repeats from the goal on,
+ * so walking past it shows new street.
+ */
+export function tileIndex(left: number, turn: number): number {
+  return left >= centerFor(GOAL) ? 2 : turn % 2;
+}
+
 /** Total scrollable width of the road, in points. */
 export function roadWidth(max: number): number {
   return ROAD_PAD * 2 + max * PX_PER_STEP;

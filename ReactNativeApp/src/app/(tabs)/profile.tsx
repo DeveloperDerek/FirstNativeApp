@@ -134,7 +134,7 @@ export default function ProfileScreen() {
   return (
     <Screen title="Profile">
       {profile && (
-        <Section title="Your character">
+        <Section title="Your character" first>
           <CharacterScene avatar={profile.avatar} />
           <View style={styles.character}>
             <View style={styles.characterText}>

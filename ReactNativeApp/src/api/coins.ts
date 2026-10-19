@@ -81,17 +81,21 @@ export async function claimCheckin(): Promise<{
 
 export const SHOP_REFRESH_MS = 12 * 3_600_000; // matches refresh_shop()
 
-/** When the next shop refresh is allowed. null = ready now. */
-export async function getShopRefreshAt(userId: string): Promise<Date | null> {
+/**
+ * The balance and when the next shop refresh is allowed (refreshAt null =
+ * ready now), from one read of the wallet.
+ */
+export async function getShopWallet(userId: string): Promise<{ balance: number; refreshAt: Date | null }> {
   const { data, error } = await supabase
     .from('wallets')
-    .select('last_shop_refresh_at')
+    .select('balance, last_shop_refresh_at')
     .eq('user_id', userId)
-    .maybeSingle();
+    .maybeSingle(); // no row yet = 0 coins
   if (error) throw error;
-  if (!data?.last_shop_refresh_at) return null;
+  const balance = data?.balance ?? 0;
+  if (!data?.last_shop_refresh_at) return { balance, refreshAt: null };
   const next = new Date(new Date(data.last_shop_refresh_at).getTime() + SHOP_REFRESH_MS);
-  return next.getTime() > Date.now() ? next : null;
+  return { balance, refreshAt: next.getTime() > Date.now() ? next : null };
 }
 
 /**

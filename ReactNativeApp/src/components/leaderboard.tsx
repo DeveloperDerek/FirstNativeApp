@@ -45,10 +45,12 @@ export function PillPicker<T extends string>({
   value,
   onChange,
 }: {
-  options: { value: T; label: string }[];
+  /** `dot`: a small dot after the label, and what a screen reader says for it */
+  options: { value: T; label: string; dot?: string }[];
   value: T;
   onChange: (value: T) => void;
 }) {
+  const theme = useTheme();
   return (
     <ThemedView type="backgroundElement" style={styles.picker}>
       {options.map((p) => (
@@ -57,6 +59,7 @@ export function PillPicker<T extends string>({
           onPress={() => onChange(p.value)}
           style={styles.pickerItem}
           accessibilityRole="button"
+          accessibilityLabel={p.dot ? `${p.label}, ${p.dot}` : p.label}
           accessibilityState={{ selected: value === p.value }}>
           <ThemedView
             type={value === p.value ? 'backgroundSelected' : 'backgroundElement'}
@@ -64,6 +67,7 @@ export function PillPicker<T extends string>({
             <ThemedText type="small" themeColor={value === p.value ? 'text' : 'textSecondary'}>
               {p.label}
             </ThemedText>
+            {p.dot && <View style={[styles.pickerDot, { backgroundColor: theme.danger }]} />}
           </ThemedView>
         </Pressable>
       ))}
@@ -226,9 +230,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pickerPill: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: Spacing.one,
     paddingVertical: Spacing.two,
     borderRadius: Spacing.four,
+  },
+  pickerDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   entry: {
     flexDirection: 'row',

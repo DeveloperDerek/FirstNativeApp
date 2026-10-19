@@ -6,7 +6,8 @@ here is a coding task, and none of it is decided by the coding agent:
 each item is done or approved by the owner, and the legal review by a
 qualified person.
 
-Status as of 2026-10-10: **not ready for release.**
+Status as of 2026-10-17: **not ready for release** (gates 1 to 3 are
+still open).
 
 ---
 
@@ -146,10 +147,10 @@ needs them set by hand.
 
 ## Deploy, in this order
 
-1. Review and commit (nothing is committed yet). The uncommitted shop
-   migrations `20261021000000_shop_top_up.sql` and
-   `20261022000000_shop_refresh.sql` go first: the register migration is
-   built on them.
+1. Review and commit. (Done: everything is committed, including the
+   shop migrations `20261021000000_shop_top_up.sql` and
+   `20261022000000_shop_refresh.sql`, which go before the register
+   migration because it is built on them.)
 2. Push the migrations (`supabase db push`):
    `20261023000000_register.sql` and `20261024000000_blocked_cleanup.sql`.
    Existing accounts are marked onboarded; nobody is locked out.
@@ -224,8 +225,8 @@ needs them set by hand.
    The build lists the four reward items (Winged sneakers, Ember cape,
    Laurel wreath, Mimic); the server lets anyone wear an item with no
    `shop_items` row, so without the migration they'd be free to wear
-   through an old or modified app. (This build itself keeps them locked
-   unless owned either way.) The migration gives everyone who shares
+   through an old or modified app. (This build itself keeps them out of
+   Customize unless owned either way.) The migration gives everyone who shares
    what they'd already earned; the first open of the new build shows it
    as one summary. Older builds show no achievements and never offer the
    items. Then the checks in `DEVICE-TESTS.md` §19, and
@@ -244,3 +245,32 @@ needs them set by hand.
    target (they read it from the server); older builds still show the
    coin target as a separate "coins at N", which stays true. The new
    build shows one number. Then the checks in `DEVICE-TESTS.md` §16.
+15. The migrations not named above. `supabase db push` applies every
+   pending migration in filename order, so these go with the steps
+   around them: `20261109` to `20261115` by step 13 at the latest, and
+   `20261118` to `20261121` after step 14. The new build calls the
+   functions marked "the build needs it", so those must be on the hosted
+   database before it reaches anyone.
+   - `20261109000000_my_history.sql`: History's Month and Year views
+     (`my_history`, `my_history_by_month`). The build needs it.
+   - `20261111000000_quests_without_voting.sql`: quests start at once
+     for everyone sharing, with no vote; quests still waiting for votes
+     are cancelled. The build's Start a quest needs it.
+   - `20261112000000_goal_range_coin_steps.sql`: the 7,000 to 10,000
+     daily coin target; streaks stop paying coins.
+   - `20261113000000_username_daily_limit.sql`: one username change a
+     day.
+   - `20261114000000_sync_day.sql`: the step refresh in one call
+     (`sync_day`). The build needs it.
+   - `20261115000000_coin_rebalance.sql`: payouts, the welcome bonus
+     and the new prices (`step-tracker-coins-items.txt`).
+   - `20261118000000_remove_sunflower_surfboard.sql`: refunds and
+     removes the two items, which the build no longer lists.
+   - `20261119000000_starter_pets.sql`: new accounts get the dog.
+   - `20261120000000_item_sets.sql`: the item sets' shop rows. Push it
+     BEFORE the build reaches anyone: the build lists the new items,
+     and an item with no `shop_items` row is free to wear (as in
+     step 12).
+   - `20261121000000_activity_board.sql`: Friends > Activity
+     (`friends_activity`). The build needs it. Then the checks in
+     `DEVICE-TESTS.md` §21.

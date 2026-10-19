@@ -12,6 +12,7 @@ import {
   roadWidth,
   scaleMax,
   ticksFor,
+  tileIndex,
 } from './scale.ts';
 
 describe('worked examples from the step track design', () => {
@@ -103,4 +104,13 @@ describe('formatSteps', () => {
     assert.equal(formatSteps(2_500), '2.5k');
     assert.equal(formatSteps(10_000), '10k');
   });
+});
+
+describe('tileIndex', () => {
+  // Lit maps: tile i starts at 64 + (i - 1) * 500, so the goal (x 1064) starts tile 3
+  const lit = (i: number) => tileIndex(64 + (i - 1) * 500, i + 1);
+  test('the first two take turns up to the goal', () =>
+    assert.deepEqual([0, 1, 2].map(lit), [1, 0, 1]));
+  test('the third repeats from the goal on', () =>
+    assert.deepEqual([3, 4, 5, 6].map(lit), [2, 2, 2, 2]));
 });

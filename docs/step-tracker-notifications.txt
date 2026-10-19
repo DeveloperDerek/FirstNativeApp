@@ -8,6 +8,23 @@ This is a design blueprint only. There is no code in this file. It
 describes what the badges mean, where the numbers come from, when
 they update, and the choices to make before building.
 
+Status: all three phases are built (section 7).
+  Phase 1  notification_counts() in the database; the shared counts in
+           src/hooks/use-notification-counts.tsx; the tab badges in
+           src/components/app-tabs.tsx.
+  Phase 2  20261101000000_notifications_live.sql: friend requests end
+           in a status (declined, cancelled, removed) instead of a
+           delete, one LIVE row per pair; live updates and a refetch on
+           every (re)connect in src/api/notifications.ts; the quest
+           vote count and its deadline timer (unused since quests lost
+           their votes, see below).
+  Phase 3  20261102000000_push_notifications.sql: the database sends the
+           push itself (a trigger posting to Expo's push service with
+           pg_net) and a pg_cron job removes dead addresses; the app side
+           is src/notifications/push.ts and src/hooks/use-push.ts. Push
+           is off in a build unless EXPO_PUBLIC_PUSH_NOTIFICATIONS is
+           'true' (app.config.ts), and never on a simulator.
+
 Builds on what the app already has: the tab bar (Today, History,
 Friends, Groups, Profile), friend requests (pending / accepted),
 groups with quest voting, and the way the coin wallet refreshes when
@@ -104,7 +121,8 @@ the app opens and comes back to the foreground.
     so you never hear about other people's requests.
 
   THE WEAK SPOT: CANCELLED REQUESTS
-  - Today, cancelling or declining a request DELETES it.
+  - When this was written, cancelling or declining a request DELETED
+    it. (Built: they are now status changes, as decided below.)
   - In Supabase, delete events are the weak spot. They are not
     checked against the privacy rules, cannot be filtered to "only
     requests sent to me", and carry only the request's ID. So a
@@ -296,30 +314,32 @@ the app opens and comes back to the foreground.
 ======================================================================
 
   Phase 1
-    [ ] Counts function in the database (friend requests)
-    [ ] Shared counts in the app, refreshed on open and foreground
-    [ ] Keep only the newest answer, tagged by account
-    [ ] On a failed refresh, keep the last good counts; clear on
+    [x] Counts function in the database (friend requests)
+    [x] Shared counts in the app, refreshed on open and foreground
+    [x] Keep only the newest answer, tagged by account
+    [x] On a failed refresh, keep the last good counts; clear on
         sign-out or account change
-    [ ] Badge on the Friends tab (iPhone and Android)
-    [ ] Friends screen refreshes the count after accept / decline
+    [x] Badge on the Friends tab (iPhone and Android)
+    [x] Friends screen refreshes the count after accept / decline
 
   Phase 2
-    [ ] Status change for requests (preferred): fix the "one request
+    [x] Status change for requests (preferred): fix the "one request
         per pair" rule, decide unfriend, ignore old rows everywhere
-    [ ] Or, if keeping deletes: check and test who receives them
-    [ ] Live updates for friend requests
-    [ ] Ask for the counts again on every reconnect
-    [ ] Quest votes count (only deadlines still in the future)
-    [ ] Timer for the soonest vote deadline, and Groups tab badge
+    [-] Or, if keeping deletes: check and test who receives them
+        (not needed: the status change was built)
+    [x] Live updates for friend requests
+    [x] Ask for the counts again on every reconnect
+    [x] Quest votes count (only deadlines still in the future)
+    [x] Timer for the soonest vote deadline, and Groups tab badge
 
   Phase 3 (iPhone first)
-    [ ] Permission prompt and device push addresses
-    [ ] Remove push addresses on sign-out and when reported dead
-    [ ] Push address security rules (own device only, server sends)
-    [ ] Server rechecks the recipient before every push
-    [ ] Server sends a push on new friend requests, with the total
-    [ ] App icon number reset to the real total on open
-    [ ] Tapping a notification opens Friends
-    [ ] Notifications on/off setting on Profile
-    [ ] Android: permission prompt and testing on a real device
+    [x] Permission prompt and device push addresses
+    [x] Remove push addresses on sign-out and when reported dead
+    [x] Push address security rules (own device only, server sends)
+    [x] Server rechecks the recipient before every push
+    [x] Server sends a push on new friend requests, with the total
+    [x] App icon number reset to the real total on open
+    [x] Tapping a notification opens Friends
+    [x] Notifications on/off setting on Profile
+    [x] Android: permission prompt (a notification channel first)
+    [ ] Android: testing on a real device (DEVICE-TESTS.md §10)

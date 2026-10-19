@@ -4,9 +4,51 @@ migrations, and the plan files. Grouped by priority. Each item says
 what it is, why it matters, and where it lives.
 Last checked: October 2026
 
-Current health: the typecheck passes and all 106 unit tests pass.
-Lint has 1 error (see 3a). RELEASE-GATE.md already covers legal,
-domain, email and dashboard settings, so those are not repeated here.
+When first written: the typecheck passed and all 106 unit tests
+passed; lint had 1 error (see 3a). RELEASE-GATE.md already covers
+legal, domain, email and dashboard settings, so those are not repeated
+here.
+
+STATUS (checked against the code, 17 October 2026)
+  Health: typecheck and lint pass; 276 unit tests pass (npm test).
+  Sections 1 to 4 below are kept as written; this is where each stands.
+
+  Done
+    1a Block and report       step-tracker-safety.txt, Parts A, B, D
+    1b Name limits            step-tracker-safety.txt, Part C
+    1c Apple token revoke     step-tracker-group-owners.txt, Part B
+    1d Group owner hand-over  step-tracker-group-owners.txt, Part A
+    1e Crash reporting        Sentry (README.md, "Crash reports")
+    1f EAS build setup        eas.json (step-tracker-builds.txt)
+    2b Streaks                step-tracker-goals-streaks.txt (the coin
+                              bonuses were later removed, GOAL-6)
+    2c Longer history         step-tracker-history-reminders.txt, A
+    2d Reminders              local goal reminders only
+                              (step-tracker-history-reminders.txt, B);
+                              push for quest events is not built
+    2f Achievements           step-tracker-achievements.txt
+    3a Lint error             fixed (step-tracker-step-refresh.txt, A)
+    3b Overlapping refreshes  step-tracker-step-refresh.txt, B
+    3c Per-account cache      step-tracker-step-refresh.txt, C
+    3g CI                     .github/workflows/ci.yml
+    3h Commit the open work   done
+    4c README                 setup, builds, crash reports, checks and
+                              scripts (the Expo template text is gone)
+  Built, then removed
+    2a Personal daily goal    GOAL-15; the goal is the daily coin
+                              target (GOAL-16)
+  Partly done
+    3d Time zones             the phone sends its own date (my_today)
+                              and the server works within the 26 hours
+                              that dates span worldwide
+                              (step-tracker-safety.txt, section 2); no
+                              time zone is saved on the profile
+  Open
+    2e Home screen widget, 2g rotating invite codes, 3e server-side
+    anti-cheat beyond the admin's suspicious_steps view, 3f tests for
+    hooks and screens, 4a accessibility pass, 4b offline, 4d in-app
+    celebrations (still a system Alert), 4e the slug and scheme are
+    still "ReactNativeApp" / "reactnativeapp"
 
 ======================================================================
 1. BEFORE RELEASE (APP STORE / PLAY STORE WILL ASK FOR THESE)

@@ -2,7 +2,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
 
-import { type ActivityLine } from '@/activity/activity';
+import { type ActivityLine, dayLabel, type Giver } from '@/activity/activity';
+import { lineKudos } from '@/api/activity';
 import {
   acceptFriendRequest,
   cancelFriendRequest,
@@ -21,6 +22,7 @@ import { Avatar } from '@/avatar/Avatar';
 import { normalizeAvatar } from '@/avatar/catalog';
 import { ActivityList } from '@/components/activity-list';
 import { GroundText } from '@/components/ground-text';
+import { GiversSheet, NewKudosSheet } from '@/components/kudos-sheet';
 import { personMenu, reportHref } from '@/components/block-actions';
 import { Leaderboard, periodLabel, PERIODS, PillPicker, rowToWalker } from '@/components/leaderboard';
 import { MoreButton } from '@/components/more-button';
@@ -33,6 +35,7 @@ import { Row, Section } from '@/components/ui/section';
 import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
 import { useFriendsActivity } from '@/hooks/use-friends-activity';
+import { useNewKudos } from '@/hooks/use-new-kudos';
 import { useNotificationCounts } from '@/hooks/use-notification-counts';
 import { errorMessage } from '@/lib/error-message';
 import { askForPush } from '@/notifications/push';
@@ -41,7 +44,6 @@ const name = (p: PublicProfile) => p.display_name || p.username;
 
 // The two rankings, and the activity board (step-tracker-activity-board.txt)
 type View = Period | 'activity';
-const VIEWS: { value: View; label: string }[] = [...PERIODS, { value: 'activity', label: 'Activity' }];
 
 /** "Updated 5m ago"; nothing under a minute. */
 function updatedText(at: number | null): string | null {
@@ -65,12 +67,31 @@ export default function FriendsScreen() {
   const { session, profile, account } = useAuth();
   const myId = session?.user.id ?? '';
   const sharing = Boolean(profile?.sharing_consent_at);
-  const { refreshCounts } = useNotificationCounts();
+  const { counts, refreshCounts } = useNotificationCounts();
 
   const [view, setView] = useState<View>('week');
   // The board's lines open a card with today's steps, from the Today ranking
   const period: Period = view === 'activity' ? 'today' : view;
   const activity = useFriendsActivity(sharing ? myId : '', sharing && view === 'activity');
+  // Kudos (step-tracker-kudos.txt): the "New kudos" list marks them seen;
+  // once the server confirms, the tab dot and the line dots go
+  const clearNewKudos = activity.clearNewKudos;
+  const kudos = useNewKudos(
+    sharing ? myId : '',
+    useCallback(() => {
+      refreshCounts();
+      clearNewKudos();
+    }, [refreshCounts, clearNewKudos])
+  );
+  // Who gave kudos on your line for that day, while that list is open
+  const [givers, setGivers] = useState<{ day: string; list: Giver[] | null; error: string | null } | null>(
+    null
+  );
+  // With new kudos, the Activity button gets a dot so they know where to look
+  const views: { value: View; label: string; dot?: string }[] = [
+    ...PERIODS,
+    { value: 'activity', label: 'Activity', dot: counts.newKudos > 0 ? 'new kudos' : undefined },
+  ];
   const [board, setBoard] = useState<LeaderboardRow[]>([]);
   const [friendships, setFriendships] = useState<Friendship[]>([]);
   const [query, setQuery] = useState('');
@@ -80,23 +101,31 @@ export default function FriendsScreen() {
   // The person whose profile card is open
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  // The ranking, again whenever the period changes
+  const loadBoard = useCallback(async () => {
+    if (!sharing) return;
+    setError(null);
+    try {
+      setBoard(await friendsLeaderboard(period));
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  }, [sharing, period]);
+
+  // Friends and requests; not reloaded by switching views
+  const loadFriends = useCallback(async () => {
     if (!sharing) return;
     // The tab badge reloads with the list: on opening the tab, and right
     // after accept / decline so it drops straight away.
     refreshCounts();
-    setError(null);
     try {
-      const [rows, list] = await Promise.all([
-        friendsLeaderboard(period),
-        listFriendships(),
-      ]);
-      setBoard(rows);
-      setFriendships(list);
+      setFriendships(await listFriendships());
     } catch (e) {
       setError(errorMessage(e));
     }
-  }, [sharing, period, refreshCounts]);
+  }, [sharing, refreshCounts]);
+
+  const load = useCallback(() => Promise.all([loadBoard(), loadFriends()]), [loadBoard, loadFriends]);
 
   const refreshActivity = activity.refresh;
   const onActivity = view === 'activity';
@@ -104,9 +133,18 @@ export default function FriendsScreen() {
   // Reload whenever the tab is opened, so new requests show up.
   useFocusEffect(
     useCallback(() => {
-      load();
+      loadFriends();
+    }, [loadFriends])
+  );
+  useFocusEffect(
+    useCallback(() => {
+      loadBoard();
+    }, [loadBoard])
+  );
+  useFocusEffect(
+    useCallback(() => {
       if (onActivity) refreshActivity();
-    }, [load, onActivity, refreshActivity])
+    }, [onActivity, refreshActivity])
   );
 
   async function pullToRefresh() {
@@ -123,6 +161,23 @@ export default function FriendsScreen() {
 
   function openLine(l: ActivityLine) {
     setSelectedId(l.user_id);
+  }
+
+  /** Who gave kudos on one of your lines. Seeing it marks nothing. */
+  function openGivers(l: ActivityLine) {
+    setGivers({ day: l.day, list: null, error: null });
+    lineKudos(l)
+      .then((list) => setGivers((g) => (g?.day === l.day ? { ...g, list } : g)))
+      .catch((e) => setGivers((g) => (g?.day === l.day ? { ...g, error: errorMessage(e) } : g)));
+  }
+
+  const closeGivers = () => setGivers(null);
+
+  /** A giver tapped in a kudos list: the list closes, their card opens. */
+  function openGiver(g: Giver) {
+    closeGivers();
+    kudos.close();
+    setSelectedId(g.user_id);
   }
 
   /** Runs an action, shows any error, then reloads the lists. */
@@ -186,7 +241,7 @@ export default function FriendsScreen() {
         </Section>
       )}
 
-      <PillPicker options={VIEWS} value={view} onChange={setView} />
+      <PillPicker options={views} value={view} onChange={setView} />
       {onActivity ? (
         <>
           {activity.error && activity.loaded && (
@@ -213,6 +268,10 @@ export default function FriendsScreen() {
               onSelect={openLine}
               onOlder={activity.loadOlder}
               onShowNew={activity.showNew}
+              newKudos={counts.newKudos}
+              onGiveKudos={activity.giveKudos}
+              onOpenGivers={openGivers}
+              onOpenNewKudos={kudos.show}
             />
           )}
         </>
@@ -355,6 +414,25 @@ export default function FriendsScreen() {
         onEditMine={() => router.navigate('/profile')}
         onBlockChanged={() => (selectedId ? gone(selectedId) : load())}
       />
+
+      {kudos.open && (
+        <NewKudosSheet
+          list={kudos.list}
+          error={kudos.error}
+          today={myToday()}
+          onSelect={openGiver}
+          onClose={kudos.close}
+        />
+      )}
+      {givers && (
+        <GiversSheet
+          title={`Kudos for ${dayLabel(givers.day, myToday())}`}
+          givers={givers.list}
+          error={givers.error}
+          onSelect={openGiver}
+          onClose={closeGivers}
+        />
+      )}
     </Screen>
   );
 }
