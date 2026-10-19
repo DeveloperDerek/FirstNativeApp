@@ -1,0 +1,677 @@
+STEP TRACKER - KUDOS (BLUEPRINT)
+A kudos button on each line of the activity board, so friends can
+cheer each other's goal days and achievements ("Ana gave you kudos"),
+and a notice inside the app when you get one. No push notifications.
+Last checked: October 2026
+
+This is a design blueprint only. There is no code in this file. It
+describes what kudos are, who can give them, how the person who gets
+one is told inside the app, what the database keeps, and the choices
+to make before building (section 10).
+
+What this changes in other blueprints (and nothing else):
+  - step-tracker-activity-board.txt, section 12 ("Cheers on lines:
+    not built at this time"): kudos are the cheers. The board's
+    lines, who sees them, paging and refreshing all stay as they are,
+    and ACT-5 (no pushes) still holds.
+  - step-tracker-notifications.txt: notification_counts() gets one
+    more number, new_kudos, and the Friends tab can show a small dot
+    for it (KUD-6). Pushes, the app icon number and the friend
+    request badge are unchanged.
+Coins, goals, streaks, achievements and blocking are unchanged. Kudos
+pay nothing and unlock nothing (KUD-9).
+
+Builds on what the app already has:
+  - the activity board in Friends: friends_activity(), one line per
+    person per day, worked out live (20261121000000_activity_board.sql,
+    src/components/activity-list.tsx, src/hooks/use-friends-activity.ts)
+  - the read rules: is_active_account, has_sharing_consent, can_see,
+    is_friend, is_today_somewhere
+  - the tab badges: notification_counts() and its shared counts in
+    src/hooks/use-notification-counts.tsx, refreshed on open, on
+    coming back to the foreground and on opening Friends
+  - the badge art generator (scripts/generate-avatar-sprites.py)
+
+======================================================================
+1. THE IDEA IN ONE MINUTE
+======================================================================
+
+  - Every friend's line on Friends > Activity gets a small kudos
+    button (a pixel-art clap, KUD-2) with a count next to it.
+  - Tap it to give kudos. One per person per line: the button fills
+    in and the count goes up by one. Tapping again does nothing
+    (KUD-3: kudos can't be taken back).
+  - Your own lines show the count too, and tapping it lists who gave
+    you kudos for that day.
+  - When you get kudos, you find out the next time you open the app
+    or come back to it: a small dot on the Friends tab, and "3 new
+    kudos" at the top of Friends > Activity. Tapping that opens a list
+    of every new kudos, whatever day it's on; only seeing that list
+    clears them (KUD-11). Nothing is sent to the phone while the app
+    is closed.
+  - A kudos is one small row: who gave it, to whom, for which day.
+    The line itself is still worked out live, so a kudos always sits
+    on the line for that person and day, however the line changes.
+
+======================================================================
+2. WHAT A KUDOS IS ATTACHED TO
+======================================================================
+
+  - The board has one line per person per day (ACT-2), so a line is
+    named by (person, day). A kudos is (giver, person, day).
+  - If the line gains something later that day (an achievement after
+    the goal), it is still the same line and keeps its kudos. Nobody
+    is asked to give kudos again.
+  - If the line goes away (the person deleted the day and earned no
+    achievement on it), its kudos are no longer shown or counted
+    anywhere. The rows stay until the cleanup (section 7) and come
+    back only if the line does.
+  - Only lines that are on the board can get kudos: a goal day or an
+    achievement day, inside the date window below, of someone you can
+    see on the board right now (section 3). The server checks this
+    again on every give; the app's button is only a shortcut.
+  - Never on your own line.
+
+  THE DATE WINDOW (THE ACTIVITY BOARD'S, UNCHANGED)
+  Kudos add no date rules of their own. Every kudos function uses
+  exactly the window friends_activity already uses
+  (20261121000000_activity_board.sql), written out here so the tests
+  can pin it:
+  - my_today is the caller's phone date ('YYYY-MM-DD'), sent with each
+    call, as for every function the app calls. The server can't work
+    it out (it doesn't know the phone's time zone), so it VALIDATES
+    it: is_today_somewhere(my_today, now()) must be true, meaning
+    my_today is today somewhere between UTC-12 and UTC+14. Otherwise
+    BAD_DAY. So a phone can pick at most the two or three dates that
+    are today somewhere on Earth at that moment; it can't stretch the
+    window by days.
+  - Today is day 0. The oldest day in the window is my_today - 29:
+    30 calendar days counting today, both ends included.
+  - The newest day is my_today + 1: a friend in a time zone ahead of
+    yours can already be on your tomorrow, and their line for that
+    day is on your board, so it can get kudos.
+  - So a line can get kudos when
+      my_today - 29 <= day <= my_today + 1
+    and is shown, counted and listed under the same rule. Everything
+    else about whether the line exists (the goal, achievements, a
+    deleted day) is the board's rule too.
+  - The window is the GIVER's (the caller's my_today) for give_kudos,
+    and the line owner's (their my_today) for new_kudos and
+    line_kudos. Each person sees kudos on the lines their own board
+    shows.
+  - Around midnight a line can leave the window between loading the
+    board and tapping the clap (the phone's date moved on). The
+    server then refuses with BAD_DAY or NO_SUCH_LINE as it would for
+    any out-of-range day; the app puts the button back and reloads.
+
+======================================================================
+3. WHO CAN GIVE AND WHO SEES WHAT
+======================================================================
+
+  GIVING
+  - The giver: signed in, active, sharing steps (Friends is closed
+    without sharing anyway).
+  - The person: exactly the people friends_activity would show you
+    other than yourself, at that moment: an accepted friend you can
+    see (can_see: both active, neither blocked, not paused or hidden),
+    who shares their steps.
+  - So a block, an unfriend, a pause or sharing turned off stops new
+    kudos at once, in both directions.
+
+  THE COUNT ON A LINE
+  - Counted only from givers who are, right now, the line's person's
+    friend, someone they can see (can_see) and sharing steps (KUD-5).
+    An unfriended, deleted, paused or blocked giver's kudos drop out
+    of the count on the next load, the same way their own lines drop
+    out.
+  - Everyone who sees the line sees the same count. A count says how
+    many, never who, so it tells you nothing about the person's other
+    friends.
+
+  WHO GAVE KUDOS (YOUR OWN LINES ONLY, KUD-4)
+  - Tap the count on your own line: a short list of character heads
+    and display names, newest first, each opening that person's card.
+  - Givers who no longer pass the rule above are left out. The count
+    on the line and the "new kudos" number use the same rule, so they
+    always agree.
+  - On a friend's line you see the count and whether YOU gave kudos,
+    never the list.
+
+  GROUPS (LATER)
+  - Kudos come to a group's Activity view with group_activity
+    (activity board, section 11), with the group's rules: current
+    members. SAFE-1 lets blocked people see each other in a shared
+    group, but a kudos is contact, so the button is hidden and the
+    server refuses between a blocked pair, even in a group.
+  - Quest lines (the group's, not a person's) get no kudos.
+
+======================================================================
+4. TELLING THE PERSON (INSIDE THE APP ONLY)
+======================================================================
+
+  NO PUSHES (KUD-7)
+  - Kudos never send a push notification, never play a sound, and
+    never change the number on the app icon. A person who isn't in
+    the app hears about kudos the next time they open it.
+
+  "NEW" MEANS NOT YET SHOWN TO YOU (KUD-11)
+  - One time per account, kudos_seen_at, kept by the server, so two
+    phones agree. New kudos = kudos on your lines (counted as in
+    section 3) that arrived after it.
+  - Opening Activity does NOT move it. Activity is paged (20 lines,
+    up to 30 days back), so a kudos on a line from 12 days ago may
+    be on a page the person never opens. Clearing on the first page
+    would mark it seen without it ever being on screen.
+  - It moves only when the "New kudos" list (section 5) has shown
+    every new kudos, and only up to the newest kudos that list
+    actually contained, never to "now". A kudos that arrives while the
+    list is open, or between loading it and marking it, stays new.
+  - Since a person has at most one line a day and kudos only go on
+    the last 30 days, the list is at most 31 lines: always one
+    screen's worth of loading, no paging, so "everything new" can
+    really be shown at once.
+
+  THE DOT ON THE FRIENDS TAB (KUD-6)
+  - notification_counts() returns new_kudos beside friend_requests,
+    so it arrives in the same trip, at the same moments: opening the
+    app, coming back to the foreground, opening Friends.
+  - A friend request still shows its red number. With no requests
+    and some new kudos, the Friends tab shows a small dot (no number):
+    a dot is "something to see", a number is "something needs you",
+    so the two never mean the same thing.
+  - The dot goes once the "New kudos" list has been seen (the counts
+    are asked for again right after it is marked seen). Opening
+    Activity alone leaves it.
+
+  IN THE ACTIVITY VIEW
+  - "3 new kudos" at the top, above the lines, when new_kudos is more
+    than 0. Tapping it opens the "New kudos" list (section 5), not a
+    scroll: the lines it points to may not be loaded.
+  - Your own lines with new kudos show a small dot by the count, on
+    whichever page they are. The dots stay until the "New kudos" list
+    is seen; then the next load drops them.
+  - Tapping the count on one of your lines (who gave kudos for that
+    day) doesn't clear anything. "New" is one time for the account,
+    so clearing it from one line would also clear other lines' kudos
+    that haven't been shown. Only the list that shows them all can.
+  - Friends opens on Last 7 days by default (ACT-1). With new kudos,
+    the Activity button in the picker shows the same small dot, so
+    the person knows where to look.
+
+  IF MARKING SEEN FAILS OR IS CUT OFF
+  - Two separate calls: new_kudos() loads the list, then
+    mark_kudos_seen(up_to) records it. The rule is that kudos stay
+    new until the server confirms the second call. Nothing is cleared
+    on the phone first.
+  - The list loads, the seen call fails (offline, an error): the list
+    stays on screen. The dots, the bar and the tab dot stay. The app
+    keeps that up_to in memory and tries once more when the app next
+    comes back to the foreground, and again whenever the list is
+    shown. No error message: the person has already seen the kudos,
+    and the worst outcome is that they show as new once more.
+  - The app closes, crashes or loses its connection between the two
+    calls: nothing was recorded, so the same kudos are new on the next
+    open. They are shown again; nothing is lost.
+  - The seen call reached the server but the answer was lost: the
+    time moved, and the next counts load shows 0. Repeating the call
+    with the same up_to changes nothing (greatest(), section 7), so
+    a retry is always safe.
+  - The remembered up_to is for the signed-in account only. It is
+    dropped on sign-out or an account switch, never sent for another
+    account, and not saved to the phone (a lost retry only means the
+    kudos show as new again).
+  - Once the server confirms, the app asks for the counts again
+    (tab dot and bar) and drops the dots on the next board load.
+
+  WHEN IT UPDATES
+  - Only at the existing moments above, and on pull-to-refresh in
+    Activity. No live updates (ACT-4) and nothing in the background.
+  - A failed refresh keeps the last good counts, as the tab badges do
+    now; signing out clears them.
+
+======================================================================
+5. SCREENS
+======================================================================
+
+  A FRIEND'S LINE
+    [head] Sam                                       [badge]
+           reached their goal · unlocked first 10k
+           Yesterday                             [clap] 4
+
+  - The clap is an outline when you haven't given kudos, filled in
+    (gold) when you have. The count is hidden at 0.
+  - The clap has its own touch area (at least 44 points), apart from
+    the line, which still opens the player card.
+  - Tap: fills in and counts up straight away; a small one-time
+    "pop" (two frames, pixel art, no system emoji). If the server
+    refuses or the phone is offline, it goes back to the outline and
+    shows "Couldn't send kudos." under the line for a few seconds.
+  - Already given: the button is filled and does nothing on tap.
+
+  YOUR OWN LINE
+    [head] You                                       [badge]
+           reached your goal · +150 coins
+           Yesterday                          [clap] 4 •
+
+  - No button to give; the count (with a dot when new) opens "Kudos
+    for Thu, Oct 16": the list of givers (section 3).
+  - At 0 nothing is shown.
+
+  THE "NEW KUDOS" LIST (opened from the "3 new kudos" bar)
+    New kudos
+    Thu, Oct 16  reached your goal
+                 [head][head] Ana and Sam
+    Mon, Oct 6   unlocked a week in a row
+                 [head] Lee
+
+  - One row per line of yours with new kudos, newest kudos first,
+    each with the line's words (the same lineText as the board), the
+    day, and the new givers' heads and names ("Ana, Sam and 2 more"
+    past two). Kudos you'd already seen on that line aren't repeated.
+  - A giver's head opens their card. Closing the list returns to
+    Activity.
+  - When the list has loaded and is on screen, the app marks it
+    seen (mark_kudos_seen with the list's up_to, section 7). If the
+    load fails, nothing is marked and the bar stays.
+  - The app shows the dots and the bar until the server confirms
+    the seen update (below). It never hides them early.
+  - A line the old app can't describe (an unknown achievement id)
+    still gets a row ("your day") so its kudos can be seen and
+    cleared.
+
+  ACCESSIBILITY
+  - The clap reads "Give Sam kudos, 4 so far" / "You gave Sam kudos,
+    4 in all". Your own: "4 kudos, 1 new, opens who gave them".
+  - Each line still reads as one sentence; the kudos part comes at
+    the end: "Sam, reached their goal, yesterday, 4 kudos."
+  - The tab dot reads as "Friends, new kudos".
+
+  ART (PIXEL ART, PER THE MAP DIRECTION)
+  - kudos_clap and kudos_clap_filled, and a two-frame pop, drawn in
+    scripts/generate-avatar-sprites.py beside badge_goal, at the
+    same pixel scale as the badges.
+
+======================================================================
+6. ORDER, LOADING AND OLD APPS
+======================================================================
+
+  - friends_activity() returns two more fields on every line:
+      kudos     the count (section 3)
+      my_kudos  true if you gave kudos on it (always false on yours)
+    and, on your own lines, new_kudos: how many arrived since
+    kudos_seen_at.
+  - The board's order and paging don't change: kudos don't move a
+    line up, so "Show older" can't skip or repeat anything.
+  - An app from before kudos ignores the extra fields (and the extra
+    count in notification_counts). An app with kudos talking to a
+    server without them sees no field and hides the button and the
+    dot, so the migration and the build can ship in either order.
+  - After giving kudos, the app keeps its own +1 on that line until
+    the next load replaces the list, then trusts the server's count.
+
+======================================================================
+7. DATABASE
+======================================================================
+
+  NEW TABLE
+    kudos
+      giver_id    uuid, references profiles, on delete cascade
+      user_id     uuid, references profiles, on delete cascade
+                  (the person whose line it is)
+      day         date (the line's day)
+      created_at  timestamptz, default now()
+      primary key (giver_id, user_id, day)
+      check (giver_id <> user_id)
+    index on (user_id, day) for the counts, and on
+    (user_id, created_at) for "new since".
+  - Row level security on, and no access from the app at all (like
+    push_devices). Everything goes through the functions below.
+
+  NEW COLUMN
+  - notification_settings.kudos_seen_at timestamptz, null. A missing
+    settings row means "never seen", so every kudos in range is new.
+
+  FUNCTIONS (APP-FACING)
+  - give_kudos(p_user uuid, p_day date, my_today date): checks
+    section 3 and that (p_user, p_day) is a line on the board
+    (a 'daily_goal' coin row for that day with the day still uploaded
+    and after goal_is_coin_target_from, or an achievement earned that
+    day), my_today passes is_today_somewhere (BAD_DAY otherwise) and
+    my_today - 29 <= p_day <= my_today + 1 (BAD_DAY otherwise; the
+    window in section 2). Then "insert ... on conflict do nothing", so
+    a double tap or two phones give one kudos. Returns the line's new
+    count. Errors: NOT_SIGNED_IN, ACCOUNT_NOT_ACTIVE,
+    SHARING_REQUIRED, CANT_SEE, NO_SUCH_LINE, BAD_DAY, SELF.
+  - line_kudos(p_day date, my_today date): the givers on YOUR line
+    for that day (id, display name, avatar, created_at), filtered as
+    in section 3. my_today checked and p_day inside the window
+    (section 2), BAD_DAY otherwise.
+  - new_kudos(my_today date): the "New kudos" list. Every kudos on
+    your lines inside the window (section 2, my_today checked, BAD_DAY
+    otherwise) that arrived after kudos_seen_at,
+    filtered as in section 3, grouped by line: day, goal,
+    achievements, and the new givers (id, display name, avatar,
+    created_at). At most 31 lines, no paging. Also returns up_to: the
+    newest created_at in the answer (null when empty).
+  - mark_kudos_seen(p_up_to timestamptz): sets kudos_seen_at to
+    greatest(kudos_seen_at, p_up_to), and never past now(). Called by
+    the app once the "New kudos" list is on screen, with that list's
+    up_to. Because it moves only as far as what was shown, a kudos
+    that arrived after the list was loaded stays new; because it
+    never moves back, a slow call from a second phone can't bring old
+    kudos back. Kept separate from the reads so friends_activity and
+    new_kudos stay "stable" functions.
+    (Two kudos with the same created_at as up_to: a later-loaded one
+    with an identical time would be cleared unseen. created_at is
+    microseconds and each give is its own transaction, so this is
+    ignored; if it ever matters, up_to becomes (created_at, giver,
+    day).)
+  - friends_activity(): replaced, same arguments, adds kudos,
+    my_kudos and new_kudos (section 6).
+  - notification_counts_for() / notification_counts(): add
+    new_kudos (0 for an account that isn't active or isn't sharing,
+    like friend_requests). The push code keeps reading only
+    friend_requests and quest_votes, so the app icon number is
+    unchanged.
+  - All: security definer, set search_path = '', revoke from public,
+    anon, authenticated, execute granted to authenticated only.
+
+  SERVER ONLY
+  - A daily pg_cron job deletes kudos older than 35 days (KUD-10).
+    Lines older than 30 days aren't on the board, so the table stays
+    at most a month of rows.
+  - No trigger and nothing sent: giving a kudos is a single insert.
+
+  COST
+  - The count is a lookup on (user_id, day) per line, 20 lines a
+    page; new_kudos is one indexed count per counts call. Small, like
+    the rest of the board.
+
+======================================================================
+8. WHAT KUDOS ARE NOT
+======================================================================
+
+  - Not a push notification (KUD-7).
+  - Not a message: no text, no emoji choice, nothing to report. Block
+    is the answer to someone you don't want kudos from.
+  - Not coins, not progress toward an achievement (KUD-9). A reward
+    for receiving kudos would invite asking friends to tap.
+  - Not a ranking: no "most kudos" anywhere.
+  - Not on the Today or Last 7 days rankings: only on the board's
+    lines, which say what someone did.
+
+======================================================================
+9. TRICKY CASES
+======================================================================
+
+  - Double tap, or two of your phones at once: one row (the primary
+    key).
+  - Sam unfriends you after you gave kudos: your row stays in the
+    table, but you're no longer Sam's friend, so it drops out of the
+    count, Sam's list and Sam's new_kudos (KUD-5). Becoming friends
+    again brings it back, while the row exists (35 days, KUD-10) and
+    the line is in the window, to the count and the list (KUD-12).
+  - Is a restored kudos "new" again? Only if Sam never had it shown.
+    "New" is decided by the kudos' own created_at against Sam's
+    kudos_seen_at, and neither changes when the friendship does:
+      - Sam had seen it (it was in a "New kudos" list Sam saw): its
+        time is before kudos_seen_at, so it comes back in the count
+        and the list, with no dot and no "new kudos" bar.
+      - Sam had never seen it (the unfriend came first): it is still
+        new, because it was never shown. It brings the dot back once.
+    The same holds for a block lifted, a pause ended or sharing
+    turned back on. Intentional (KUD-12).
+  - Blocked either way: the kudos disappears from count, list and
+    dot on the next load, and no new kudos either way.
+  - A giver deletes their account: their rows go (on delete cascade).
+  - Sam deletes the day: no line, so no kudos shown or counted as new
+    (section 2). If Sam earned an achievement that day, the line
+    stays, with its kudos.
+  - A friend ahead of you in time zones is on "today" while you're on
+    yesterday: their line's day is your my_today + 1, the newest day
+    in the window (section 2), so it shows and kudos work.
+  - A friend two dates ahead: UTC-12 and UTC+14 are 26 hours apart,
+    so for up to two hours a day a friend's date can be your
+    my_today + 2. The board doesn't show that line yet, so it can't
+    get kudos (give_kudos refuses it with BAD_DAY). It appears, and
+    can get kudos, once your own date moves on. The same as the board
+    today; kudos don't change it.
+  - Kudos on the oldest line (my_today - 29) just before midnight:
+    after midnight the phone sends the new date, the line is now
+    my_today - 30, and the server refuses with BAD_DAY. The button
+    goes back to the outline and the board reloads without that line.
+  - The phone's clock or time zone is wrong: a my_today that isn't
+    today anywhere is refused with BAD_DAY, as on the board.
+  - Kudos arrive while you're in the app: nothing changes on screen
+    until the next refresh moment (foreground, opening Friends,
+    pull-to-refresh). This is the trade for no pushes and no live
+    updates; live updates can be added later (section 11).
+  - Kudos arrive while the app is closed: nothing happens on the
+    phone. The dot is there the next time the app opens.
+  - Ten friends give kudos: "10 new kudos" in Activity, and still
+    one dot on the tab.
+  - Two phones: seeing the list on one clears "new" on the other at
+    its next refresh (the seen time is on the server). Both open the
+    list at once: each marks up to what it showed, the larger wins,
+    nothing goes backwards.
+  - A kudos on a line from 12 days ago: its line is on page 2 of
+    Activity, but it's in the "New kudos" list, and stays new until
+    that list is seen.
+  - The person opens Activity, never taps the bar: the dots stay.
+    They go when the kudos leave the 30 days (the line is no longer
+    on the board), or when the list is seen.
+  - A kudos arrives while the "New kudos" list is open: it isn't in
+    the list, so it stays new and the bar shows "1 new kudos" after
+    the next refresh.
+  - An old app: no button, no count, no dot.
+
+======================================================================
+10. CHOICES (ALL DECIDED OCTOBER 2026, AS SUGGESTED)
+======================================================================
+
+  KUD-1  Name: "Kudos".
+    Why:  it's what the request calls it, and one word fits the line.
+    Other: "Cheer" (the activity board's earlier word).
+
+  KUD-2  Icon: a pixel-art clap (two hands), outline and gold.
+    Why:  a heart reads as "like" and a thumbs-up as "approve"; a
+    clap reads as "well done", which is what a goal day earns.
+    Other: a high-five, a star, a flame.
+
+  KUD-3  One per person per line, and it can't be taken back.
+    Why:  simple, and no "they took it back" surprises. The cost is
+    a mis-tap stays. With no pushes, taking back would be harmless
+    too, so this is an easy one to flip.
+    Other: allow taking back (the row is removed).
+
+  KUD-4  Who gave kudos: listed on your own lines only; others see a
+    count.
+    Why:  the list on Sam's line would show you Sam's other friends,
+    who may not be yours.
+    Other: anyone who can see the line sees the list (filtered to
+    people they can see too).
+
+  KUD-5  The count, the list and "new" use the same live rule: givers
+    who are still the person's friend, can be seen, and share steps.
+    Why:  they never disagree, and unfriend / block clean up on their
+    own, like the board.
+
+  KUD-6  A small dot (no number) on the Friends tab and on the
+    Activity button for new kudos.
+    Why:  without pushes, the dot is how people find out; a dot, not
+    a number, keeps the red number meaning "something needs you"
+    (notifications blueprint, section 5).
+    Other: no tab dot, only "new kudos" inside Activity (quieter,
+    but easy to miss); or a short in-app banner ("Ana gave you
+    kudos") when the app opens with new kudos.
+
+  KUD-7  No push notifications for kudos.
+    Why:  the person asked for an in-app notice only.
+
+  KUD-8  (Dropped with KUD-7: no "Kudos" switch under Notifications
+    and no Android channel are needed.)
+
+  KUD-9  No coins and no achievements for kudos.
+    Why:  coins and achievements reward walking. Rewarding kudos
+    would reward asking for them.
+    Other, later: an achievement for GIVING kudos (e.g. 50 given).
+
+  KUD-10 Kudos kept 35 days, then deleted.
+    Why:  the board shows 30 days; nothing older is ever shown.
+
+  KUD-11 "New" clears only when the "New kudos" list has shown every
+    new kudos, and only up to the newest one it showed. Opening
+    Activity doesn't clear it.
+    Why:  Activity is paged over 30 days, so loading its first page
+    says nothing about what the person saw. One list of at most 31
+    lines can always show everything new at once, so one seen time per
+    account is enough; no per-kudos "seen" flag is needed.
+    Other: a "seen" mark on each kudos row, set as lines are shown
+    (needs the app to report which lines were on screen; more writes
+    and more to test). Or a narrower window: only kudos on the last 7
+    days' lines count as new, so they're always on the first page.
+    That changes what "notified" means, so it would be a product
+    decision, not a fix.
+
+  KUD-12 Kudos hidden by an unfriend, block, pause or sharing turned
+    off come back to the count and the list when that is undone (while
+    the row is kept and the line is in the window). They are new again
+    only if they had never been shown; a kudos already seen never
+    brings the dot back.
+    Why:  "new" means "not yet shown to you", and a restored
+    friendship doesn't change what you've seen. No extra state needed:
+    created_at and kudos_seen_at already decide it.
+    Other: drop the rows on unfriend or block, so nothing comes back.
+
+  KUD-13 The date window is the activity board's, unchanged: today is
+    day 0, oldest my_today - 29, newest my_today + 1, my_today
+    checked with is_today_somewhere (section 2).
+    Why:  a kudos button must work on exactly the lines the board
+    shows. A second set of date rules would leave lines you can see
+    but can't cheer, or the other way round.
+
+  These are in step-tracker-decisions.txt, section 15. Each "Other"
+  above is the option not chosen.
+
+======================================================================
+11. LATER (EACH ITS OWN CHOICE)
+======================================================================
+
+  - Live updates while the app is open, so the dot appears without
+    leaving and coming back. The kudos table has no app access, so
+    this would go through a broadcast or a per-person signal rather
+    than listening to the table.
+  - A short in-app banner when new kudos arrive (KUD-6 other).
+  - An achievement for giving kudos.
+  - Kudos on other kinds of lines if the board gets them ("Sam has a
+    new look").
+
+======================================================================
+12. TESTS
+======================================================================
+
+  DATABASE (supabase/tests/database/kudos.test.sql)
+  Giving
+  - A friend's goal line and achievement-only line: kudos works and
+    returns the count; a second give returns the same count and adds
+    no row.
+  - The window, at its exact edges (the same days as the board's
+    tests): my_today - 29 accepted, my_today - 30 refused;
+    my_today + 1 (a friend ahead of you) accepted, my_today + 2
+    refused; my_today itself accepted. A my_today that isn't today
+    anywhere (e.g. current_date + 5) refused with BAD_DAY, by
+    give_kudos, line_kudos and new_kudos alike. For each edge,
+    friends_activity shows the line exactly when give_kudos accepts
+    it.
+  - Refused: your own line (SELF); a day with no line, a deleted day
+    with no achievements, a day before goal_is_coin_target_from
+    (NO_SUCH_LINE); outside the window or a bad my_today (BAD_DAY);
+    a stranger, a former friend, blocked either way, paused, hidden,
+    not sharing, under-age or unfinished (CANT_SEE); a caller who is
+    signed out, inactive or not sharing.
+  Counting, listing and "new"
+  - friends_activity returns kudos and my_kudos on every line and
+    new_kudos on yours only; an unfriended, blocked or deleted giver
+    drops out of the count, line_kudos and new_kudos together.
+  - line_kudos only ever returns your own lines' givers.
+  - notification_counts: new_kudos counts kudos after kudos_seen_at
+    (all of them with no settings row); 0 when not active or not
+    sharing; friend_requests and quest_votes unchanged.
+  - new_kudos(): returns every new kudos in the 30 days, including
+    one on a line 12 days old; no kudos already seen; grouped one row
+    per line; up_to is the newest created_at returned.
+  - friends_activity and new_kudos change nothing: calling them
+    leaves kudos_seen_at as it was.
+  - mark_kudos_seen(up_to): a kudos created after up_to stays new;
+    an older up_to never moves the time back; a future up_to is held
+    to now(); the same up_to twice changes nothing.
+  - Friendship restored: a kudos seen before the unfriend comes back
+    in the count and line_kudos but not in new_kudos; one never seen
+    comes back in new_kudos too. The same for a block removed.
+  - Giving a kudos sends nothing: no push_sends row.
+  Permissions
+  - No direct read or write on kudos for anon or authenticated; the
+    functions are security definer with an empty search_path; execute
+    for authenticated only.
+  Cleanup
+  - The daily job removes rows older than 35 days and nothing newer.
+
+  APP (npm test)
+  - The clap's states (none, given, own line, new dot) and labels.
+  - Giving: the +1 straight away, going back on an error, keeping the
+    +1 until the next load, and a load replacing it.
+  - The tab shows a number for requests, a dot for kudos only, and
+    the number when there are both.
+  - Opening Activity doesn't mark seen; the "New kudos" list marks
+    seen only after it loads, with its own up_to; a failed load marks
+    nothing.
+  - A failed seen call keeps the dots and the bar, and retries with
+    the same up_to on the next foreground and the next time the list
+    shows; a confirmed one refreshes the counts; an account switch
+    drops the pending up_to.
+  - Hiding the button and the dot when the server sends no kudos
+    fields.
+
+  ON A PHONE (DEVICE-TESTS.md)
+  - Two accounts: give kudos on a goal line; on the other phone,
+    bring the app to the foreground: dot on Friends and on Activity,
+    "1 new kudos" at the top. Open Activity: the dots stay. Tap the
+    bar: the list shows it; close it, the dots go. No push, no sound,
+    no app icon change.
+  - Give kudos on a line from more than a week ago (on page 2): it's
+    in the "New kudos" list, and stays new until the list is seen.
+  - With a friend request waiting too: the red number shows, not the
+    dot; accept it, the dot shows.
+  - Block from the card: the kudos goes from the count after a
+    refresh.
+  - Airplane mode: the clap goes back to the outline with the message.
+  - VoiceOver reads the clap, the line and the tab dot as in
+    section 5.
+  - Android emulator: the same.
+
+======================================================================
+13. BUILD ORDER CHECKLIST
+======================================================================
+
+    [x] KUD-1 to KUD-13 decided (October 2026), in
+        step-tracker-decisions.txt, section 15
+    [x] Activity board blueprint updated (section 12)
+    [ ] Art: kudos_clap, kudos_clap_filled and the pop, in
+        generate-avatar-sprites.py
+    [ ] Migration: kudos table, notification_settings.kudos_seen_at,
+        give_kudos, line_kudos, new_kudos, mark_kudos_seen(up_to),
+        friends_activity and
+        notification_counts replaced, the daily cleanup job; tests in
+        supabase/tests/database/kudos.test.sql
+    [ ] App: kudos fields in src/activity/activity.ts (with tests),
+        giveKudos / lineKudos / markKudosSeen in src/api/activity.ts,
+        the clap and the "new kudos" bar in
+        src/components/activity-list.tsx, the giver list sheet, the
+        "New kudos" list (marks seen only once shown), the +1
+        handling in src/hooks/use-friends-activity.ts
+    [ ] App: new_kudos in src/hooks/use-notification-counts.tsx, the
+        dot on the Friends tab (src/components/app-tabs.tsx) and on
+        the Activity button
+    [ ] Deploy the migration before the build ships (or either order,
+        section 6)
+    [ ] Device tests, iPhone and Android emulator

@@ -393,8 +393,9 @@ Builds on what the app already has:
     day) stay as they are.
   - An activities table with dedupe keys, update cursors and removal
     messages: not needed, since every line is read live (section 7).
-  - Cheers on lines: not built at this time. The board has no
-    reactions.
+  - Cheers on lines: now kudos, in their own blueprint
+    (step-tracker-kudos.txt): a clap on each line, an in-app notice,
+    no pushes (so ACT-5 still holds).
   - A "synced 3h ago" label: the board shows past days only, never
     live progress, so nothing on it claims to be live.
   - Personal bests and repeated streak milestones: section 8.
