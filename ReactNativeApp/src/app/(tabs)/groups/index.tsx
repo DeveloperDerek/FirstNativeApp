@@ -29,7 +29,7 @@ export default function GroupsScreen() {
   const [busy, setBusy] = useState<'create' | 'join' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Shown just above Create a group, so it is visible without scrolling up
+  // Shown in the Create a group card, next to the field it is about
   const [createError, setCreateError] = useState<string | null>(null);
   const { refreshQuests } = useSteps();
   const { refreshCounts } = useNotificationCounts();
@@ -140,14 +140,6 @@ export default function GroupsScreen() {
         <Button title="Join" onPress={join} loading={busy === 'join'} disabled={!code.trim()} />
       </Section>
 
-      {createError && (
-        <Section>
-          <ThemedText type="small" themeColor="danger">
-            {createError}
-          </ThemedText>
-        </Section>
-      )}
-
       <Section title="Create a group">
         <TextField
           placeholder="Group name"
@@ -157,6 +149,11 @@ export default function GroupsScreen() {
           // Longer than 15: emoji count as one name character but more here
           maxLength={40}
         />
+        {createError && (
+          <ThemedText type="small" themeColor="danger" accessibilityRole="alert">
+            {createError}
+          </ThemedText>
+        )}
         <Button
           title="Create"
           onPress={create}
