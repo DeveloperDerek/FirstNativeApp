@@ -230,7 +230,9 @@ const ReelTile = memo(function ReelTile({
   return (
     <View style={[styles.tile, { height: MACHINE.tile * k, borderBottomWidth: k, paddingHorizontal: 3 * k }]}>
       <View style={gem} />
-      <View style={hidden && styles.hidden}>
+      {/* Opacity always set, never just dropped: a style taken away doesn't
+          always reset, and the won tile stayed invisible after its pop */}
+      <View style={{ opacity: hidden ? 0 : 1 }}>
         <PrizeArt tile={tile} wearer={wearer} coinK={coinK} clock={clock} />
       </View>
       <View style={gem} />
@@ -286,10 +288,8 @@ export function PrizeMachine({ k, tiles, position, pull, lights, clock, flash, h
         ]}>
         <Reanimated.View style={strip}>
           {tiles.map((t, i) => (
-            // Keyed by what it shows too: a tile swapped for the prize is
-            // drawn fresh (an icon whose item changed in place could stay blank)
             <ReelTile
-              key={`${i}:${t.kind === 'coins' ? t.coins : t.id}`}
+              key={i}
               tile={t}
               k={k}
               coinK={coinK}
@@ -590,9 +590,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomColor: P.reelLine,
-  },
-  hidden: {
-    opacity: 0,
   },
   payline: {
     position: 'absolute',
