@@ -17,6 +17,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import * as haptics from '@/lib/haptics';
+
 // A sideways-scrolling row of tiles the user can rearrange:
 // hold a tile for a moment, then drag it sideways; the others slide out of
 // its way. Holding it near either edge scrolls the row, so a tile can go
@@ -276,6 +278,14 @@ export function DraggableRow<T extends { id: string }>({
     positions.set(slots(key ? key.split(',') : []));
   }, [key, positions]);
 
+  // A tick each time the held tile takes another tile's slot
+  useAnimatedReaction(
+    () => (drag.get() ? orderOf(positions.get()).join(',') : null),
+    (now, before) => {
+      if (now !== null && before !== null && now !== before) scheduleOnRN(haptics.select);
+    }
+  );
+
   const onScroll = useAnimatedScrollHandler((e) => {
     scrollX.set(e.contentOffset.x);
   });
@@ -300,6 +310,7 @@ export function DraggableRow<T extends { id: string }>({
 
   const handleDragChange = useCallback(
     (now: boolean) => {
+      if (now) haptics.lift(); // the tile comes off the row
       setDragging(now);
       edgeScroll.setActive(now);
       onDragChange(now);

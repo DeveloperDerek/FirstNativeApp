@@ -27,6 +27,7 @@ import { Spacing } from '@/constants/theme';
 import { useMapTheme } from '@/hooks/use-map-theme';
 import { useWallet } from '@/hooks/use-wallet';
 import { errorMessage } from '@/lib/error-message';
+import * as haptics from '@/lib/haptics';
 import { findShopEntry, type ShopEntry } from '@/lib/shop-entries';
 
 /** A window onto the map's street art, on its own sky and ground colors. */
@@ -118,7 +119,10 @@ export default function ShopScreen() {
       setNow(Date.now());
       if (r.refreshed) {
         await load();
-        if (r.granted) Alert.alert('New items!', `You earned ${r.granted} coins for refreshing.`);
+        if (r.granted) {
+          haptics.success();
+          Alert.alert('New items!', `You earned ${r.granted} coins for refreshing.`);
+        }
       }
     } catch (e) {
       setError(errorMessage(e));
@@ -145,7 +149,9 @@ export default function ShopScreen() {
             setOwned((prev) => new Set(prev).add(itemId));
             if (userId) addOwnedItem(userId, itemId); // in the character editor straight away
             refreshOwned(); // a new background unlocks on Profile straight away
+            haptics.success();
           } catch (e) {
+            haptics.fail();
             Alert.alert('Not purchased', errorMessage(e));
             load(); // e.g. the shop just refreshed
           } finally {

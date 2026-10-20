@@ -28,7 +28,9 @@ import { openHealthSettings, permissionHelp } from '@/health';
 import { useMapTheme } from '@/hooks/use-map-theme';
 import { useSteps } from '@/hooks/use-steps';
 import { useWallet } from '@/hooks/use-wallet';
+import { dayKey } from '@/lib/day';
 import { errorMessage } from '@/lib/error-message';
+import * as haptics from '@/lib/haptics';
 import { FRIENDS_ID, getWhoOrder, saveWhoOrder } from '@/lib/who-order';
 import { DEFAULT_GOAL, goalProgress } from '@/lib/goal';
 import { pickShown } from '@/track/scale';
@@ -84,6 +86,12 @@ export default function TodayScreen() {
   const dailyGoal = goal?.today ?? DEFAULT_GOAL;
   const progress = goalProgress(today ?? 0, dailyGoal);
   const earnedCoins = (today ?? 0) >= dailyGoal && sharing;
+  // Reaching it: felt once a day, when it's first seen (opening the app
+  // after crossing it, or crossing it with Today open)
+  const reachedGoal = goal !== null && today !== null && today >= goal.today;
+  useEffect(() => {
+    if (reachedGoal && myId) haptics.once(haptics.goalBuzzKey(myId), dayKey(new Date()), haptics.success);
+  }, [reachedGoal, myId]);
   const blocked = permission === 'denied' || permission === 'unavailable';
   // iOS hides denied read access, so zero steps may really mean "no permission".
   const showIosZeroHint = Platform.OS === 'ios' && permission === 'granted' && today === 0;

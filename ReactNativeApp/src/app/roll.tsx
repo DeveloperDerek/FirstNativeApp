@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -37,6 +36,7 @@ import { useMapTheme } from '@/hooks/use-map-theme';
 import { useSteps } from '@/hooks/use-steps';
 import { useWallet } from '@/hooks/use-wallet';
 import { errorMessage } from '@/lib/error-message';
+import * as haptics from '@/lib/haptics';
 import { boardItemName, findShopEntry } from '@/lib/shop-entries';
 import {
   buildReel,
@@ -166,9 +166,9 @@ export default function RollScreen() {
     (p: Prize) => {
       setPhase('landed');
       // The win buzz; a big win gets a heavy thump after it too
-      buzz(Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
+      haptics.success();
       if (isBigWin(p)) {
-        setTimeout(() => buzz(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)), 180);
+        setTimeout(haptics.thump, 180);
       }
       // The reel's thunk, then coins clinking out of the tray or the win's jingle
       play('stop');
@@ -210,7 +210,7 @@ export default function RollScreen() {
     const now = Date.now();
     if (now - lastTick.current < TICK_MS) return;
     lastTick.current = now;
-    buzz(Haptics.selectionAsync());
+    haptics.select();
     play('tick');
   }, [play]);
   useAnimatedReaction(
@@ -243,7 +243,7 @@ export default function RollScreen() {
     if (phase !== 'idle') return;
     setPhase('asking');
     setError(null);
-    buzz(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
+    haptics.tap();
     play('pull');
 
     let p: Prize;
@@ -309,7 +309,7 @@ export default function RollScreen() {
     if (phase !== 'revealed' || still) return;
     cardIn.set(0);
     cardIn.set(withTiming(1, { duration: 560 }));
-    buzz(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy));
+    haptics.thump();
   }, [phase, still, cardIn]);
   const cardStyle = useAnimatedStyle(() => {
     const dy = machineTop.value + MACHINE.tray.y * k - cardMid.value;
@@ -537,16 +537,6 @@ function CardButton({ title, primary, onPress }: { title: string; primary: boole
       <ThemedText style={[styles.buttonText, { color: primary ? '#3a2400' : INK }]}>{title}</ThemedText>
     </Pressable>
   );
-}
-
-/**
- * A haptic that never breaks the roll. Dev builds say why one didn't play
- * (most often: this build was made without expo-haptics).
- */
-function buzz(haptic: Promise<void>) {
-  haptic.catch((e) => {
-    if (__DEV__) console.warn('Haptic failed:', errorMessage(e));
-  });
 }
 
 /** The shadow's rows, in machine pixels: [left, width], 2 pixels tall each. */

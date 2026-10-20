@@ -6,6 +6,7 @@ import { type ActivityLine, kudosLabel } from '@/activity/activity';
 import { CRISP, useSprite } from '@/avatar/Avatar';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import * as haptics from '@/lib/haptics';
 import { PixelGlyph, textRows } from '@/track/pixel-glyph';
 
 // The kudos button (step-tracker-kudos.txt, section 5): a party popper,
@@ -80,6 +81,7 @@ export function KudosButton({
   function give() {
     if (line.my_kudos) return; // given already: nothing to do
     setPop('pop1');
+    haptics.tap();
     timers.current = [
       setTimeout(() => setPop('pop2'), POP_FRAME_MS),
       setTimeout(() => setPop(null), POP_FRAME_MS * 2),

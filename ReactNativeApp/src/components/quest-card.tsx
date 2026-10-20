@@ -9,6 +9,7 @@ import { Section } from '@/components/ui/section';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { clockTime as clock } from '@/lib/day';
+import * as haptics from '@/lib/haptics';
 import {
   coinsEach,
   durationText,
@@ -221,7 +222,7 @@ function Running({
         />
       )}
 
-      {settled && quest.status === 'completed' && <Payout quest={quest} me={me} party={party} />}
+      {settled && quest.status === 'completed' && <Payout quest={quest} me={me} party={party} myId={myId} />}
       {settled && quest.status === 'failed' && (
         <>
           <ThemedText type="small">
@@ -303,11 +304,19 @@ function Payout({
   quest,
   me,
   party,
+  myId,
 }: {
   quest: Quest;
   me: QuestMember | undefined;
   party: QuestMember[];
+  myId: string;
 }) {
+  // The win, felt the first time this phone shows it
+  const paid = me !== undefined && me.coins_paid !== null;
+  useEffect(() => {
+    if (paid && myId) haptics.once(haptics.payoutBuzzKey(myId), quest.id, haptics.success);
+  }, [paid, myId, quest.id]);
+
   const size = quest.party_size ?? party.length;
   const coins = quest.step_coins ?? stepCoins(quest.total_steps, quest.goal);
   const multiplier = Number(quest.multiplier ?? groupMultiplier(size));
