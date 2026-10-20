@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   type AnimatedRef,
+  Easing,
   measure,
   scrollTo,
   type SharedValue,
@@ -19,16 +20,19 @@ import { scheduleOnRN } from 'react-native-worklets';
 // A sideways-scrolling row of tiles the user can rearrange:
 // hold a tile for a moment, then drag it sideways; the others slide out of
 // its way. Holding it near either edge scrolls the row, so a tile can go
-// to a slot that was off screen. The tiles stay in normal layout in their
-// given order and are only shifted with translateX while dragging, so the
-// row sizes itself as usual. Tiles can differ in width (each one is
+// to a slot that was off screen. The tiles stay in normal layout and are
+// only shifted with translateX, so the row sizes itself as usual. A drop
+// never changes that layout (tiles keep the order they were first laid
+// out in; only tiles coming or going change it): re-laying out the row
+// as the dropped tile lands made it flicker. Tiles can differ in width (each one is
 // measured), e.g. buttons named after groups.
 
 export const HOLD_MS = 250; // also Tile's delayLongPress, so a drag never counts as a tap
 
 const EDGE = 56; // how close to an edge the finger must be to scroll, in points
 const MAX_SPEED = 600; // scroll speed right at the edge, in points per second
-const SETTLE_MS = 160; // tiles sliding out of the way, and the dropped one into its slot
+const SETTLE_MS = 180; // tiles sliding out of the way, and the dropped one into its slot
+const SETTLE = { duration: SETTLE_MS, easing: Easing.out(Easing.cubic) };
 
 type Positions = Record<string, number>; // item id -> slot it shows in
 type Widths = Record<string, number>; // item id -> its measured width
@@ -117,7 +121,7 @@ function DraggableItem({
   children,
 }: {
   id: string;
-  ids: string[]; // every tile in the row, in its given (layout) order
+  ids: string[]; // every tile in the row, in layout order
   gap: number;
   shared: Shared;
   scrollRef: AnimatedRef<Animated.ScrollView>;
@@ -161,10 +165,11 @@ function DraggableItem({
     },
   });
 
-  // Where the tile shows in the row, animated. The style turns it into
-  // an offset from the tile's layout spot, so when a drop re-renders the
-  // row in its new order the tile stays put instead of bouncing back.
+  // Where the tile shows in the row, animated; the style turns it into
+  // an offset from the tile's layout spot. And whether it is drawn above
+  // the others: from the hold until it has landed, not just while held.
   const shownLeft = useSharedValue(0);
+  const lifted = useSharedValue(false);
   useAnimatedReaction(
     () => {
       const held = drag.get()?.id === id;
@@ -180,8 +185,20 @@ function DraggableItem({
       // Slide while making room and when the held tile settles into its
       // slot, including tiles still sliding as it's dropped; otherwise
       // (first layout, a new order) jump straight there
-      const slide = !now.held && before !== null && (now.dragging || before.dragging);
-      shownLeft.set(slide ? withTiming(now.target, { duration: SETTLE_MS }) : now.target);
+      if (now.held) {
+        lifted.set(true);
+        shownLeft.set(now.target);
+      } else if (before?.held) {
+        // Dropped: glide into the slot, then back to the others' level
+        shownLeft.set(
+          withTiming(now.target, SETTLE, (finished) => {
+            if (finished) lifted.set(false);
+          })
+        );
+      } else {
+        const slide = before !== null && (now.dragging || before.dragging);
+        shownLeft.set(slide ? withTiming(now.target, SETTLE) : now.target);
+      }
     },
     [id, gap]
   );
@@ -189,10 +206,10 @@ function DraggableItem({
   const style = useAnimatedStyle(() => {
     const held = drag.get()?.id === id;
     return {
-      zIndex: held ? 1 : 0,
+      zIndex: lifted.get() ? 1 : 0,
       transform: [
         { translateX: shownLeft.get() - leftOf(ids, widths.get(), gap, id) },
-        { scale: withTiming(held ? 1.08 : 1, { duration: 120 }) },
+        { scale: withTiming(held ? 1.08 : 1, held ? { duration: 120 } : SETTLE) },
       ],
     };
   }, [id, ids, gap]);
@@ -233,6 +250,15 @@ export function DraggableRow<T extends { id: string }>({
 }) {
   const ids = items.map((x) => x.id);
   const key = ids.join(',');
+  // The order the tiles are laid out in: kept through drops (their order
+  // only moves the tiles with translateX); new tiles go at the end
+  const [layoutIds, setLayoutIds] = useState(ids);
+  const sameTiles = layoutIds.length === ids.length && ids.every((id) => layoutIds.includes(id));
+  const laidOut = sameTiles
+    ? layoutIds
+    : [...layoutIds.filter((id) => ids.includes(id)), ...ids.filter((id) => !layoutIds.includes(id))];
+  if (!sameTiles) setLayoutIds(laidOut);
+  const byId = new Map(items.map((x) => [x.id, x]));
   const shared: Shared = {
     positions: useSharedValue<Positions>(slots(ids)),
     widths: useSharedValue<Widths>({}),
@@ -292,11 +318,11 @@ export function DraggableRow<T extends { id: string }>({
       onContentSizeChange={(w) => contentWidth.set(w)}
       contentContainerStyle={[styles.row, { gap }]}>
       {leading}
-      {items.map((item) => (
+      {laidOut.map((id) => byId.get(id)!).map((item) => (
         <DraggableItem
           key={item.id}
           id={item.id}
-          ids={ids}
+          ids={laidOut}
           gap={gap}
           shared={shared}
           scrollRef={scrollRef}
