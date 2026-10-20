@@ -3,6 +3,7 @@ import { BlendColor, Canvas, Group, Image, type SkImage } from '@shopify/react-n
 import { CRISP, HEADROOM, loadSprite, SPRITE_H, SPRITE_W, useSprite } from './Avatar';
 import { BODY, CATALOG, findItem, type Slot } from './catalog';
 import { PETS } from './pets';
+import { useBlankWarning } from './blank-warning';
 
 // One item on its own, as an inventory icon: just its sprite(s), cropped
 // to the pixels it actually covers and scaled up to fill the box. The
@@ -107,6 +108,10 @@ export function ItemIcon({
       : slot === 'shoes' && worn
         ? { ...worn, w: SPRITE_W / 2 - worn.x }
         : worn;
+  useBlankWarning(
+    !box,
+    `${id} (${!item ? 'not in the catalog' : !front && !back ? 'art not decoded' : 'no visible pixels'})`
+  );
   // Whole-number scale keeps the pixels even; capped so a tiny item
   // (glasses) doesn't turn into a few giant blocks
   const scale = box ? Math.max(1, Math.min(6, Math.floor(size / Math.max(box.w, box.h)))) : 1;

@@ -13,6 +13,7 @@ import {
 } from '@shopify/react-native-skia';
 import { useEffect, useState } from 'react';
 
+import { useBlankWarning } from './blank-warning';
 import { BODY, findItem, wornLayers } from './catalog';
 import type { AvatarConfig } from './types';
 
@@ -140,6 +141,7 @@ export function PixelSprite({
   accessibilityLabel?: string;
 }) {
   const image = useSprite(source);
+  useBlankWarning(!image, `sprite ${accessibilityLabel ?? source} (art not decoded)`);
   return (
     <Canvas
       style={{ width: width * scale, height: height * scale }}

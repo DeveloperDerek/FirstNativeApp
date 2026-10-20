@@ -3,6 +3,7 @@ import { Image, StyleSheet, View } from 'react-native';
 import { ItemIcon } from '@/avatar/ItemIcon';
 import { Pet } from '@/avatar/Pet';
 import type { AvatarConfig } from '@/avatar/types';
+import { useBlankWarning } from '@/avatar/blank-warning';
 import { findShopEntry } from '@/lib/shop-entries';
 
 // The same size as an achievement badge at scale 2, so a line with an
@@ -27,6 +28,7 @@ export function ShopItemIcon({
   accessibilityLabel: string;
 }) {
   const entry = findShopEntry(id);
+  useBlankWarning(!entry, `${id} (not in this app's shop)`);
   if (!entry) return null;
   if (entry.kind === 'clothing') {
     return (
@@ -52,7 +54,12 @@ export function ShopItemIcon({
       accessible
       accessibilityRole="image"
       accessibilityLabel={accessibilityLabel}>
-      <Image source={entry.tile} style={styles.mapTile} resizeMode="stretch" />
+      <Image
+        source={entry.tile}
+        style={styles.mapTile}
+        resizeMode="stretch"
+        onError={() => __DEV__ && console.warn(`Blank icon: ${id} (map art failed to load)`)}
+      />
     </View>
   );
 }

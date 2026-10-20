@@ -1,4 +1,5 @@
 import { myToday } from '@/api/steps';
+import { findShopEntry } from '@/lib/shop-entries';
 import { supabase } from '@/lib/supabase';
 import { type PoolItem, type Prize, rarityOf } from '@/roll/roll';
 
@@ -35,6 +36,7 @@ export async function listRollPool(): Promise<PoolItem[]> {
   if (owned.error) throw owned.error;
   const mine = new Set(owned.data.map((r) => r.item_id));
   return items.data
-    .filter((r) => r.price !== null && !mine.has(r.id))
+    // Only what this app can draw: an item it has no art for would be a blank tile
+    .filter((r) => r.price !== null && !mine.has(r.id) && findShopEntry(r.id))
     .map((r) => ({ id: r.id, rarity: rarityOf(r.price) }));
 }
