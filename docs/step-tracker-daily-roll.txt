@@ -306,9 +306,11 @@ Builds on what the app already has:
     its rarity colour, holds, then shrinks back into its tile
     (about 0.76 s). Rare gets a few sparkles; Epic and Legendary
     more (Legendary twice).
-  - Coins: gold coins spray out of the tray, more for bigger wins
-    (7, 14 or 26), and the wallet at the top counts up to the new
-    balance.
+  - Coins: the moment the reel stops, the coins leave their row,
+    which stays empty, and gold coins spray out of the tray (the
+    machine's mouth), more for bigger wins (7, 14 or 26). The card
+    follows 0.6 s later, and the wallet at the top counts up to the
+    new balance.
   - Then the prize card pops out of the tray: it starts as a speck
     at the tray, flies down and grows to just past full size, then
     settles (about 0.56 s), with a puff of white sparkles at the

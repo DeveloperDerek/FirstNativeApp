@@ -76,6 +76,9 @@ const YELLOW = '#ffd23f';
 /** How far down (0 to 1) the lever must be when let go for the reel to spin. */
 const PULL_ENOUGH = 0.6;
 
+/** Coins won: how long they spray out of the tray before the card follows. */
+const COINS_OUT_MS = 600;
+
 /** The shortest gap between reel ticks: at full speed they'd blur into one buzz. */
 const TICK_MS = 50;
 
@@ -168,9 +171,10 @@ export default function RollScreen() {
           withTiming(0, { duration: 80 })
         )
       );
-      // An item grows out of the window first; coins go straight to the reveal
+      // An item grows out of the window first; coins leave their row
+      // empty and spray out of the tray, then the card comes
       if (p.item_id !== null) setPopping(true);
-      else setTimeout(() => reveal(p), 420);
+      else setTimeout(() => reveal(p), COINS_OUT_MS);
     },
     [still, k, reveal, lights, shake]
   );
@@ -314,6 +318,8 @@ export default function RollScreen() {
   const waiting = preview || roll?.state === 'ready' || (roll?.state === 'rolled' && !roll.seen);
   const flash = prize && (phase === 'landed' || phase === 'revealed') ? RARITY_COLOR[prize.rarity] : null;
   const won = prize && phase === 'revealed' ? prize : null;
+  // Coins won: out of their row and out of the tray from the moment the reel stops
+  const coinsOut = prize?.item_id === null && (phase === 'landed' || phase === 'revealed') ? prize : null;
   const entry = won?.item_id ? findShopEntry(won.item_id) : undefined;
   const canPull = phase === 'idle' && waiting;
 
@@ -399,7 +405,7 @@ export default function RollScreen() {
               lights={lights}
               clock={clock}
               flash={flash}
-              hiddenTile={popping ? stop : -1}
+              hiddenTile={popping || coinsOut ? stop : -1}
               wearer={wearer}
             />
             {popping && prize && (
@@ -408,8 +414,12 @@ export default function RollScreen() {
                 tile={tileFor(prize)}
                 color={RARITY_COLOR[prize.rarity]}
                 wearer={wearer}
+                clock={clock}
                 onDone={popDone}
               />
+            )}
+            {coinsOut && !still && (
+              <Burst k={k} kind="coins" count={coinsOut.coins === 500 ? 26 : coinsOut.coins === 250 ? 14 : 7} />
             )}
             {won && !still && <Bursts prize={won} k={k} />}
             {/* Where a finger grabs the lever: the arm and knob, generously */}
@@ -481,13 +491,12 @@ export default function RollScreen() {
   );
 }
 
-/** Sparkles for Rare and up, a spray of coins for coins, and the puff as the card comes out. */
+/** Sparkles for Rare and up, and the puff as the card comes out (coins spray out before). */
 function Bursts({ prize, k }: { prize: Prize; k: number }) {
   const r = prize.rarity;
   return (
     <>
       <Burst k={k} kind="puff" count={12} />
-      {r === 'coins' && <Burst k={k} kind="coins" count={prize.coins === 500 ? 26 : prize.coins === 250 ? 14 : 7} />}
       {r === 'rare' && <Burst k={k} kind="sparkle" count={8} color="#a9d0ff" />}
       {r === 'epic' && <Burst k={k} kind="sparkle" count={18} color="#d7b6ff" />}
       {r === 'legendary' && (

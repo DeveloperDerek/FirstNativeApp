@@ -360,8 +360,8 @@ function Payline({ k, color }: { k: number; color: string }) {
 }
 
 /**
- * A won item growing out of the reel window to 2.4x, holding, then shrinking
- * back into its tile (about 0.76 s). Drawn over the machine, since the
+ * A won item or coins growing out of the reel window to 2.4x, holding, then
+ * shrinking back into its tile (about 0.76 s); coins keep spinning. Drawn over the machine, since the
  * window clips anything that leaves it.
  */
 export function PrizePop({
@@ -369,12 +369,14 @@ export function PrizePop({
   tile,
   color,
   wearer,
+  clock,
   onDone,
 }: {
   k: number;
   tile: Tile;
   color: string;
   wearer: AvatarConfig;
+  clock: SharedValue<number>;
   onDone: () => void;
 }) {
   const scale = useSharedValue(1);
@@ -395,13 +397,12 @@ export function PrizePop({
     return () => clearTimeout(t);
   }, [scale]);
   const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const still = useSharedValue(0);
   return (
     <View
       pointerEvents="none"
       style={[styles.pop, { left: 22 * k, top: 64 * k, width: 64 * k, height: 24 * k }]}>
       <Reanimated.View style={[style, { shadowColor: color, shadowOpacity: 1, shadowRadius: 2 * k, shadowOffset: { width: 0, height: 0 } }]}>
-        <PrizeArt tile={tile} wearer={wearer} coinK={k} clock={still} />
+        <PrizeArt tile={tile} wearer={wearer} coinK={k} clock={clock} />
       </Reanimated.View>
     </View>
   );
