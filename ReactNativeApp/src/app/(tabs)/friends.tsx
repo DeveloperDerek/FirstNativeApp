@@ -98,6 +98,8 @@ export default function FriendsScreen() {
   const [results, setResults] = useState<PublicProfile[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Shown in the Add friends card
+  const [searchError, setSearchError] = useState<string | null>(null);
   // The person whose profile card is open
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -191,10 +193,11 @@ export default function FriendsScreen() {
   }
 
   async function search() {
+    setSearchError(null);
     try {
       setResults(await searchUsers(query, myId));
     } catch (e) {
-      setError(errorMessage(e));
+      setSearchError(errorMessage(e));
     }
   }
 
@@ -324,6 +327,11 @@ export default function FriendsScreen() {
           autoCorrect={false}
           returnKeyType="search"
         />
+        {searchError && (
+          <ThemedText type="small" themeColor="danger" accessibilityRole="alert">
+            {searchError}
+          </ThemedText>
+        )}
         {results?.length === 0 && (
           <ThemedText type="small" themeColor="textSecondary">
             No users found.

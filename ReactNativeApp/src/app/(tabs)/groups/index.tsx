@@ -28,8 +28,9 @@ export default function GroupsScreen() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState<'create' | 'join' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Each shown in the card it is about
   const [error, setError] = useState<string | null>(null);
-  // Shown in the Create a group card, next to the field it is about
+  const [joinError, setJoinError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const { refreshQuests } = useSteps();
   const { refreshCounts } = useNotificationCounts();
@@ -40,6 +41,7 @@ export default function GroupsScreen() {
     try {
       const [list] = await Promise.all([listMyGroups(), refreshQuests()]);
       setGroups(list);
+      setError(null);
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -80,13 +82,13 @@ export default function GroupsScreen() {
   async function join() {
     if (!code.trim()) return;
     setBusy('join');
-    setError(null);
+    setJoinError(null);
     try {
       const groupId = await joinGroup(code);
       setCode('');
       router.push(`/groups/${groupId}`);
     } catch (e) {
-      setError(errorMessage(e));
+      setJoinError(errorMessage(e));
     } finally {
       setBusy(null);
     }
@@ -102,19 +104,15 @@ export default function GroupsScreen() {
 
   return (
     <Screen title="Groups" onRefresh={pullToRefresh} refreshing={refreshing}>
-      {error && (
-        // In a card, so the red reads on every map's ground
-        <Section>
-          <ThemedText type="small" themeColor="danger">
-            {error}
-          </ThemedText>
-        </Section>
-      )}
-
       <QuestBanners />
 
-      <Section title="Your groups" first={!error}>
-        {groups.length === 0 && (
+      <Section title="Your groups" first>
+        {error && (
+          <ThemedText type="small" themeColor="danger" accessibilityRole="alert">
+            {error}
+          </ThemedText>
+        )}
+        {!error && groups.length === 0 && (
           <ThemedText type="small" themeColor="textSecondary">
             You are not in any groups yet. Create one or join with an invite code.
           </ThemedText>
@@ -137,6 +135,11 @@ export default function GroupsScreen() {
           autoCorrect={false}
           onSubmitEditing={join}
         />
+        {joinError && (
+          <ThemedText type="small" themeColor="danger" accessibilityRole="alert">
+            {joinError}
+          </ThemedText>
+        )}
         <Button title="Join" onPress={join} loading={busy === 'join'} disabled={!code.trim()} />
       </Section>
 

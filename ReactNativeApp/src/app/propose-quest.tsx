@@ -90,6 +90,8 @@ export default function ProposeQuestScreen() {
   const [start, setStart] = useState(options[0].key);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Shown in the card with the Start quest button
+  const [proposeError, setProposeError] = useState<string | null>(null);
 
   useEffect(() => {
     getGroupQuest(groupId)
@@ -103,13 +105,13 @@ export default function ProposeQuestScreen() {
 
   async function propose() {
     setBusy(true);
-    setError(null);
+    setProposeError(null);
     try {
       const at = options.find((o) => o.key === start)?.at ?? null;
       await proposeQuest(groupId, typeId, at);
       router.back();
     } catch (e) {
-      setError(errorMessage(e));
+      setProposeError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -175,6 +177,11 @@ export default function ProposeQuestScreen() {
             {m.display_name || 'Someone'} isn&apos;t sharing steps, so won&apos;t be in it.
           </ThemedText>
         ))}
+        {proposeError && (
+          <ThemedText type="small" themeColor="danger" accessibilityRole="alert">
+            {proposeError}
+          </ThemedText>
+        )}
         <Button title="Start quest" onPress={propose} loading={busy} disabled={!members} />
         <Button title="Cancel" variant="secondary" onPress={() => router.back()} />
       </Section>

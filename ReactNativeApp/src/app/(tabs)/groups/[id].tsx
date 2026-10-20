@@ -53,6 +53,9 @@ export default function GroupDetailScreen() {
   // Shown under the name field: the page's error is at the top, out of
   // view down here
   const [renameError, setRenameError] = useState<string | null>(null);
+  // Shown in the Manage and Leave cards, by the buttons they are about
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
 
   // Also moves the quest forward on the server: starts it, ends it, pays it
   const loadQuest = useCallback(async () => {
@@ -130,6 +133,7 @@ export default function GroupDetailScreen() {
 
   async function confirmLeave() {
     if (!group) return;
+    setLeaveError(null);
     let message = 'You will stop seeing this group and its members will stop seeing your steps.';
     if (isOwner) {
       // Who takes over, from the server (the same rule it uses)
@@ -139,7 +143,7 @@ export default function GroupDetailScreen() {
           ? `@${next.username} will become the owner.`
           : "You're the only member, so the group will be deleted.";
       } catch (e) {
-        setError(errorMessage(e));
+        setLeaveError(errorMessage(e));
         return;
       }
     }
@@ -153,7 +157,7 @@ export default function GroupDetailScreen() {
             await leaveGroup(id, myId);
             router.back();
           } catch (e) {
-            setError(errorMessage(e));
+            setLeaveError(errorMessage(e));
           }
         },
       },
@@ -203,6 +207,7 @@ export default function GroupDetailScreen() {
   }
 
   function confirmDelete() {
+    setDeleteError(null);
     Alert.alert('Delete group?', 'This removes the group for every member. This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -213,7 +218,7 @@ export default function GroupDetailScreen() {
             await deleteGroup(id);
             router.back();
           } catch (e) {
-            setError(errorMessage(e));
+            setDeleteError(errorMessage(e));
           }
         },
       },
@@ -305,6 +310,11 @@ export default function GroupDetailScreen() {
             onPress={rename}
             disabled={!newName.trim() || newName.trim() === group.name}
           />
+          {deleteError && (
+            <ThemedText type="small" themeColor="danger" accessibilityRole="alert">
+              {deleteError}
+            </ThemedText>
+          )}
           <Button title="Delete group" variant="danger" onPress={confirmDelete} />
         </Section>
       )}
@@ -312,6 +322,11 @@ export default function GroupDetailScreen() {
       {/* An owner leaving hands the group on (or, alone, deletes it) */}
       {group && (
         <Section>
+          {leaveError && (
+            <ThemedText type="small" themeColor="danger" accessibilityRole="alert">
+              {leaveError}
+            </ThemedText>
+          )}
           <Button title="Leave group" variant="danger" onPress={confirmLeave} />
         </Section>
       )}

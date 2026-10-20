@@ -81,9 +81,12 @@ export default function AchievementsScreen() {
       subtitle={mine ? `${earned} of ${ACHIEVEMENTS.length} earned` : undefined}
       inTabs={false}>
       {error && (
-        <ThemedText type="small" themeColor="danger">
-          {error}
-        </ThemedText>
+        // In a card, so the red reads on every map's ground
+        <Section>
+          <ThemedText type="small" themeColor="danger">
+            {error}
+          </ThemedText>
+        </Section>
       )}
       {mine && !mine.sharing && (
         <Section>
