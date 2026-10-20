@@ -29,6 +29,8 @@ export default function GroupsScreen() {
   const [busy, setBusy] = useState<'create' | 'join' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Shown just above Create a group, so it is visible without scrolling up
+  const [createError, setCreateError] = useState<string | null>(null);
   const { refreshQuests } = useSteps();
   const { refreshCounts } = useNotificationCounts();
 
@@ -59,17 +61,17 @@ export default function GroupsScreen() {
     if (!newName.trim()) return;
     const check = checkName(newName, 'group');
     if (!check.ok) {
-      setError(nameProblem(check, 'group'));
+      setCreateError(nameProblem(check, 'group'));
       return;
     }
     setBusy('create');
-    setError(null);
+    setCreateError(null);
     try {
       const group = await createGroup(myId, check.name);
       setNewName('');
       router.push(`/groups/${group.id}`);
     } catch (e) {
-      setError(errorMessage(e));
+      setCreateError(errorMessage(e));
     } finally {
       setBusy(null);
     }
@@ -137,6 +139,14 @@ export default function GroupsScreen() {
         />
         <Button title="Join" onPress={join} loading={busy === 'join'} disabled={!code.trim()} />
       </Section>
+
+      {createError && (
+        <Section>
+          <ThemedText type="small" themeColor="danger">
+            {createError}
+          </ThemedText>
+        </Section>
+      )}
 
       <Section title="Create a group">
         <TextField
