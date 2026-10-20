@@ -80,7 +80,7 @@ export default function TodayScreen() {
   // chosen on the Profile page.
   const { theme } = useMapTheme();
 
-  // Today's goal: 7,000 to 10,000, different for each player each day,
+  // Today's goal: 6,000 to 10,000, different for each player each day,
   // and reaching it pays the daily coins (step-tracker-decisions.txt,
   // GOAL-16), or from the switch day the daily roll. The server picks it.
   const dailyGoal = goal?.today ?? DEFAULT_GOAL;

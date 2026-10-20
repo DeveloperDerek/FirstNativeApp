@@ -442,7 +442,7 @@ export function StepTrack({
 
               {/* The flag stays at 10,000, at the back of the road: where the
                   road ends until someone passes it. Each player's own goal
-                  is their daily target (7,000 to 10,000), shown on Today. */}
+                  is their daily target (6,000 to 10,000), shown on Today. */}
               <View
                 pointerEvents="none"
                 style={[styles.flag, { left: centerFor(GOAL) - FLAG_POLE_X * SCALE }]}>

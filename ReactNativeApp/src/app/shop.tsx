@@ -166,7 +166,7 @@ export default function ShopScreen() {
     return (
       <Screen title="Shop" inTabs={false}>
         <GroundText>
-          Reach your daily goal (7,000 to 10,000 steps, different each day) for a daily roll: a new
+          Reach your daily goal (6,000 to 10,000 steps, different each day) for a daily roll: a new
           item or coins. Spend coins here on clothes for your character.
         </GroundText>
         <SharingRequired />

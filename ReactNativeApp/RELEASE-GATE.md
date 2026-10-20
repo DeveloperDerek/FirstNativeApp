@@ -303,3 +303,9 @@ needs them set by hand.
    the switch day. An older build on a day after it says "+150 coins"
    at the goal and pays nothing. Then the checks in `DEVICE-TESTS.md`
    §24.
+17. The 6,000 to 10,000 goal (`step-tracker-decisions.txt`, GOAL-17):
+   push `20261128000000_goal_6000_to_10000.sql`. The new range starts two
+   days after it runs (`app_settings.goal_6000_from`); days before keep
+   7,000 to 10,000. Every build reads the goal from the server, so older
+   builds follow it too; only the Shop's "7,000 to 10,000 steps" line in
+   them is out of date. No new build is needed for it.

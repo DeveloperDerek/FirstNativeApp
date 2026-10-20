@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 // goal they had then. The server works streaks out from the uploaded days.
 
 export type MyGoal = {
-  /** Today's goal: 7,000 to 10,000, different each day; reaching it pays the daily coins */
+  /** Today's goal: 6,000 to 10,000, different each day; reaching it pays the daily coins */
   today: number;
   /** Steps needed today for the daily coins: the same as today's goal (GOAL-16) */
   coin_steps: number;

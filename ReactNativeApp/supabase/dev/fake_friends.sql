@@ -16,7 +16,7 @@
 --   - step sharing turned on, and a step history long enough for streaks
 --     of different lengths (the history goes back past the 8 days the app
 --     can upload; the step-row check is skipped for this script only).
---     The daily goal is everyone's coin target (7,000 to 10,000), so
+--     The daily goal is everyone's coin target (6,000 to 10,000), so
 --     streak days are 10,000 or more, which meets any goal.
 --   - today's steps set on purpose, to try out the road and its minimap:
 --       Marcus      0       hasn't walked yet: stands at the start
