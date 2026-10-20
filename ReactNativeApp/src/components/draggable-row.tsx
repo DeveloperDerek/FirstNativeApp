@@ -8,6 +8,7 @@ import Animated, {
   type SharedValue,
   useAnimatedRef,
   useAnimatedScrollHandler,
+  useAnimatedReaction,
   useAnimatedStyle,
   useFrameCallback,
   useSharedValue,
@@ -27,6 +28,7 @@ export const HOLD_MS = 250; // also Tile's delayLongPress, so a drag never count
 
 const EDGE = 56; // how close to an edge the finger must be to scroll, in points
 const MAX_SPEED = 600; // scroll speed right at the edge, in points per second
+const SETTLE_MS = 160; // tiles sliding out of the way, and the dropped one into its slot
 
 type Positions = Record<string, number>; // item id -> slot it shows in
 type Widths = Record<string, number>; // item id -> its measured width
@@ -159,15 +161,37 @@ function DraggableItem({
     },
   });
 
+  // Where the tile shows in the row, animated. The style turns it into
+  // an offset from the tile's layout spot, so when a drop re-renders the
+  // row in its new order the tile stays put instead of bouncing back.
+  const shownLeft = useSharedValue(0);
+  useAnimatedReaction(
+    () => {
+      const held = drag.get()?.id === id;
+      return {
+        held,
+        dragging: drag.get() !== null,
+        target: held ? heldLeft.get() : leftOf(orderOf(positions.get()), widths.get(), gap, id),
+      };
+    },
+    (now, before) => {
+      // Nothing moved (e.g. the row re-rendered): leave any slide running
+      if (before && now.target === before.target && now.held === before.held) return;
+      // Slide while making room and when the held tile settles into its
+      // slot, including tiles still sliding as it's dropped; otherwise
+      // (first layout, a new order) jump straight there
+      const slide = !now.held && before !== null && (now.dragging || before.dragging);
+      shownLeft.set(slide ? withTiming(now.target, { duration: SETTLE_MS }) : now.target);
+    },
+    [id, gap]
+  );
+
   const style = useAnimatedStyle(() => {
     const held = drag.get()?.id === id;
-    const w = widths.get();
-    const natural = leftOf(ids, w, gap, id);
-    const left = held ? heldLeft.get() : leftOf(orderOf(positions.get()), w, gap, id);
     return {
       zIndex: held ? 1 : 0,
       transform: [
-        { translateX: held ? left - natural : withTiming(left - natural) },
+        { translateX: shownLeft.get() - leftOf(ids, widths.get(), gap, id) },
         { scale: withTiming(held ? 1.08 : 1, { duration: 120 }) },
       ],
     };
