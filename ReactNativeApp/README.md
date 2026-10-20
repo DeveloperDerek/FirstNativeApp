@@ -95,6 +95,8 @@ everything else is outside it (see `AGENTS.md`).
 | `npm run gen:name-tests` | Regenerates the database's name tests from `src/auth/name-rules.ts` and `name-cases.ts` |
 | `scripts/generate-avatar-sprites.py` | Draws the pixel art in `assets/` (characters, items, badges, maps, the Mimic) |
 | `scripts/generate-map-lighting.py` | The maps' day, sunset and night art; writes `src/track/lighting.generated.ts` |
+| `scripts/generate-roll-background.py` | The casino behind the daily roll's slot machine (`assets/roll/casino*.png`) |
+| `scripts/generate-roll-sounds.py` | The daily roll's placeholder sounds (`assets/sounds/`; see its `README.md` before swapping one) |
 | `scripts/subset-fonts.sh` | Shrinks the Maplestory fonts (drops the Korean characters) |
 | `scripts/eas-env.sh` | Copies the public `.env` settings into EAS |
 | `supabase/dev/fake_friends.sql`, `fake_quest.sql` | Fake players and a test quest, run by hand in the SQL Editor (each has a `_remove` script) |

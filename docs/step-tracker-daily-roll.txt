@@ -12,6 +12,11 @@ the database keeps, and the choices to make before building (section
 11). All choices (ROLL-1 to ROLL-16) were decided on 2026-10-18.
 ROLL-1 was changed on 2026-10-19: the capsule machine became a slot
 machine (section 5, "The roll screen"). ROLL-17 is decided (C).
+ROLL-11 was changed on 2026-10-20: a goal line names the prize, coins
+too, on friends' lines as well (section 5, "Activity board").
+Built (2026-10-20): the app and 20261125000000_daily_roll.sql, with
+sound, the casino background and the board change; the switch day is
+not set on the live project yet (section 15).
 Paid spins, planned for later, are in section 12; their choices
 (ROLL-18 to ROLL-24) are still open.
 
@@ -24,10 +29,10 @@ What this changes in other blueprints (and nothing else):
     things take" need redoing (section 6).
   - step-tracker-coins-items.txt, 5f (COIN-F, the coin sink): the
     roll makes it more pressing (section 6).
-  - step-tracker-activity-board.txt: a goal line says what was won
-    (ROLL-11). Your own: the item or "+250 coins", instead of "+150
-    coins". A friend's: the item only; coins wins stay private, as
-    coins are now (ACT-6).
+  - step-tracker-activity-board.txt: a rolled goal line says what was
+    won instead of "reached ... goal" (ROLL-11, changed 2026-10-20):
+    "won pirate hat" or "won 250 coins", on your lines and friends'.
+    The wallet, prices and the day's own coins stay private (ACT-6).
   - step-tracker-history-reminders.txt: one more reminder text for a
     roll that's waiting (ROLL-12).
 Goals, the 7,000 to 10,000 target (GOAL-2), streaks, achievements,
@@ -231,17 +236,31 @@ Builds on what the app already has:
   - The roll screen slides up over Today when it opens and slides
     back down on Done, Wear it or its close button.
   - Tapping it (or anywhere on the goal line) opens the roll screen.
-    It only opens the screen; the roll starts when the big machine
-    is tapped. Screen readers hear "Daily roll ready, opens the
+    It only opens the screen; the roll starts when the big machine's
+    lever is pulled. Screen readers hear "Daily roll ready, opens the
     prize machine", a button.
+  - Rolled but the prize not seen yet (the app was closed mid-spin):
+    "Goal reached! Tap to see your prize"; the roll screen shows the
+    same prize again.
   - After the roll the small machine goes away and the line shows
     the prize. Before the goal it isn't shown.
   - With Reduce Motion on: no bobbing, no chasing bulbs, the reel
     stays still on one prize.
 
   THE ROLL SCREEN (a modal, src/app/roll.tsx)
-  Preview (private link, made 2026-10-19; nothing built):
+  Mock-up (private link, made 2026-10-19, before it was built):
   https://claude.ai/artifact/8R6oU9BE2bujoUZSa5QER5
+
+  The screen
+  - A pixel-art casino behind the machine (assets/roll/casino.png,
+    drawn by scripts/generate-roll-background.py), at 3 points per
+    art pixel so it stays crisp, centered, its edges cropped on
+    narrow phones, over the same dark emerald.
+  - At the top: a close button (✕), "Daily Roll" and the wallet.
+    Under it, "Goal reached! 9,120 / 8,500 steps".
+  - Under the machine: the blinking hint while the roll waits; "You've
+    rolled today. Come back tomorrow." after it; "Reach today's goal
+    to roll." before the goal.
 
   The machine
   - A slot machine in the app's pixel art (2.5D, like the maps), drawn
@@ -274,10 +293,10 @@ Builds on what the app already has:
     0 ms           Let go. The hint hides, the lever springs back,
                    roll_daily_prize is called. Light haptic.
     0 - 160        Wind-up: the reel nudges back a quarter tile.
-    160 - ~2,000   Full speed. Bulbs chase fast; a soft tick each time
-                   a tile crosses the line (at most one every 45 ms),
-                   and a selection haptic with it (at most one every
-                   50 ms, so full speed is a steady buzz).
+    160 - ~2,000   Full speed. Bulbs chase fast; a tick sound and a
+                   selection haptic each time a tile crosses the line
+                   (at most one every 50 ms, so full speed is a
+                   steady buzz).
     ~2,000 - 5,160 Slows down (ease-out); the ticks and haptics space
                    out until the last tile clicks into place. About
                    40 tiles go by in all.
@@ -298,8 +317,15 @@ Builds on what the app already has:
     second). Built: it doesn't spin while waiting.
   - The other tiles are things the player could win: items from
     their own pool and coin tiles. How often each rarity shows up on
-    the reel is ROLL-17. The tiles next to the prize are never the
-    same prize, so the stop is easy to read.
+    the reel is ROLL-17. Built rules (src/roll/roll.ts):
+      - No item shows twice on a reel, the prize included. Coins
+        repeat (there are only three amounts), never side by side,
+        and no two tiles next to each other are alike.
+      - With fewer items left to win than tiles, the rest are coins.
+      - Only items this app can draw: an item still on sale in the
+        shop but with no art in this build is left off the reel, so
+        it never shows as a blank tile. Dev builds warn, naming the
+        item, when an item icon draws blank.
 
   The reveal
   - An item: it grows out of the reel window to 2.4x with a glow in
@@ -335,12 +361,21 @@ Builds on what the app already has:
   - They keep spinning on the reel and on the prize card. The wallet
     icon is the front frame, still.
 
-  Sound
-  - Short 8-bit sounds: a tick per tile, a thunk on the stop, a
-    rising jingle that gets longer with rarity, a pop when the card
-    comes out, and ticks as the balance counts up. Silent when the
-    phone is on silent. NOT BUILT YET: the first build has haptics
-    only (it needs sound files and an audio module).
+  Sound (src/roll/sounds.ts, expo-audio; built 2026-10-20)
+  - Six short 8-bit sounds in assets/sounds/: "pull" as the lever is
+    let go, a "tick" per tile (at most one every 50 ms, with the
+    haptic), a "stop" thunk as the reel lands, then 0.12 s later
+    "win" for an item, "coins" for coins, or "win-big" for Epic,
+    Legendary and 500 coins.
+  - They are placeholders made by scripts/generate-roll-sounds.py;
+    assets/sounds/README.md keeps each file's source and licence and
+    how to swap one in.
+  - They follow the ringer switch (silent on silent) and play over
+    the player's own music instead of stopping it.
+  - A build made before expo-audio was added plays nothing, and the
+    roll still works; a failed sound never breaks the roll.
+  - Not built: a pop when the card comes out, ticks as the balance
+    counts up, a jingle that gets longer with rarity.
 
   Reduce Motion
   - No spin, no lever, no shake, no growing item, no sparkles or
@@ -348,13 +383,16 @@ Builds on what the app already has:
     is shown in place, and the balance changes at once. Coins show
     their front frame and don't float or spin.
 
-  ACTIVITY BOARD (ROLL-11)
-  - Your own goal line: "reached your goal · won pirate hat" or
-    "reached your goal · +250 coins", instead of "+150 coins" (no
-    "a", like "bought red cap").
-  - A friend's goal line, when they won an item: "reached their goal
-    · won pirate hat", with the item's icon. When they won coins,
-    or haven't rolled: "reached their goal", as now.
+  ACTIVITY BOARD (ROLL-11, changed 2026-10-20)
+  - A rolled goal line names the prize in place of "reached ...
+    goal", on your lines and friends' alike: "won pirate hat" (no
+    "a", like "bought red cap"), with the item's icon, or "won 250
+    coins".
+  - Not rolled yet, or an item this app doesn't know: "reached
+    their goal", or on your own line "reached your goal" (with
+    "+150 coins" on days from before the switch day).
+  - Still private: the wallet, prices and the day's own coins on a
+    friend's line.
   - The win is a new part of the line, so a line moves up when the
     roll is taken, as it does for a later achievement. Kudos on the
     line are unchanged (same person, same day).
@@ -485,8 +523,10 @@ Builds on what the app already has:
     which don't know rolls, and is unchanged.
   - Every goal line gets 'prize_item' from daily_rolls for that day:
     the item_id, or null for a coins roll or no roll yet. Your own
-    goal lines also get 'prize_coins' (null on friends' lines, like
-    'coins').
+    goal lines also get 'prize_coins'. Since
+    20261127000000_activity_friends_roll_coins.sql (2026-10-20),
+    friends' goal lines get 'prize_coins' too; their 'coins' stays
+    null.
   - A goal line's 'at' is its roll's rolled_at when that is later,
     so taking the roll moves the line up and paging still works.
   - activity_line_exists is unchanged: a win is only ever on a goal
@@ -553,6 +593,11 @@ Builds on what the app already has:
       daily_roll_from, daily_rolls, roll_rarity, roll_outcome,
       roll_coin_amount, roll_daily_prize, mark_roll_seen, my_roll,
       claim_daily_rewards, sync_day, activity_parts, activity_feed
+    supabase/migrations/20261126000000_remove_lasso_spatula_spyglass.sql
+      refunds and retires three items the app no longer draws, which
+      the live shop still sold (and the reel showed blank)
+    supabase/migrations/20261127000000_activity_friends_roll_coins.sql
+      activity_feed: prize_coins on friends' goal lines (ROLL-11)
     supabase/tests/database/daily_roll.test.sql
   App
     src/roll/roll.ts               the server's answer, the reel, the
@@ -563,6 +608,7 @@ Builds on what the app already has:
     src/api/roll.ts                rollDailyPrize, markRollSeen,
                                    listRollPool (the reel's tiles)
     src/app/roll.tsx               the roll screen (modal)
+    src/roll/sounds.ts             the roll's sounds (expo-audio)
     src/components/prize-machine.tsx   the big and small machines,
                                    the reel, the spinning coins, the
                                    item pop, sparkles and coin spray
@@ -578,6 +624,11 @@ Builds on what the app already has:
     the reel use their existing sprites. The small machine's reel
     shows coins and clothing only (pets and maps don't shrink to a
     whole-number scale that small).
+    The casino background is a PNG, drawn by
+    scripts/generate-roll-background.py (assets/roll/casino*.png).
+  Sound
+    assets/sounds/*.wav, placeholders from
+    scripts/generate-roll-sounds.py; see assets/sounds/README.md.
 
 ======================================================================
 11. CHOICES (ALL DECIDED 2026-10-18)
@@ -587,7 +638,7 @@ Builds on what the app already has:
   in step-tracker-decisions.txt). Empty means keep it.
 
   ROLL-1  Name: "Daily Roll", with a pixel-art slot machine: one
-          reel, tapped to spin, the prize card popping out of its
+          reel, spun by pulling its lever, the prize card popping out of its
           tray. No Roll buttons: a small machine on Today opens the
           roll screen (section 5).
           (Was a capsule machine; changed 2026-10-19.)
@@ -632,7 +683,10 @@ Builds on what the app already has:
   ROLL-11 Items won show on the activity board, on your lines and
           friends' lines. Coins won show on your own lines only.
           (The suggestion was your own lines only.)
-          Change to:
+          Change to: (2026-10-20) A rolled goal line names the prize,
+          item or coins, on your lines and friends': "won pirate
+          hat", "won 250 coins". The wallet and the day's own coins
+          stay private.
 
   ROLL-12 An evening local reminder when the goal was reached but the
           roll wasn't taken, in the existing reminder slot.
@@ -658,7 +712,7 @@ Builds on what the app already has:
           A. The real chances (ROLL-6): the reel shows roughly what
              people win. A Legendary passes by about once in every
              two or three spins.
-          B. More rare tiles than the real chances (the preview uses
+          B. More rare tiles than the real chances (the mock-up uses
              coins 30, Common 22, Uncommon 20, Rare 14, Epic 9,
              Legendary 5): more exciting, but it suggests rare prizes
              are likelier than they are, which matters more because
@@ -798,7 +852,6 @@ Builds on what the app already has:
 
   - Roll history on Profile: every prize and the day it came.
   - Seasonal items that are only in the roll for a few weeks.
-  - Friends seeing coins wins too (ROLL-11 shows items only).
   - Showing the odds in the app (ROLL-8 other; required for paid
     spins, section 12).
   - Paid spins (section 12).
@@ -831,24 +884,27 @@ Builds on what the app already has:
   - claim_daily_rewards: before the switch day 150 coins; on and
     after it a 'daily_goal' row with amount 0 and no wallet change.
   - The board and kudos still see a goal line on a 0-coin goal day.
-  - friends_activity: prize_item on your lines and friends' lines;
-    prize_coins on yours only; a friend's coins roll shows nothing;
-    a roll moves the line's 'at'; no prize on a friend you can't see.
+  - activity_feed: prize_item and prize_coins on your lines and
+    friends' lines; a friend's 'coins' stays null; a roll moves the
+    line's 'at'; no prize on a friend you can't see.
   - A purchase and a roll racing for the last item: one gets it.
   - Other users can't read your daily_rolls.
   App
   - The Today line in each state (off, locked, ready, rolled). The
     small machine shows only when ready, and tapping it opens the
     roll screen without rolling.
-  - lineText: "won pirate hat" on yours and friends', "+250 coins"
-    on yours only.
+  - lineText: "won pirate hat" and "won 250 coins" on yours and
+    friends'; "reached ... goal" when not rolled or the item is
+    unknown; a friend's day coins never shown.
+  - The reel: no item twice, no two tiles alike side by side, the
+    prize the only copy of its item.
   - The roll screen for an item (with "Wear it") and for coins
     (without).
   - The roll screen with Reduce Motion on.
   - The reel always stops on the prize the server returned, for every
     rarity and coin amount, and the tiles next to it are never the
     same prize.
-  - Tapping the machine a second time does nothing.
+  - The lever does nothing once the roll is taken.
   Device (DEVICE-TESTS.md)
   - Reach the goal, roll, kill the app mid-animation, reopen: same
     prize shown.
@@ -867,8 +923,13 @@ Builds on what the app already has:
     [x] Migration with the switch day empty; database tests
         (2026-10-19, passing locally; not pushed to the live project)
     [x] App: api, roll screen, Today, board line, reminder
-        (2026-10-19; sound not built yet; needs a new build for
-        expo-haptics)
+        (2026-10-19; needs a new build for expo-haptics)
+    [x] Sound (placeholders), casino background, items with no art
+        off the reel, the three retired items refunded, friends'
+        coins on the board (2026-10-20; needs a new build for
+        expo-audio)
+    [ ] Final sounds in place of the placeholders
+        (assets/sounds/README.md)
     [ ] Update step-tracker-coins-items.txt (2a, the day tables, 5f)
     [ ] Build out; wait about two weeks; set 'daily_roll_from'
     [ ] Device tests

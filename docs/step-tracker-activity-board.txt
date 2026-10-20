@@ -61,6 +61,15 @@ Builds on what the app already has:
     Sam reached their goal                         Today
     Sam unlocked first 10k                         Today
     Lee bought red cap                             Sun, Oct 11
+  With the daily roll (step-tracker-daily-roll.txt, ROLL-11, changed
+  2026-10-20), a rolled goal line names the prize in place of
+  "reached ... goal", on your lines and friends' alike:
+    Sam won pirate hat                             Today
+    Ana won 250 coins                              Yesterday
+  Not rolled yet, or an item this app doesn't know: "reached their
+  goal" as before. A friend's wallet, prices and day coins stay
+  private; the roll's coins are a prize, so they show
+  (20261127000000_activity_friends_roll_coins.sql).
   The rest of this section describes the original one-line-per-day
   board, which older builds still get from friends_activity.
 

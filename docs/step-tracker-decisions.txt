@@ -649,10 +649,11 @@ Contents
 16. DAILY ROLL (step-tracker-daily-roll.txt, section 11)
 ======================================================================
 
-  All decided 2026-10-18. Not built yet.
+  All decided 2026-10-18. Built 2026-10-19 to 2026-10-20; the switch
+  day is not set on the live project yet.
 
   ROLL-1   Called "Daily Roll", with a pixel-art slot machine: one
-           reel, tapped to spin, the prize card popping out of its
+           reel, spun by pulling its lever, the prize card popping out of its
            tray. No Roll buttons: a small machine on Today opens the
            roll screen. (Was a capsule machine; changed 2026-10-19.)
            Change to:
@@ -694,7 +695,10 @@ Contents
 
   ROLL-11  Items won show on the activity board to friends; coins won
            show on your own lines only.
-           Change to:
+           Change to: (2026-10-20) A rolled goal line names the prize,
+           item or coins, on your lines and friends' ("won pirate
+           hat", "won 250 coins"). The wallet and the day's own coins
+           stay private.
 
   ROLL-12  An evening local reminder when the roll is waiting.
            Change to:

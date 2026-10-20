@@ -316,7 +316,7 @@ Needs the `achievements` migration on the Supabase project the build uses (RELEA
 
 Needs the `activity_board` migration on the Supabase project the build uses (RELEASE-GATE, deploy step 15).
 
-- [ ] iPhone  - [ ] Android — **A line:** reach the goal: a friend's phone shows the line after pulling to refresh. Unlock an achievement the same day: still one line, now with the badge.
+- [ ] iPhone  - [ ] Android — **A line:** reach the goal: a friend's phone shows the line after pulling to refresh. Unlock an achievement the same day: it gets its own line. With the daily roll on, the goal line changes to "won …" once you roll (section 24).
 - [ ] iPhone  - [ ] Android — **Opening a card:** tap a line: the player card opens with today's steps.
 - [ ] iPhone  - [ ] Android — **Unfriend and block:** unfriend: their lines go on the next load. Block from the card: they go at once.
 - [ ] iPhone  - [ ] Android — **Offline:** airplane mode, then pull: the list stays, with "Couldn't refresh. Pull to try again." above it.
@@ -358,21 +358,24 @@ Needs the `kudos` migration on the Supabase project the build uses. Two accounts
 
 ## 24. Daily roll (`step-tracker-daily-roll.txt`)
 
-Needs the `daily_roll` migration and `daily_roll_from` set to today in `app_settings` on the Supabase project the build uses, and a build with `expo-haptics` (a new native module). One account that shares steps, plus a friend for the board.
+Needs the migrations up to `20261127000000_activity_friends_roll_coins.sql` and `daily_roll_from` set to today in `app_settings` on the Supabase project the build uses, and a build made after `expo-haptics` and `expo-audio` were added (new native modules: an older build rolls silently and without haptics). One account that shares steps, plus a friend for the board. Turn the ringer on for the sound tests.
 
 - [ ] iPhone  - [ ] Android — **Before the goal:** Today says "…% of N goal · Daily roll at goal" and shows no machine.
 - [ ] iPhone  - [ ] Android — **The small machine:** reach the goal and refresh: the goal line turns yellow ("Goal reached! Tap to roll") with the small machine bobbing, bulbs chasing and its reel changing every second or so. It's crisp, no blur.
-- [ ] iPhone  - [ ] Android — **Opening isn't rolling:** tap it: the roll screen opens with "Tap the machine to roll!" blinking. Close it with ✕: Today still says Tap to roll.
-- [ ] iPhone  - [ ] Android — **The roll:** tap the big machine: light haptic, the lever pulls, the reel spins about 3 seconds and stops a little past the prize, then settles on it. Medium haptic (heavy for Epic, Legendary, 500 coins); the payline and bulbs flash in the rarity colour.
-- [ ] iPhone  - [ ] Android — **An item:** it grows out of the window and shrinks back, then the card pops out of the tray with its rarity and name, "Wear it" and "Done". Wear it opens the character editor with the item on (and it saves).
-- [ ] iPhone  - [ ] Android — **Coins:** coins spray out of the tray, the wallet counts up, the card says "+N coins" with "Done" only. The coins on the reel and the card float and spin; all coin tiles are the same coin size.
-- [ ] iPhone  - [ ] Android — **One roll:** tapping the machine again does nothing; back on Today the line says "Today's prize: …". Friends > Activity: your goal line says "won …" or "+N coins"; on the friend's phone it says "won …" for an item, nothing for coins.
+- [ ] iPhone  - [ ] Android — **Opening isn't rolling:** tap it: the roll screen slides up over a pixel-art casino, with "Goal reached! N / N steps" and "Pull the lever to roll!" blinking. Tapping the machine does nothing. Close it with ✕: Today still says Tap to roll.
+- [ ] iPhone  - [ ] Android — **The lever:** drag the red knob down a little and let go: it springs back and nothing spins. Drag it most of the way down and let go: light haptic and a clunk, the lever springs back and the reel spins.
+- [ ] iPhone  - [ ] Android — **The spin:** about 5 seconds (longer for Epic and Legendary), with a tick and a light buzz for each tile, spacing out as it slows; it stops a little past the prize, then settles on it with a thunk, a success buzz (plus a heavy one for Epic, Legendary, 500 coins), a shake, and the payline and bulbs flashing in the rarity colour.
+- [ ] iPhone  - [ ] Android — **The reel:** no item shows twice, no two tiles next to each other are alike, and no tile is blank.
+- [ ] iPhone  - [ ] Android — **An item:** a jingle (a fanfare for Epic or Legendary); it grows out of the window and shrinks back, then the card pops out of the tray with its rarity and name, "Wear it" and "Done". Wear it opens the character editor with the item on (and it saves).
+- [ ] iPhone  - [ ] Android — **Coins:** coin dings; the coins leave their row and spray out of the tray, the wallet counts up, the card says "+N coins" with "Done" only. The coins on the reel and the card float and spin; all coin tiles are the same coin size.
+- [ ] iPhone  - [ ] Android — **Sound settings:** with the ringer off (iPhone silent switch) the roll is silent. With music playing, the roll's sounds play over it and the music doesn't stop.
+- [ ] iPhone  - [ ] Android — **One roll:** the lever no longer moves; the screen says "You've rolled today. Come back tomorrow." Back on Today the line says "Today's prize: …". Friends > Activity: your goal line says "won …" (an item) or "won N coins"; on the friend's phone it says the same.
 - [ ] iPhone  - [ ] Android — **Killed mid-spin:** roll, close the app during the spin, reopen: Today says "Tap to see your prize"; the machine shows the same prize again.
-- [ ] iPhone  - [ ] Android — **Offline:** airplane mode on, tap the machine: "Couldn't roll. Check your connection and try again." and it can be tapped again once online.
-- [ ] iPhone  - [ ] Android — **Midnight:** open the roll screen just before midnight and tap just after: "This roll ended at midnight."
+- [ ] iPhone  - [ ] Android — **Offline:** airplane mode on, pull the lever: "Couldn't roll. Check your connection and try again." and the lever can be pulled again once online.
+- [ ] iPhone  - [ ] Android — **Midnight:** open the roll screen just before midnight and pull just after: "This roll ended at midnight."
 - [ ] iPhone  - [ ] Android — **Reminder:** with goal reminders on, reach the goal before the reminder time without rolling: the reminder says "Your daily roll is waiting. Open the app before midnight."
 - [ ] iPhone  - [ ] Android — **Reduce Motion:** nothing spins, bobs or flies; the prize sits on the line and the card is shown in place.
-- [ ] iPhone  - [ ] Android — **VoiceOver / TalkBack:** Today's line reads "Daily roll ready, opens the prize machine"; the big machine is a button "Roll the prize machine"; the prize is announced ("You won …").
+- [ ] iPhone  - [ ] Android — **VoiceOver / TalkBack:** Today's line reads "Daily roll ready, opens the prize machine"; the big machine is a button "Pull the prize machine's lever", and activating it rolls; the prize is announced ("You won …").
 
 ## Sign-off
 

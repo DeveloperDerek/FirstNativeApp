@@ -6,8 +6,11 @@ here is a coding task, and none of it is decided by the coding agent:
 each item is done or approved by the owner, and the legal review by a
 qualified person.
 
-Status as of 2026-10-17: **not ready for release** (gates 1 to 3 are
-still open).
+Status as of 2026-10-20: **not ready for release** (gates 1 to 3 are
+still open). Every migration up to
+`20261127000000_activity_friends_roll_coins.sql` and the app features
+they serve (through the daily roll, kudos and the activity board) are
+built; deploy steps 15 and 16 below cover the newest ones.
 
 ---
 
@@ -122,6 +125,8 @@ Later material changes: always a new version with
 | Error messages read aloud on iOS on every sign-up screen (done for the username check only) | A small change, if wanted | Stage 8 |
 | The web build doesn't start with `"output": "static"` (session storage runs during pre-rendering) | A fix, if the web build matters | Stage 2 |
 | Every test in `DEVICE-TESTS.md`, on an iPhone and an Android phone | The owner, with the phones | Stage 10 |
+| The daily roll's sounds are generated placeholders | Final sounds, with their licences recorded (`assets/sounds/README.md`) | Daily roll |
+| Paid spins (ROLL-18 to ROLL-24) | Not built; owner decisions and a lawyer's check first (`step-tracker-daily-roll.txt`, section 12) | Daily roll |
 
 ---
 
@@ -248,7 +253,7 @@ needs them set by hand.
 15. The migrations not named above. `supabase db push` applies every
    pending migration in filename order, so these go with the steps
    around them: `20261109` to `20261115` by step 13 at the latest, and
-   `20261118` to `20261121` after step 14. The new build calls the
+   `20261118` to `20261127` after step 14. The new build calls the
    functions marked "the build needs it", so those must be on the hosted
    database before it reaches anyone.
    - `20261109000000_my_history.sql`: History's Month and Year views
@@ -274,3 +279,27 @@ needs them set by hand.
    - `20261121000000_activity_board.sql`: Friends > Activity
      (`friends_activity`). The build needs it. Then the checks in
      `DEVICE-TESTS.md` §21.
+   - `20261122000000_kudos.sql`: kudos on the activity board
+     (`step-tracker-kudos.txt`). The build needs it. Then the checks in
+     `DEVICE-TESTS.md` §23.
+   - `20261123000000_activity_purchases.sql`: items bought show on the
+     board.
+   - `20261124000000_activity_separate_lines.sql`: one board line per
+     thing done (`activity_feed`). The build needs it; older builds
+     keep reading `friends_activity`.
+   - `20261125000000_daily_roll.sql`: the daily roll, switched off
+     (step 16). The build needs it (`sync_day` returns the roll's
+     state).
+   - `20261126000000_remove_lasso_spatula_spyglass.sql`: refunds and
+     retires the three items, which the build no longer draws (they
+     showed as blank reel tiles).
+   - `20261127000000_activity_friends_roll_coins.sql`: friends' goal
+     lines name the coins they rolled ("won 250 coins").
+16. The daily roll (`step-tracker-daily-roll.txt`): with step 15 pushed,
+   the roll stays off until `app_settings.daily_roll_from` is set, and
+   everyone keeps the 150 daily coins. Ship the new build first (it
+   needs `expo-haptics` and `expo-audio`, so an over-the-air update is
+   not enough), wait about two weeks so most players have it, then set
+   the switch day. An older build on a day after it says "+150 coins"
+   at the goal and pays nothing. Then the checks in `DEVICE-TESTS.md`
+   §24.
