@@ -38,6 +38,7 @@ import { useFriendsActivity } from '@/hooks/use-friends-activity';
 import { useNewKudos } from '@/hooks/use-new-kudos';
 import { useNotificationCounts } from '@/hooks/use-notification-counts';
 import { errorMessage } from '@/lib/error-message';
+import * as haptics from '@/lib/haptics';
 import { askForPush } from '@/notifications/push';
 
 const name = (p: PublicProfile) => p.display_name || p.username;
@@ -207,7 +208,8 @@ export default function FriendsScreen() {
       ? () => router.push(reportHref('person', p.id, `@${p.username}`))
       : undefined;
 
-  const confirmRemove = (f: Friendship, other: PublicProfile) =>
+  const confirmRemove = (f: Friendship, other: PublicProfile) => {
+    haptics.warn(); // it can't be undone
     Alert.alert('Remove friend?', `${name(other)} will no longer see your steps.`, [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -216,6 +218,7 @@ export default function FriendsScreen() {
         onPress: () => act(() => removeFriend(f.id)).then(() => activity.dropPerson(other.id)),
       },
     ]);
+  };
 
   if (!sharing) {
     return (
@@ -296,7 +299,10 @@ export default function FriendsScreen() {
               <Button
                 title="Accept"
                 size="small"
-                onPress={() => act(() => acceptFriendRequest(f.id))}
+                onPress={() => {
+                  haptics.tap();
+                  act(() => acceptFriendRequest(f.id));
+                }}
               />
               <Button
                 title="Decline"

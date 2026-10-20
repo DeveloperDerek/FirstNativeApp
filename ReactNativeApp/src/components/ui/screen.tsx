@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useMapTheme } from '@/hooks/use-map-theme';
+import * as haptics from '@/lib/haptics';
 import { FrontLayer, SkyLayer, useAmbientClock } from '@/track/ambient';
 import { centerFor, LANDMARK_EVERY, ROAD_PAD, tileIndex } from '@/track/scale';
 import { LANDMARK_H, LANDMARK_W, ROAD_H, TILE_H, TILE_W } from '@/track/sizes';
@@ -176,7 +177,14 @@ export function Screen({
         keyboardShouldPersistTaps="handled"
         refreshControl={
           onRefresh ? (
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.ink} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                haptics.tap(); // the pull caught
+                onRefresh();
+              }}
+              tintColor={theme.ink}
+            />
           ) : undefined
         }
         contentContainerStyle={[

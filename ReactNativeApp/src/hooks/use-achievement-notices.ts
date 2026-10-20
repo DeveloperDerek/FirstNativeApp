@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 
 import { findAchievement, ShowingNow, unlockMessage } from '@/achievements/achievements';
 import { getNewAchievements, markAchievementsSeen } from '@/api/achievements';
+import * as haptics from '@/lib/haptics';
 
 /**
  * The "Achievement unlocked" message (step-tracker-achievements.txt,
@@ -48,6 +49,7 @@ export function useAchievementNotices({
           const seen = forMe() ? markAchievementsSeen(ids) : Promise.resolve();
           seen.catch(() => {}).finally(() => shown.release(ids));
         };
+        haptics.success();
         Alert.alert(message.title, message.body, [{ text: 'Nice!', onPress: close }], {
           cancelable: true,
           onDismiss: close,
