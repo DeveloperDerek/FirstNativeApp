@@ -112,12 +112,47 @@ test('the prize is at the stop, and its neighbours are never the same prize', ()
     const reel = placePrize(before, 26, prize, POOL, random);
     assert.deepEqual(reel[26], prize);
     assert.ok(!sameTile(reel[25], prize) && !sameTile(reel[27], prize));
-    // Only the stop and its neighbours change
+    // A coins prize changes only the stop and its neighbours
     assert.deepEqual(reel.slice(0, 25), before.slice(0, 25));
     assert.deepEqual(reel.slice(28), before.slice(28));
   }
   // Even the longest spin stops with tiles to spare below it
   assert.ok(REEL_LENGTH >= REEL_START + spinPlan('legendary').tiles + 2);
+});
+
+// Enough items that the reel needn't fall back on coins
+const BIG_POOL: PoolItem[] = Array.from({ length: 80 }, (_, i) => ({
+  id: `item_${i}`,
+  rarity: (['common', 'uncommon', 'rare', 'epic', 'legendary'] as const)[i % 5],
+}));
+const itemIds = (reel: Tile[]) => reel.flatMap((t) => (t.kind === 'item' ? [t.id] : []));
+
+test('the reel: no item twice, and no two tiles alike side by side', () => {
+  for (const pool of [POOL, BIG_POOL, []]) {
+    for (let seed = 0; seed < 50; seed++) {
+      const reel = buildReel(pool, seeded(seed));
+      assert.equal(reel.length, REEL_LENGTH);
+      const ids = itemIds(reel);
+      assert.equal(new Set(ids).size, ids.length);
+      for (let i = 1; i < reel.length; i++) assert.ok(!sameTile(reel[i - 1], reel[i]));
+    }
+  }
+  // A small pool: every item once, the rest coins
+  assert.equal(itemIds(buildReel(POOL, seeded(7))).length, POOL.length);
+});
+
+test('placing an item prize keeps it the only copy on the reel', () => {
+  for (let seed = 0; seed < 50; seed++) {
+    const random = seeded(seed);
+    const before = buildReel(BIG_POOL, random);
+    // An item already on the reel somewhere else, as the server may pick
+    const shown = before.find((t, i) => t.kind === 'item' && i !== 30)!;
+    const reel = placePrize(before, 30, shown, BIG_POOL, random);
+    assert.deepEqual(reel[30], shown);
+    const ids = itemIds(reel);
+    assert.equal(new Set(ids).size, ids.length);
+    for (let i = 1; i < reel.length; i++) assert.ok(!sameTile(reel[i - 1], reel[i]));
+  }
 });
 
 test('the spin: rarer is longer, and it ends on the prize', () => {

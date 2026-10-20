@@ -128,14 +128,39 @@ export const REEL_START = 2;
 /** Tiles a reel needs: the longest spin's stop, plus spare tiles past it for the overshoot. */
 export const REEL_LENGTH = REEL_START + 48 + 3;
 
-/** A reel of random tiles, built when the screen opens, before the prize is known. */
-export function buildReel(pool: PoolItem[], random: () => number = Math.random): Tile[] {
-  return Array.from({ length: REEL_LENGTH }, () => randomTile(pool, random));
+/**
+ * A random tile that's no twin of any of `avoid` (its neighbours). Items
+ * come out of `left`, so none shows twice; coins only come in three
+ * amounts, so they repeat, but never side by side.
+ */
+function freshTile(left: PoolItem[], avoid: Tile[], random: () => number): Tile {
+  for (let tries = 0; tries < 20; tries++) {
+    const t = randomTile(left, random);
+    if (avoid.some((a) => sameTile(a, t))) continue;
+    if (t.kind === 'item') left.splice(left.findIndex((i) => i.id === t.id), 1);
+    return t;
+  }
+  // Unlucky draws: a coin amount neither neighbour has
+  const coins = ([100, 250, 500] as const).find((c) => !avoid.some((a) => sameTile(a, { kind: 'coins', coins: c })))!;
+  return { kind: 'coins', coins };
 }
 
 /**
- * The reel with `prize` at `stop` and never a twin of it right next to
- * it, so the stop reads clearly. Only those three tiles change.
+ * A reel of random tiles, built when the screen opens, before the prize
+ * is known: no item twice and no two tiles alike side by side. With
+ * fewer items left to win than tiles, the rest are coins.
+ */
+export function buildReel(pool: PoolItem[], random: () => number = Math.random): Tile[] {
+  const left = [...pool];
+  const out: Tile[] = [];
+  for (let i = 0; i < REEL_LENGTH; i++) out.push(freshTile(left, i > 0 ? [out[i - 1]] : [], random));
+  return out;
+}
+
+/**
+ * The reel with `prize` at `stop`, still with no item twice: another
+ * copy of the prize item anywhere on it, and a twin right next to the
+ * stop, become something else, so the stop reads clearly.
  */
 export function placePrize(
   tiles: Tile[],
@@ -146,9 +171,13 @@ export function placePrize(
 ): Tile[] {
   const out = [...tiles];
   out[stop] = prize;
-  for (const j of [stop - 1, stop + 1]) {
-    for (let tries = 0; tries < 20 && sameTile(out[j], prize); tries++) out[j] = randomTile(pool, random);
-  }
+  const onReel = new Set(out.flatMap((t) => (t.kind === 'item' ? [t.id] : [])));
+  const left = pool.filter((i) => !onReel.has(i.id));
+  const neighbours = (j: number) => [out[j - 1], out[j + 1]].filter((t): t is Tile => t !== undefined);
+  out.forEach((t, j) => {
+    const twin = sameTile(t, prize) && (prize.kind === 'item' || Math.abs(j - stop) === 1);
+    if (j !== stop && twin) out[j] = freshTile(left, neighbours(j), random);
+  });
   return out;
 }
 
