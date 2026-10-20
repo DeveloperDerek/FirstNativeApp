@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
@@ -46,11 +46,9 @@ import {
   type PoolItem,
   type Prize,
   prizeName,
-  randomTile,
   RARITY_COLOR,
   RARITY_LABEL,
   REEL_START,
-  ROLL_CHANCES,
   reelPosition,
   rollErrorText,
   type SpinPlan,
@@ -65,9 +63,6 @@ import { useRollSounds } from '@/roll/sounds';
 // the lever down, the reel spins and stops on the prize the server already
 // picked, and the prize card pops out of the tray. Opened from the small
 // machine on Today.
-//
-// Dev builds only: /roll?preview=1 rolls a made-up prize on the phone, as
-// many times as you like, without the goal, the server or saving anything.
 
 const BG = '#06231d'; // under the casino picture, the same emerald
 const INK = '#f4f1ff';
@@ -95,8 +90,6 @@ type Phase = 'idle' | 'asking' | 'spinning' | 'landed' | 'revealed';
 
 export default function RollScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ preview?: string }>();
-  const preview = __DEV__ && params.preview === '1';
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const still = useReducedMotion();
@@ -148,7 +141,6 @@ export default function RollScreen() {
       AccessibilityInfo.announceForAccessibility(
         p.item_id === null ? `You won ${p.coins} coins` : `You won ${name}, ${RARITY_LABEL[p.rarity]}`
       );
-      if (preview) return; // nothing is won for real
       if (p.item_id !== null) {
         if (userId) addOwnedItem(userId, p.item_id); // in the character editor straight away
         refreshOwned(); // a won map unlocks on Profile straight away
@@ -159,7 +151,7 @@ export default function RollScreen() {
       markRollSeen().catch(() => {});
       setRoll({ state: 'rolled', seen: true, ...p });
     },
-    [preview, userId, balance, still, refreshOwned, refreshBalance, setRoll]
+    [userId, balance, still, refreshOwned, refreshBalance, setRoll]
   );
 
   const landed = useCallback(
@@ -248,7 +240,7 @@ export default function RollScreen() {
 
     let p: Prize;
     try {
-      p = preview ? previewPrize(pool) : await rollDailyPrize();
+      p = await rollDailyPrize();
     } catch (e) {
       setError(rollErrorText(errorMessage(e)));
       setPhase('idle');
@@ -329,7 +321,7 @@ export default function RollScreen() {
   }, [reveal]);
 
   // ---------------------------------------------------------------- what shows
-  const waiting = preview || roll?.state === 'ready' || (roll?.state === 'rolled' && !roll.seen);
+  const waiting = roll?.state === 'ready' || (roll?.state === 'rolled' && !roll.seen);
   const flash = prize && (phase === 'landed' || phase === 'revealed') ? RARITY_COLOR[prize.rarity] : null;
   const won = prize && phase === 'revealed' ? prize : null;
   // Coins won: out of their row and out of the tray from the moment the reel stops
@@ -370,17 +362,7 @@ export default function RollScreen() {
     start();
   }
 
-  const canWear = !preview && (entry?.kind === 'clothing' || entry?.kind === 'pet');
-
-  // Preview: back to a fresh reel at rest
-  function again() {
-    setPrize(null);
-    prizeRef.current = null;
-    lights.set(LIGHTS.idle);
-    position.set(REEL_START);
-    setTiles(buildReel(pool));
-    setPhase('idle');
-  }
+  const canWear = entry?.kind === 'clothing' || entry?.kind === 'pet';
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + Spacing.two, paddingBottom: insets.bottom + Spacing.three }]}>
@@ -397,10 +379,10 @@ export default function RollScreen() {
           style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
           <ThemedText style={styles.closeText}>✕</ThemedText>
         </Pressable>
-        <ThemedText style={styles.title}>{preview ? 'Roll preview' : 'Daily Roll'}</ThemedText>
+        <ThemedText style={styles.title}>Daily Roll</ThemedText>
         <CoinBalance balance={shownBalance ?? balance} color={INK} />
       </View>
-      {!preview && today !== null && goal && (
+      {today !== null && goal && (
         <ThemedText type="small" style={styles.muted}>
           Goal reached! {today.toLocaleString()} / {goal.today.toLocaleString()} steps
         </ThemedText>
@@ -498,11 +480,7 @@ export default function RollScreen() {
                 onPress={() => router.replace({ pathname: '/avatar', params: { wear: won.item_id! } })}
               />
             )}
-            {preview ? (
-              <CardButton title="Roll again" primary onPress={again} />
-            ) : (
-              <CardButton title="Done" primary={!canWear} onPress={() => router.back()} />
-            )}
+            <CardButton title="Done" primary={!canWear} onPress={() => router.back()} />
           </View>
         </Reanimated.View>
       )}
@@ -568,14 +546,6 @@ function MachineShadow({ k, bob, shake }: { k: number; bob: SharedValue<number>;
       ))}
     </Reanimated.View>
   );
-}
-
-/** A made-up prize for the preview, at the real chances. */
-function previewPrize(pool: PoolItem[]): Prize {
-  const t = randomTile(pool, Math.random, ROLL_CHANCES);
-  return t.kind === 'coins'
-    ? { item_id: null, rarity: 'coins', coins: t.coins }
-    : { item_id: t.id, rarity: t.rarity, coins: 0 };
 }
 
 /** The wallet counting up to its new balance over 0.9 s. */

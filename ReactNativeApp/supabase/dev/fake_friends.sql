@@ -46,6 +46,18 @@
 --     achievements earned in those days (Luna's 30,000 day is 6 days
 --     back, Theo's 22,000 day 3 days back), every friend but Ava has
 --     lines on Friends > Activity
+--   - the daily roll (20261125000000_daily_roll.sql) on each friend's goal
+--     day of the last 14, so their goal lines say what they won, the
+--     items owned and the coins in their wallets; those days' goal coins
+--     are 0, as after the switch day. Most are rolled like the server
+--     would; a few are set, to show each kind of line:
+--       Luna   today       a legendary item
+--       Priya  today       500 coins (if her steps reach her goal)
+--       Theo   today       not rolled yet: "reached their goal"
+--       Sam    yesterday   an epic item
+--       Hana   yesterday   a rare item
+--       Diego  yesterday   250 coins
+--     These show whether or not the roll is switched on (daily_roll_from)
 --
 -- The eight friends: an accepted friendship with you. Ava has no streak
 -- or achievements, to show an empty card.
@@ -56,7 +68,12 @@
 
 do $$
 declare
-  me uuid;
+  me          uuid;
+  goal_day    record;
+  outcome     text;
+  prize_item  text;
+  prize_coins integer;
+  rolled      timestamptz;
 begin
   select id into me from auth.users where lower(email) = 'derekqho@gmail.com';
   if me is null then
@@ -213,6 +230,92 @@ begin
   insert into public.wallets (user_id, balance)
   select user_id, sum(amount)::int from paid group by user_id
   on conflict (user_id) do update set balance = public.wallets.balance + excluded.balance;
+
+  -- The daily roll on the friends' goal days of the last 14 (see the top),
+  -- made fresh each run: the last run's rolls go first, with the items
+  -- they gave (never worn: a roll only gives what they didn't own) and
+  -- their coins out of the wallet. Then each day in turn, oldest first, so
+  -- an item won once isn't won again. Before purchases, so nothing bought
+  -- is also won.
+  if to_regclass('public.daily_rolls') is not null then
+    with gone as (
+      delete from public.daily_rolls r using fake_players f
+      where r.user_id = f.id
+      returning r.user_id, r.item_id
+    )
+    delete from public.user_items u using gone g
+    where u.user_id = g.user_id and u.item_id = g.item_id;
+
+    with gone as (
+      delete from public.coin_transactions c using fake_players f
+      where c.user_id = f.id and c.reason = 'roll'
+      returning c.user_id, c.amount
+    )
+    update public.wallets w set balance = greatest(0, w.balance - g.total)
+    from (select user_id, sum(amount)::int as total from gone group by user_id) g
+    where w.user_id = g.user_id;
+
+    for goal_day in
+      select c.user_id, c.ref::date as day, c.created_at, f.username
+      from public.coin_transactions c
+      join fake_players f on f.id = c.user_id
+      where c.reason = 'daily_goal' and f.relation = 'friend'
+        and c.ref >= to_char(current_date - 13, 'YYYY-MM-DD')
+        and not (f.username = 'theo_b' and c.ref = to_char(current_date, 'YYYY-MM-DD'))
+      order by c.ref, c.user_id
+    loop
+      -- The rarity: set for the days listed at the top, else as the
+      -- server rolls it, from the rarities with an item left for them
+      outcome := case
+        when goal_day.day = current_date and goal_day.username = 'luna_okafor' then 'legendary'
+        when goal_day.day = current_date and goal_day.username = 'priya_walks' then 'coins'
+        when goal_day.day = current_date - 1 and goal_day.username = 'sam_rivera' then 'epic'
+        when goal_day.day = current_date - 1 and goal_day.username = 'hana_k' then 'rare'
+        when goal_day.day = current_date - 1 and goal_day.username = 'diego_m' then 'coins'
+        else public.roll_outcome(array(
+          select distinct public.roll_rarity(s.price) from public.shop_items s
+          where s.active and s.unlocked_by is null and s.price is not null
+            and not exists (select 1 from public.user_items u
+                            where u.user_id = goal_day.user_id and u.item_id = s.id)), random())
+      end;
+      prize_item := null;
+      if outcome <> 'coins' then
+        select s.id into prize_item from public.shop_items s
+        where s.active and s.unlocked_by is null and s.price is not null
+          and not exists (select 1 from public.user_items u
+                          where u.user_id = goal_day.user_id and u.item_id = s.id)
+          and public.roll_rarity(s.price) = outcome
+        order by random() limit 1;
+        if prize_item is null then outcome := 'coins'; end if;   -- none of that rarity left
+      end if;
+      prize_coins := case
+        when outcome <> 'coins' then 0
+        when goal_day.day = current_date and goal_day.username = 'priya_walks' then 500
+        when goal_day.day = current_date - 1 and goal_day.username = 'diego_m' then 250
+        else public.roll_coin_amount(random())
+      end;
+      -- Rolled soon after the goal was reached, and seen
+      rolled := least(now() - interval '1 minute', goal_day.created_at + make_interval(mins => 1 + (random() * 90)::int));
+
+      insert into public.daily_rolls (user_id, day, item_id, coins, rarity, rolled_at, seen_at)
+      values (goal_day.user_id, goal_day.day, prize_item, prize_coins, outcome, rolled, rolled);
+      if prize_item is not null then
+        insert into public.user_items (user_id, item_id, acquired_at) values (goal_day.user_id, prize_item, rolled);
+      end if;
+      insert into public.coin_transactions (user_id, amount, reason, ref, created_at)
+      values (goal_day.user_id, prize_coins, 'roll', goal_day.day::text, rolled);
+      -- A rolled day's goal pays nothing, so its 150 come back out
+      update public.coin_transactions c set amount = 0
+      where c.user_id = goal_day.user_id and c.reason = 'daily_goal' and c.ref = goal_day.day::text;
+      update public.wallets w set balance = greatest(0, w.balance - 150 + prize_coins)
+      where w.user_id = goal_day.user_id;
+    end loop;
+
+    raise notice 'Daily rolls: % (% items, % coin prizes)',
+      (select count(*) from public.daily_rolls r join fake_players f on f.id = r.user_id),
+      (select count(*) from public.daily_rolls r join fake_players f on f.id = r.user_id where r.item_id is not null),
+      (select count(*) from public.daily_rolls r join fake_players f on f.id = r.user_id where r.item_id is null);
+  end if;
 
   -- Trail Crew: Diego's group with Priya and Theo, and ten Sprints they
   -- won together, one every three days
