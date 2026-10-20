@@ -101,14 +101,14 @@ One strip, the full width of the screen, that never scrolls:
 ======================================================================
 
   Directly under the road, on the ground color, as the first thing in
-  Today's list (above "Who"):
+  Today's list (above the Friends / group buttons):
 
     [ header on the sky: coins, Today, count, goal % ]
     [ the road (scrolls sideways) ]          <- stays put
     [ the road's distance markers ]
     [ THE MINIMAP ]      <- top of the list, 110 points tall
-    [ Who: Friends / groups ... ]   <- opens on Friends; hold and
-                                       drag a button to reorder
+    [ Friends / groups ... ]   <- opens on Friends; hold and drag
+                                  a button to reorder (no "Who" label)
 
   It scrolls up with the list and fades as it goes: gone once it has
   scrolled two thirds of the way off, back when you scroll to the top.

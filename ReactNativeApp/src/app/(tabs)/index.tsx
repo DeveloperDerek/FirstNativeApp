@@ -254,9 +254,6 @@ export default function TodayScreen() {
           <View style={styles.inner}>
             {sharing && <QuestBanners />}
 
-            <ThemedText type="smallBold" style={ink}>
-              Who
-            </ThemedText>
             {/* Hold a button, then drag it sideways to move it */}
             <DraggableRow
               items={whoItems}
