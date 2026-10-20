@@ -18,7 +18,7 @@ export type RollState =
 
 /** The capsule colours of the blueprint, now each tile's edge and the payline's flash. */
 export const RARITY_COLOR: Record<Outcome, string> = {
-  coins: '#f2c230',
+  coins: '#ffc928',
   common: '#9aa0a8',
   uncommon: '#4cb86a',
   rare: '#3c8deb',
@@ -247,28 +247,29 @@ export function reelPosition(t: number, p: SpinPlan): number {
 export type Px = [number, number, number, number, string];
 
 export const P = {
-  out: '#1a1020',
-  red: '#d23b4a',
-  redHi: '#ef6a6f',
-  redLo: '#8e2236',
-  side: '#6a1a2c',
-  sideLo: '#4a1220',
-  gold: '#ffcf3a',
-  goldLo: '#c08a10',
+  out: '#120f1e',
+  red: '#c9364c',
+  redHi: '#e0607a',
+  redLo: '#8c2036',
+  side: '#6e1a2e',
+  sideLo: '#4a0f1f',
+  gold: '#ffc928',
+  goldLo: '#a8650a',
   chrome: '#c9cdd8',
   chromeHi: '#eef0f6',
   chromeLo: '#7d8394',
-  marquee: '#3a1d5c',
-  marqueeHi: '#5a2f8a',
+  marquee: '#482064',
+  marqueeHi: '#633388',
+  marqueeLo: '#2c1240',
   bulbOff: '#5b4a2a',
   bulbOn: '#fff2a8',
   bulbRed: '#ff8a8a',
-  tray: '#2b1830',
+  tray: '#231a33',
   shadow: 'rgba(0,0,0,0.35)',
-  knob: '#e23b3b',
-  knobHi: '#ffb0a8',
-  reel: '#f7f3e8',
-  reelLine: '#ded6c2',
+  knob: '#d9435a',
+  knobHi: '#ffb3bf',
+  reel: '#f5eedb',
+  reelLine: '#ddd2b6',
 };
 
 // 3 x 5 letters for the sign
@@ -317,7 +318,8 @@ export const MACHINE = {
 export function machineBody(): Px[] {
   const r: Px[] = [];
   const add = (x: number, y: number, w: number, h: number, c: string) => r.push([x, y, w, h, c]);
-  add(10, 146, 92, 4, P.shadow);
+  // (Its shadow on the floor is drawn by the roll screen, so it can stay
+  // put while the machine bobs.)
   // The darker right side (2.5D), 3 pixels higher than the front
   add(98, 23, 6, 97, P.side);
   add(98, 120, 6, 21, P.sideLo);
@@ -336,7 +338,7 @@ export function machineBody(): Px[] {
   add(4, 4, 100, 24, P.out);
   add(5, 5, 98, 22, P.marquee);
   add(5, 5, 98, 2, P.marqueeHi);
-  add(104, 2, 5, 23, P.sideLo);
+  add(104, 2, 5, 23, P.marqueeLo);
   add(104, 1, 5, 1, P.out);
   add(109, 2, 1, 23, P.out);
   r.push(...pixelText('DAILY ROLL', 54, 11, P.gold, P.goldLo, 2));
@@ -437,10 +439,10 @@ export function miniBulbs(): [number, number][] {
 // every third turn.
 
 export const COIN_PALETTE: Record<string, string> = {
-  k: '#1f1d36',
-  l: '#ffe27a',
-  y: '#ffc12e',
-  o: '#f08a1c',
+  k: '#7a4206',
+  l: '#ffe98c',
+  y: '#ffc928',
+  o: '#c97e0c',
   w: '#ffffff',
 };
 

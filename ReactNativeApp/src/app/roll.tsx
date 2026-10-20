@@ -1,10 +1,11 @@
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Reanimated, {
   interpolate,
+  type SharedValue,
   useAnimatedReaction,
   useAnimatedStyle,
   useFrameCallback,
@@ -58,6 +59,7 @@ import {
   type Tile,
   tileFor,
 } from '@/roll/roll';
+import { useRollSounds } from '@/roll/sounds';
 
 // The daily roll screen (step-tracker-daily-roll.txt, section 5): pull
 // the lever down, the reel spins and stops on the prize the server already
@@ -67,11 +69,17 @@ import {
 // Dev builds only: /roll?preview=1 rolls a made-up prize on the phone, as
 // many times as you like, without the goal, the server or saving anything.
 
-const BG = '#1b1d2b';
+const BG = '#06231d'; // under the casino picture, the same emerald
 const INK = '#f4f1ff';
 const MUTED = '#b9b6d6';
-const CARD = '#262a3d';
-const YELLOW = '#ffd23f';
+const CARD = '#25263d';
+const YELLOW = '#ffc928';
+
+/** The casino behind the machine (scripts/generate-roll-background.py), at
+ *  3 points per art pixel so it stays crisp; centered, the edges crop. */
+const CASINO = require('@/assets/roll/casino.png');
+const CASINO_W = 450;
+const CASINO_H = 960;
 
 /** How far down (0 to 1) the lever must be when let go for the reel to spin. */
 const PULL_ENOUGH = 0.6;
@@ -90,7 +98,7 @@ export default function RollScreen() {
   const params = useLocalSearchParams<{ preview?: string }>();
   const preview = __DEV__ && params.preview === '1';
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const still = useReducedMotion();
   const { session, profile } = useAuth();
   const userId = session?.user.id;
@@ -102,6 +110,7 @@ export default function RollScreen() {
   // Whole points per art pixel: 3 on most phones
   const k = Math.max(2, Math.min(3, Math.floor((Math.min(width, 480) - 2 * Spacing.four) / MACHINE.w)));
   const clock = useMachineClock();
+  const play = useRollSounds();
 
   const [pool, setPool] = useState<PoolItem[]>([]);
   const [tiles, setTiles] = useState<Tile[]>(() => buildReel([]));
@@ -161,6 +170,9 @@ export default function RollScreen() {
       if (isBigWin(p)) {
         setTimeout(() => buzz(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)), 180);
       }
+      // The reel's thunk, then coins clinking out of the tray or the win's jingle
+      play('stop');
+      setTimeout(() => play(isBigWin(p) ? 'winBig' : p.item_id === null ? 'coins' : 'win'), 120);
       if (still) return reveal(p);
       lights.set(LIGHTS.win);
       shake.set(
@@ -176,7 +188,7 @@ export default function RollScreen() {
       if (p.item_id !== null) setPopping(true);
       else setTimeout(() => reveal(p), COINS_OUT_MS);
     },
-    [still, k, reveal, lights, shake]
+    [still, k, reveal, lights, shake, play]
   );
 
   // ---------------------------------------------------------------- the spin
@@ -199,7 +211,8 @@ export default function RollScreen() {
     if (now - lastTick.current < TICK_MS) return;
     lastTick.current = now;
     buzz(Haptics.selectionAsync());
-  }, []);
+    play('tick');
+  }, [play]);
   useAnimatedReaction(
     () => Math.round(position.get()),
     (tile, before) => {
@@ -231,6 +244,7 @@ export default function RollScreen() {
     setPhase('asking');
     setError(null);
     buzz(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
+    play('pull');
 
     let p: Prize;
     try {
@@ -370,6 +384,10 @@ export default function RollScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + Spacing.two, paddingBottom: insets.bottom + Spacing.three }]}>
+      <Image
+        source={CASINO}
+        style={[styles.casino, { left: (width - CASINO_W) / 2, top: (height - CASINO_H) / 2 }]}
+      />
       <View style={styles.head}>
         <Pressable
           onPress={() => router.back()}
@@ -389,6 +407,7 @@ export default function RollScreen() {
       )}
 
       <View onLayout={(e) => machineTop.set(e.nativeEvent.layout.y)}>
+        <MachineShadow k={k} bob={bob} shake={shake} />
         <View
           accessible
           accessibilityRole="button"
@@ -530,6 +549,37 @@ function buzz(haptic: Promise<void>) {
   });
 }
 
+/** The shadow's rows, in machine pixels: [left, width], 2 pixels tall each. */
+const SHADOW_ROWS = [
+  [14, 84],
+  [6, 100],
+  [14, 84],
+] as const;
+
+/**
+ * The machine's shadow on the floor, under its feet. It stays on the floor
+ * while the machine bobs, a little narrower and fainter as it rises, and
+ * follows it side to side when it shakes.
+ */
+function MachineShadow({ k, bob, shake }: { k: number; bob: SharedValue<number>; shake: SharedValue<number> }) {
+  const style = useAnimatedStyle(() => {
+    const up = Math.min(1, Math.max(0, -bob.value / k)); // 0 resting, 1 at the top of a bob
+    return {
+      opacity: 0.7 - 0.25 * up,
+      transform: [{ translateX: shake.value }, { scaleX: 1 - 0.1 * up }],
+    };
+  });
+  return (
+    <Reanimated.View
+      pointerEvents="none"
+      style={[styles.shadow, { top: 144 * k, width: MACHINE.w * k, height: 6 * k }, style]}>
+      {SHADOW_ROWS.map(([x, w], i) => (
+        <View key={i} style={[styles.shadowRow, { left: x * k, top: i * 2 * k, width: w * k, height: 2 * k }]} />
+      ))}
+    </Reanimated.View>
+  );
+}
+
 /** A made-up prize for the preview, at the real chances. */
 function previewPrize(pool: PoolItem[]): Prize {
   const t = randomTile(pool, Math.random, ROLL_CHANCES);
@@ -558,6 +608,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.three,
     gap: Spacing.three,
+  },
+  casino: {
+    position: 'absolute',
+    width: CASINO_W,
+    height: CASINO_H,
+  },
+  shadow: {
+    position: 'absolute',
+    left: 0,
+  },
+  shadowRow: {
+    position: 'absolute',
+    backgroundColor: '#05020a',
   },
   head: {
     alignSelf: 'stretch',

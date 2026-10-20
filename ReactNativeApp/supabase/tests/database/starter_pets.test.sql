@@ -1,10 +1,12 @@
 -- 20261119000000_starter_pets.sql: every new account starts with the dog
 -- (the cat is free for everyone), recorded at 0 coins. And the sunflower
--- and surfboard are gone (20261118000000_remove_sunflower_surfboard.sql).
+-- and surfboard are gone (20261118000000_remove_sunflower_surfboard.sql),
+-- and the lasso, spatula and spyglass are off sale
+-- (20261126000000_remove_lasso_spatula_spyglass.sql).
 -- Run with `supabase test db`.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(6);
+select plan(7);
 
 insert into auth.users (id, email) values ('000000a1-57a7-0000-0000-000000000000', 'starter@test.dev');
 
@@ -23,6 +25,9 @@ select ok(exists (select 1 from public.shop_items where id = 'pet_dog'),
           'the dog stays in the shop for older accounts');
 select is((select count(*)::int from public.shop_items where id in ('hand_sunflower', 'hand_surfboard')),
           0, 'the sunflower and surfboard are gone from the shop');
+select is((select count(*)::int from public.shop_items
+           where id in ('hand_lasso', 'hand_spatula', 'hand_spyglass') and active),
+          0, 'the lasso, spatula and spyglass are not for sale or in the roll');
 
 select * from finish();
 rollback;
