@@ -56,7 +56,6 @@ function ItemRow<T extends { id: string }>({
   return (
     <DraggableRow
       items={items}
-      itemWidth={TILE_WIDTH}
       gap={Spacing.two}
       leading={leading}
       renderItem={renderItem}

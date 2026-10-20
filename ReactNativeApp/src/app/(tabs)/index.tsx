@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Platform, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import Reanimated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,9 +9,11 @@ import { friendsLeaderboard } from '@/api/friends';
 import { type Group, groupLeaderboard, listMyGroups } from '@/api/groups';
 import type { LeaderboardRow } from '@/api/steps';
 import { useAuth } from '@/auth/AuthProvider';
+import { applyItemOrder } from '@/avatar/item-order';
 import { DEFAULT_AVATAR } from '@/avatar/types';
 import { CheckinCountdown } from '@/components/checkin-countdown';
 import { CoinBalance } from '@/components/coin-balance';
+import { DraggableRow, HOLD_MS } from '@/components/draggable-row';
 import { Leaderboard, rowToWalker } from '@/components/leaderboard';
 import { PlayerCard } from '@/components/player-card';
 import { StreakLine } from '@/components/streak-line';
@@ -27,6 +29,7 @@ import { useMapTheme } from '@/hooks/use-map-theme';
 import { useSteps } from '@/hooks/use-steps';
 import { useWallet } from '@/hooks/use-wallet';
 import { errorMessage } from '@/lib/error-message';
+import { FRIENDS_ID, getWhoOrder, saveWhoOrder } from '@/lib/who-order';
 import { DEFAULT_GOAL, goalProgress } from '@/lib/goal';
 import { pickShown } from '@/track/scale';
 import { RoadMinimap, StepTrack, useRoadLink, type Walker } from '@/track/StepTrack';
@@ -51,6 +54,10 @@ export default function TodayScreen() {
   // Opens on Friends; the Who row switches to a group
   const [mode, setMode] = useState<Mode>({ kind: 'friends' });
   const [groups, setGroups] = useState<Group[]>([]);
+  // The Who buttons' order, dragged by the user (lib/who-order.ts), and
+  // whether one is held, which stops the list scrolling
+  const [whoOrder, setWhoOrder] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
   // Leaderboard rows remember which mode they belong to, so switching
   // modes never shows the previous mode's people.
   const [board, setBoard] = useState<{ key: string; rows: LeaderboardRow[] } | null>(null);
@@ -123,6 +130,21 @@ export default function TodayScreen() {
       loadBoard();
     }, [loadBoard])
   );
+
+  useEffect(() => {
+    if (myId) getWhoOrder(myId).then(setWhoOrder);
+  }, [myId]);
+
+  const whoItems = applyItemOrder(
+    [{ id: FRIENDS_ID, name: 'Friends' }, ...groups.map((g) => ({ id: g.id, name: g.name }))],
+    whoOrder
+  );
+  // A dropped button: show the new order straight away, then save it
+  const reorderWho = (ids: string[]) => {
+    if (ids.join() === whoItems.map((w) => w.id).join()) return;
+    setWhoOrder(ids);
+    saveWhoOrder(myId, ids);
+  };
 
   async function pullToRefresh() {
     setRefreshing(true);
@@ -208,6 +230,7 @@ export default function TodayScreen() {
 
       <Reanimated.ScrollView
         style={styles.list}
+        scrollEnabled={!dragging}
         onScroll={onListScroll}
         scrollEventThrottle={16}
         refreshControl={
@@ -234,23 +257,32 @@ export default function TodayScreen() {
             <ThemedText type="smallBold" style={ink}>
               Who
             </ThemedText>
-            <View style={styles.wrap}>
-              <ThemedButton
-                theme={theme}
-                title="Friends"
-                selected={mode.kind === 'friends'}
-                onPress={() => setMode({ kind: 'friends' })}
-              />
-              {groups.map((g) => (
+            {/* Hold a button, then drag it sideways to move it */}
+            <DraggableRow
+              items={whoItems}
+              gap={Spacing.two}
+              renderItem={(w) => (
                 <ThemedButton
-                  key={g.id}
                   theme={theme}
-                  title={g.name}
-                  selected={mode.kind === 'group' && mode.id === g.id}
-                  onPress={() => setMode({ kind: 'group', id: g.id, name: g.name })}
+                  title={w.name}
+                  holdDelay={HOLD_MS}
+                  selected={
+                    w.id === FRIENDS_ID
+                      ? mode.kind === 'friends'
+                      : mode.kind === 'group' && mode.id === w.id
+                  }
+                  onPress={() =>
+                    setMode(
+                      w.id === FRIENDS_ID
+                        ? { kind: 'friends' }
+                        : { kind: 'group', id: w.id, name: w.name }
+                    )
+                  }
                 />
-              ))}
-            </View>
+              )}
+              onReorder={reorderWho}
+              onDragChange={setDragging}
+            />
 
             {!sharing && (
               // Same rule as the Friends and Groups tabs: comparing needs sharing.
@@ -380,11 +412,6 @@ const styles = StyleSheet.create({
     flex: 1,
     maxWidth: MaxContentWidth,
     gap: Spacing.three,
-  },
-  wrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
   },
   notice: {
     padding: Spacing.three,

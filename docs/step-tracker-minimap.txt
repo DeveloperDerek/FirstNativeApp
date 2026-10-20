@@ -107,7 +107,8 @@ One strip, the full width of the screen, that never scrolls:
     [ the road (scrolls sideways) ]          <- stays put
     [ the road's distance markers ]
     [ THE MINIMAP ]      <- top of the list, 110 points tall
-    [ Who: Friends / groups ... ]   <- opens on Friends
+    [ Who: Friends / groups ... ]   <- opens on Friends; hold and
+                                       drag a button to reorder
 
   It scrolls up with the list and fades as it goes: gone once it has
   scrolled two thirds of the way off, back when you scroll to the top.

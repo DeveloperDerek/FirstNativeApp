@@ -15,12 +15,13 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-// A sideways-scrolling row of same-width tiles the user can rearrange:
+// A sideways-scrolling row of tiles the user can rearrange:
 // hold a tile for a moment, then drag it sideways; the others slide out of
 // its way. Holding it near either edge scrolls the row, so a tile can go
 // to a slot that was off screen. The tiles stay in normal layout in their
 // given order and are only shifted with translateX while dragging, so the
-// row sizes itself as usual.
+// row sizes itself as usual. Tiles can differ in width (each one is
+// measured), e.g. buttons named after groups.
 
 export const HOLD_MS = 250; // also Tile's delayLongPress, so a drag never counts as a tap
 
@@ -28,11 +29,12 @@ const EDGE = 56; // how close to an edge the finger must be to scroll, in points
 const MAX_SPEED = 600; // scroll speed right at the edge, in points per second
 
 type Positions = Record<string, number>; // item id -> slot it shows in
+type Widths = Record<string, number>; // item id -> its measured width
 
 /** The tile being dragged, everything measured when the hold began. */
 type Drag = {
   id: string;
-  index: number;
+  startLeft: number; // where the held tile was when the hold began, in row coordinates
   translationX: number;
   fingerX: number; // on screen
   startScroll: number;
@@ -45,40 +47,67 @@ const slots = (ids: string[]): Positions => Object.fromEntries(ids.map((id, i) =
 /** The row's drag state, shared by every tile and the edge scrolling. */
 type Shared = {
   positions: SharedValue<Positions>;
+  widths: SharedValue<Widths>;
   drag: SharedValue<Drag | null>;
   heldLeft: SharedValue<number>; // left edge of the held tile, in row coordinates
   scrollX: SharedValue<number>;
 };
 
+/** The ids in the slots they show in, first to last. */
+function orderOf(positions: Positions): string[] {
+  'worklet';
+  return Object.keys(positions).sort((a, b) => positions[a] - positions[b]);
+}
+
+/** Where `id` starts when the tiles are laid out in `order`. */
+function leftOf(order: string[], widths: Widths, gap: number, id: string): number {
+  'worklet';
+  let x = 0;
+  for (const key of order) {
+    if (key === id) return x;
+    x += (widths[key] ?? 0) + gap;
+  }
+  return x;
+}
+
 /** Puts the held tile under the finger and slides the others out of its way. */
-function place({ positions, drag, heldLeft, scrollX }: Shared, stride: number, count: number) {
+function place({ positions, widths, drag, heldLeft, scrollX }: Shared, gap: number) {
   'worklet';
   const d = drag.get();
   if (!d) return;
+  const w = widths.get();
+  const order = orderOf(positions.get());
+  const total = order.reduce((sum, key) => sum + (w[key] ?? 0), 0) + gap * (order.length - 1);
   const left = Math.min(
-    Math.max(d.index * stride + d.translationX + scrollX.get() - d.startScroll, 0),
-    (count - 1) * stride,
+    Math.max(d.startLeft + d.translationX + scrollX.get() - d.startScroll, 0),
+    Math.max(total - (w[d.id] ?? 0), 0),
   );
   heldLeft.set(left);
-  const from = positions.get()[d.id];
-  const to = Math.round(left / stride);
-  if (to === from) return;
-  // Slide every tile between the old and new slot over by one
-  const next = { ...positions.get() };
-  for (const key of Object.keys(next)) {
-    const p = next[key];
-    if (from < to && p > from && p <= to) next[key] = p - 1;
-    if (from > to && p >= to && p < from) next[key] = p + 1;
+  // The held tile goes to the slot whose start is closest to it
+  const others = order.filter((key) => key !== d.id);
+  let to = 0;
+  let best = Infinity;
+  let x = 0;
+  for (let j = 0; j <= others.length; j++) {
+    if (Math.abs(left - x) < best) {
+      best = Math.abs(left - x);
+      to = j;
+    }
+    if (j < others.length) x += (w[others[j]] ?? 0) + gap;
   }
-  next[d.id] = to;
+  if (to === positions.get()[d.id]) return;
+  others.splice(to, 0, d.id);
+  const next: Positions = {};
+  others.forEach((key, i) => {
+    next[key] = i;
+  });
   positions.set(next);
 }
 
 function DraggableItem({
   id,
-  index,
-  count,
-  stride,
+  ids,
+  gap,
   shared,
   scrollRef,
   onDrop,
@@ -86,32 +115,32 @@ function DraggableItem({
   children,
 }: {
   id: string;
-  index: number;
-  count: number;
-  stride: number;
+  ids: string[]; // every tile in the row, in its given (layout) order
+  gap: number;
   shared: Shared;
   scrollRef: AnimatedRef<Animated.ScrollView>;
   onDrop: (ids: string[]) => void;
   onDragChange: (dragging: boolean) => void;
   children: ReactNode;
 }) {
-  const { positions, drag, heldLeft, scrollX } = shared;
+  const { positions, widths, drag, heldLeft, scrollX } = shared;
 
   const pan = usePanGesture({
     activateAfterLongPress: HOLD_MS,
     onActivate: (e) => {
       'worklet';
       const view = measure(scrollRef);
+      const startLeft = leftOf(orderOf(positions.get()), widths.get(), gap, id);
       drag.set({
         id,
-        index,
+        startLeft,
         translationX: 0,
         fingerX: e.absoluteX,
         startScroll: scrollX.get(),
         viewLeft: view?.pageX ?? 0,
         viewWidth: view?.width ?? 0,
       });
-      heldLeft.set(positions.get()[id] * stride);
+      heldLeft.set(startLeft);
       scheduleOnRN(onDragChange, true);
     },
     onUpdate: (e) => {
@@ -119,42 +148,50 @@ function DraggableItem({
       const d = drag.get();
       if (!d || d.id !== id) return;
       drag.set({ ...d, translationX: e.translationX, fingerX: e.absoluteX });
-      place(shared, stride, count);
+      place(shared, gap);
     },
     onFinalize: () => {
       'worklet';
       if (drag.get()?.id !== id) return;
       drag.set(null);
-      const p = positions.get();
-      scheduleOnRN(onDrop, Object.keys(p).sort((a, b) => p[a] - p[b]));
+      scheduleOnRN(onDrop, orderOf(positions.get()));
       scheduleOnRN(onDragChange, false);
     },
   });
 
   const style = useAnimatedStyle(() => {
     const held = drag.get()?.id === id;
-    const slot = positions.get()[id] ?? index;
+    const w = widths.get();
+    const natural = leftOf(ids, w, gap, id);
+    const left = held ? heldLeft.get() : leftOf(orderOf(positions.get()), w, gap, id);
     return {
       zIndex: held ? 1 : 0,
       transform: [
-        {
-          translateX: held ? heldLeft.get() - index * stride : withTiming((slot - index) * stride),
-        },
+        { translateX: held ? left - natural : withTiming(left - natural) },
         { scale: withTiming(held ? 1.08 : 1, { duration: 120 }) },
       ],
     };
-  }, [id, index, stride]);
+  }, [id, ids, gap]);
 
   return (
     <GestureDetector gesture={pan}>
-      <Animated.View style={style}>{children}</Animated.View>
+      <Animated.View
+        style={style}
+        onLayout={(e) => {
+          const width = e.nativeEvent.layout.width;
+          widths.modify((all) => {
+            'worklet';
+            return { ...all, [id]: width };
+          });
+        }}>
+        {children}
+      </Animated.View>
     </GestureDetector>
   );
 }
 
 export function DraggableRow<T extends { id: string }>({
   items,
-  itemWidth,
   gap,
   leading,
   renderItem,
@@ -162,7 +199,6 @@ export function DraggableRow<T extends { id: string }>({
   onDragChange,
 }: {
   items: T[];
-  itemWidth: number;
   gap: number;
   /** Shown first and never moves, e.g. a "None" tile. */
   leading?: ReactNode;
@@ -173,9 +209,9 @@ export function DraggableRow<T extends { id: string }>({
 }) {
   const ids = items.map((x) => x.id);
   const key = ids.join(',');
-  const stride = itemWidth + gap;
   const shared: Shared = {
     positions: useSharedValue<Positions>(slots(ids)),
+    widths: useSharedValue<Widths>({}),
     drag: useSharedValue<Drag | null>(null),
     heldLeft: useSharedValue(0),
     scrollX: useSharedValue(0),
@@ -209,7 +245,7 @@ export function DraggableRow<T extends { id: string }>({
     if (to === scrollX.get()) return;
     scrollTo(scrollRef, to, 0, false);
     scrollX.set(to); // don't wait for the scroll event, so the tile keeps up
-    place(shared, stride, items.length);
+    place(shared, gap);
   }, false);
 
   const handleDragChange = useCallback(
@@ -232,13 +268,12 @@ export function DraggableRow<T extends { id: string }>({
       onContentSizeChange={(w) => contentWidth.set(w)}
       contentContainerStyle={[styles.row, { gap }]}>
       {leading}
-      {items.map((item, i) => (
+      {items.map((item) => (
         <DraggableItem
           key={item.id}
           id={item.id}
-          index={i}
-          count={items.length}
-          stride={stride}
+          ids={ids}
+          gap={gap}
           shared={shared}
           scrollRef={scrollRef}
           onDrop={onReorder}

@@ -335,6 +335,7 @@ packages were removed.
 - [ ] iPhone  - [ ] Android — **Maps on sign-in:** sign in to an account that owns a map: it's usable in Profile straight away, without reopening the app.
 - [ ] iPhone  - [ ] Android — **Friends:** switch Today / Last 7 days / Activity: the ranking changes. Accept, decline and remove a friend: the lists and the tab badge update straight away. Pull to refresh updates everything.
 - [ ] iPhone  - [ ] Android — **Today:** opens on Friends (no "Just me" choice); switch between Friends and a group: the right people show. Join or leave a group elsewhere, then reopen Today or pull to refresh: the group list is current.
+- [ ] iPhone  - [ ] Android — **Today, rearranging Who:** hold Friends or a group button, then drag it sideways: the others slide out of its way and it stays where it's dropped, without switching to it. A long group name moves the same way. With more buttons than fit, hold one near the edge: the row scrolls. Quit and reopen: the order is kept; a newly joined group shows at the end. A quick tap still switches.
 - [ ] iPhone  - [ ] Android — **Shop:** the balance and the refresh countdown are right on opening, after a purchase, and after a shop refresh.
 - [ ] iPhone  - [ ] Android — **Dates and times:** History, Activity day labels ("Yesterday", "Mon Oct 13"), achievement dates, the birthday on sign-up and quest times ("It begins at 3:00 PM") show as before, also just after midnight.
 

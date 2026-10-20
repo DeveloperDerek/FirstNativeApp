@@ -17,6 +17,8 @@ type ThemedButtonProps = {
   danger?: boolean;
   loading?: boolean;
   size?: 'large' | 'small';
+  /** In a DraggableRow: holding starts a drag, so the release mustn't count as a tap. */
+  holdDelay?: number;
 };
 
 /**
@@ -33,6 +35,7 @@ export function ThemedButton({
   danger = false,
   loading = false,
   size = 'small',
+  holdDelay,
 }: ThemedButtonProps) {
   const base = danger ? DANGER : theme.button;
   const text = danger ? '#ffffff' : theme.buttonText;
@@ -43,6 +46,8 @@ export function ThemedButton({
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={holdDelay === undefined ? undefined : () => {}}
+      delayLongPress={holdDelay}
       disabled={inactive}
       accessibilityRole="button"
       accessibilityLabel={title}
