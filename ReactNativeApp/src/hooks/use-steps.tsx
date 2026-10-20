@@ -47,7 +47,12 @@ type StepsState = {
 
 const StepsContext = createContext<StepsState | null>(null);
 
-export function StepsProvider({ children }: { children: ReactNode }) {
+/**
+ * At the root, so the tabs and the modals over them (the roll screen)
+ * share it. It loads only while `enabled` (the signed-in app is showing)
+ * and starts over empty when that ends, as if it had just mounted.
+ */
+export function StepsProvider({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   const [today, setToday] = useState<number | null>(null);
   const [log, setLog] = useState<StepLog>({});
   const [permission, setPermission] = useState<PermissionResult | null>(null);
@@ -59,7 +64,7 @@ export function StepsProvider({ children }: { children: ReactNode }) {
   const [streak, setStreak] = useState<MyStreak | null>(null);
   const [roll, setRoll] = useState<RollState>(null);
   const { session, profile } = useAuth();
-  const userId = session?.user.id;
+  const userId = enabled ? session?.user.id : undefined;
   // Only upload once the user has agreed on the consent screen.
   const sharing = Boolean(profile?.sharing_consent_at);
   const { refreshBalance } = useWallet();
@@ -69,10 +74,30 @@ export function StepsProvider({ children }: { children: ReactNode }) {
   const lastStarted = useRef(0);
   // The sharing setting now, so a refresh that outlives it stops uploading
   const sharingNow = useRef(sharing);
+  const enabledNow = useRef(enabled);
   const mounted = useRef(true);
   useEffect(() => {
     sharingNow.current = sharing;
   }, [sharing]);
+  useEffect(() => {
+    enabledNow.current = enabled;
+  }, [enabled]);
+  // Signed out (or set up, paused...): empty again, as on a first mount
+  const [wasEnabled, setWasEnabled] = useState(enabled);
+  if (wasEnabled !== enabled) {
+    setWasEnabled(enabled);
+    if (!enabled) {
+      setToday(null);
+      setLog({});
+      setPermission(null);
+      setLoading(true);
+      setError(null);
+      setQuests([]);
+      setGoal(null);
+      setStreak(null);
+      setRoll(null);
+    }
+  }
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -88,6 +113,7 @@ export function StepsProvider({ children }: { children: ReactNode }) {
     const mark = currentAccount();
     const stillCurrent = () =>
       mounted.current &&
+      enabledNow.current &&
       isCurrent(mark) &&
       signedInAccount() === userId &&
       sharingNow.current === sharing;
@@ -142,12 +168,13 @@ export function StepsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Always on launch, sign-in, and when sharing is turned on or off
+    if (!enabled) return;
     run();
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') refreshIfStale();
     });
     return () => sub.remove();
-  }, [run, refreshIfStale]);
+  }, [enabled, run, refreshIfStale]);
 
   // Goal reminders follow every refresh (step-tracker-history-reminders.txt, B)
   useGoalReminders({ userId, loading, today, goal, streak, roll });

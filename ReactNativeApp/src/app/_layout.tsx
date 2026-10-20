@@ -22,6 +22,7 @@ import { MapThemeProvider } from '@/hooks/use-map-theme';
 import { useMarkSeen } from '@/hooks/use-mark-seen';
 import { NotificationCountsProvider } from '@/hooks/use-notification-counts';
 import { usePush } from '@/hooks/use-push';
+import { StepsProvider } from '@/hooks/use-steps';
 import { WalletProvider } from '@/hooks/use-wallet';
 
 SplashScreen.preventAutoHideAsync();
@@ -76,49 +77,51 @@ function RootNavigator() {
   if (route === 'loadFailed') return <LoadFailedScreen />;
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={route === 'app'}>
-        {/* The tabs stop redrawing while a modal covers them, so picking a
-            map in Customize or the Shop only redraws what's on screen;
-            they catch up when it closes */}
-        <Stack.Screen name="(tabs)" options={{ freezeOnBlur: true }} />
-        <Stack.Screen name="consent" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="avatar" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="shop" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="roll" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="propose-quest" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="change-password" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="birthday-correction" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="blocked" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="achievements" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="report" options={{ presentation: 'modal' }} />
-      </Stack.Protected>
-      <Stack.Protected guard={route === 'setup'}>
-        <Stack.Screen name="setup" options={{ gestureEnabled: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={route === 'updatedTerms'}>
-        <Stack.Screen name="updated-terms" options={{ gestureEnabled: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={route === 'blocked'}>
-        <Stack.Screen name="age-blocked" options={{ gestureEnabled: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={route === 'paused'}>
-        <Stack.Screen name="paused" options={{ gestureEnabled: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={route === 'pickUsername'}>
-        <Stack.Screen name="new-username" options={{ gestureEnabled: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={route === 'recovery'}>
-        <Stack.Screen name="new-password" options={{ gestureEnabled: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={route === 'signedOut'}>
-        <Stack.Screen name="sign-in" />
-      </Stack.Protected>
-      {/* Links from emails open in any state; they check the token, then
-          hand back to the guards above */}
-      <Stack.Screen name="auth/confirm" options={{ gestureEnabled: false }} />
-      <Stack.Screen name="auth/reset" options={{ gestureEnabled: false }} />
-    </Stack>
+    <StepsProvider enabled={route === 'app'}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected guard={route === 'app'}>
+          {/* The tabs stop redrawing while a modal covers them, so picking a
+              map in Customize or the Shop only redraws what's on screen;
+              they catch up when it closes */}
+          <Stack.Screen name="(tabs)" options={{ freezeOnBlur: true }} />
+          <Stack.Screen name="consent" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="avatar" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="shop" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="roll" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="propose-quest" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="change-password" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="birthday-correction" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="blocked" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="achievements" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="report" options={{ presentation: 'modal' }} />
+        </Stack.Protected>
+        <Stack.Protected guard={route === 'setup'}>
+          <Stack.Screen name="setup" options={{ gestureEnabled: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={route === 'updatedTerms'}>
+          <Stack.Screen name="updated-terms" options={{ gestureEnabled: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={route === 'blocked'}>
+          <Stack.Screen name="age-blocked" options={{ gestureEnabled: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={route === 'paused'}>
+          <Stack.Screen name="paused" options={{ gestureEnabled: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={route === 'pickUsername'}>
+          <Stack.Screen name="new-username" options={{ gestureEnabled: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={route === 'recovery'}>
+          <Stack.Screen name="new-password" options={{ gestureEnabled: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={route === 'signedOut'}>
+          <Stack.Screen name="sign-in" />
+        </Stack.Protected>
+        {/* Links from emails open in any state; they check the token, then
+            hand back to the guards above */}
+        <Stack.Screen name="auth/confirm" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="auth/reset" options={{ gestureEnabled: false }} />
+      </Stack>
+    </StepsProvider>
   );
 }
 

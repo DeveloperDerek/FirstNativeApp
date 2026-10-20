@@ -4,15 +4,10 @@ import { useEffect } from 'react';
 
 import { useAuth } from '@/auth/AuthProvider';
 import AppTabs from '@/components/app-tabs';
-import { StepsProvider } from '@/hooks/use-steps';
 
 export default function TabLayout() {
   useConsentPromptOnce();
-  return (
-    <StepsProvider>
-      <AppTabs />
-    </StepsProvider>
-  );
+  return <AppTabs />;
 }
 
 /**
