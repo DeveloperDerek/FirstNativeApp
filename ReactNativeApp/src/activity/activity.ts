@@ -31,7 +31,7 @@ export type ActivityLine = {
   items?: string[];
   /** Goal lines: the item won with that day's roll (yours and friends'); missing or null without one */
   prize_item?: string | null;
-  /** Your goal lines only: the coins won with that day's roll */
+  /** Goal lines: the coins won with that day's roll (yours and friends'); missing or null without one */
   prize_coins?: number | null;
   /** Kudos on the line (step-tracker-kudos.txt); missing from a server without kudos */
   kudos?: number;
@@ -89,20 +89,23 @@ function names(list: { name: string }[]): string {
 /**
  * What the line says, after the name, all lowercase: "reached their goal ·
  * unlocked first 10k", "unlocked a week in a row", "bought red cap". Yours:
- * "reached your goal · +150 coins". With the daily roll (ROLL-11): "reached
- * their goal · won pirate hat", and yours "reached your goal · +250 coins"
- * for coins won. Never a price: the wallet is private.
+ * "reached your goal · +150 coins". With the daily roll (ROLL-11) the prize
+ * takes the goal's place: "won pirate hat", "won 250 coins". Never a price
+ * or the day's own coins on a friend's line: the wallet is private.
  */
 export function lineText(line: ActivityLine, isMe: boolean, itemName: ItemName = noItems): string {
   const earned = knownAchievements(line);
   const bought = knownItems(line, itemName);
   const parts: string[] = [];
   if (line.goal) {
-    parts.push(isMe ? 'reached your goal' : 'reached their goal');
     const won = line.prize_item ? itemName(line.prize_item) : undefined;
     if (won) parts.push(`won ${won}`);
-    else if (isMe && line.prize_coins) parts.push(`+${line.prize_coins} coins`);
-    else if (isMe && line.coins) parts.push(`+${line.coins} coins`);
+    else if (line.prize_coins) parts.push(`won ${line.prize_coins} coins`);
+    else {
+      // Not rolled yet, or an item this app doesn't know
+      parts.push(isMe ? 'reached your goal' : 'reached their goal');
+      if (isMe && line.coins) parts.push(`+${line.coins} coins`);
+    }
   }
   if (earned.length > 0) parts.push(`unlocked ${names(earned)}`);
   if (bought.length > 0) parts.push(`bought ${names(bought)}`);

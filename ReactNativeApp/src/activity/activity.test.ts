@@ -95,22 +95,23 @@ test('purchases: the words, never a price, and only items this app knows', () =>
   assert.equal(showable([line({ items: ['hat_red_cap'] })]).length, 0);
 });
 
-test('the daily roll on a goal line: the item won, for everyone; coins won, yours only', () => {
+test('the daily roll on a goal line: the prize, item or coins, in the goal\'s place', () => {
   // A roll's goal line pays 0 coins itself
   assert.equal(
     lineText(line({ goal: true, coins: 0, prize_item: 'hat_red_cap' }), true, itemName),
-    'reached your goal · won red cap'
+    'won red cap'
   );
   assert.equal(
     lineText(line({ goal: true, prize_item: 'hat_red_cap' }), false, itemName),
-    'reached their goal · won red cap'
+    'won red cap'
   );
   assert.equal(
     lineText(line({ goal: true, coins: 0, prize_coins: 250 }), true, itemName),
-    'reached your goal · +250 coins'
+    'won 250 coins'
   );
-  // The server never sends a friend's coins; nothing shows even if it did
-  assert.equal(lineText(line({ goal: true, prize_coins: 250 }), false, itemName), 'reached their goal');
+  assert.equal(lineText(line({ goal: true, prize_coins: 250 }), false, itemName), 'won 250 coins');
+  // The day's own coins stay yours only
+  assert.equal(lineText(line({ goal: true, coins: 150 }), false, itemName), 'reached their goal');
   // Not rolled yet, or an item this app doesn't know
   assert.equal(lineText(line({ goal: true, coins: 0 }), true, itemName), 'reached your goal');
   assert.equal(lineText(line({ goal: true, prize_item: 'from_the_future' }), false, itemName), 'reached their goal');

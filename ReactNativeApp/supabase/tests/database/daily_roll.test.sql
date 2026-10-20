@@ -2,7 +2,7 @@
 -- the day's goal, instead of the 150 daily coins. Run with `supabase test db`.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(44);
+select plan(45);
 
 -- U1-U4 share steps; U5 doesn't. U1 and U2 are friends.
 insert into auth.users (id, email)
@@ -188,9 +188,12 @@ select pg_temp.as_user(2);
 select is((select (l ->> 'prize_item') from jsonb_array_elements(public.activity_feed(current_date)) l
            where l ->> 'user_id' = pg_temp.u(1)::text and l ->> 'kind' = 'goal' and l ->> 'day' = current_date::text),
           (select item_id from r1), 'a friend sees the item won');
-select ok((select bool_and(l -> 'prize_coins' = 'null'::jsonb) from jsonb_array_elements(public.activity_feed(current_date)) l
+select is((select (l ->> 'prize_coins')::int from jsonb_array_elements(public.activity_feed(current_date)) l
+           where l ->> 'user_id' = pg_temp.u(1)::text and l ->> 'kind' = 'goal' and l ->> 'day' = current_date::text),
+          nullif((select coins from r1), 0), '...or the coins won (20261127000000_activity_friends_roll_coins.sql)');
+select ok((select bool_and(l -> 'coins' = 'null'::jsonb) from jsonb_array_elements(public.activity_feed(current_date)) l
            where l ->> 'user_id' = pg_temp.u(1)::text),
-          '...but never the coins');
+          '...but never the day''s own coins');
 select is((select count(*)::int from public.daily_rolls where user_id = pg_temp.u(1)), 0,
           'other players can''t read your rolls');
 reset role;
