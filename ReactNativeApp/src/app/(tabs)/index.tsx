@@ -155,6 +155,7 @@ export default function TodayScreen() {
   };
 
   async function pullToRefresh() {
+    haptics.tap(); // the pull caught
     setRefreshing(true);
     await Promise.all([refresh(), loadBoard(), loadGroups(), checkIn().catch(() => {})]);
     setRefreshing(false);
