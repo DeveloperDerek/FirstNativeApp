@@ -71,12 +71,8 @@ export type Tile = { kind: 'coins'; coins: 100 | 250 | 500 } | { kind: 'item'; i
 /** An item the player could win, for the reel's other tiles. */
 export type PoolItem = { id: string; rarity: Rarity };
 
-/**
- * How often each kind shows on the reel's other tiles, which are only for
- * show. ROLL-17 is still open; until it's decided they follow the real
- * chances (option A), so the reel shows roughly what people win.
- */
-export const REEL_CHANCES: [Outcome, number][] = [
+/** The real chances, as roll_outcome() on the server picks them (ROLL-6). */
+export const ROLL_CHANCES: [Outcome, number][] = [
   ['coins', 40],
   ['common', 31],
   ['uncommon', 19],
@@ -84,6 +80,14 @@ export const REEL_CHANCES: [Outcome, number][] = [
   ['epic', 3],
   ['legendary', 1],
 ];
+
+/**
+ * How often each kind shows on the reel's other tiles, which are only for
+ * show (ROLL-17): fewer coins, so more of the items go by, and the items
+ * among themselves at the real chances, so rare ones don't look likelier
+ * next to the common ones than they are.
+ */
+export const REEL_CHANCES: [Outcome, number][] = [['coins', 10], ...ROLL_CHANCES.filter(([k]) => k !== 'coins')];
 const COIN_CHANCES: [100 | 250 | 500, number][] = [
   [100, 6],
   [250, 3],
@@ -96,9 +100,13 @@ function pickWeighted<T>(pairs: [T, number][], random: () => number): T {
   return pairs[0][0];
 }
 
-/** A random tile from what's left to win, at REEL_CHANCES (rarities with nothing left skipped). */
-export function randomTile(pool: PoolItem[], random: () => number = Math.random): Tile {
-  const kinds = REEL_CHANCES.filter(([k]) => k === 'coins' || pool.some((i) => i.rarity === k));
+/** A random tile from what's left to win, at `chances` (rarities with nothing left skipped). */
+export function randomTile(
+  pool: PoolItem[],
+  random: () => number = Math.random,
+  chances: [Outcome, number][] = REEL_CHANCES
+): Tile {
+  const kinds = chances.filter(([k]) => k === 'coins' || pool.some((i) => i.rarity === k));
   const kind = pickWeighted(kinds, random);
   if (kind === 'coins') return { kind: 'coins', coins: pickWeighted(COIN_CHANCES, random) };
   const items = pool.filter((i) => i.rarity === kind);
@@ -118,7 +126,7 @@ export const sameTile = (a: Tile, b: Tile) =>
 export const REEL_START = 2;
 
 /** Tiles a reel needs: the longest spin's stop, plus spare tiles past it for the overshoot. */
-export const REEL_LENGTH = REEL_START + 28 + 3;
+export const REEL_LENGTH = REEL_START + 48 + 3;
 
 /** A reel of random tiles, built when the screen opens, before the prize is known. */
 export function buildReel(pool: PoolItem[], random: () => number = Math.random): Tile[] {
@@ -160,14 +168,17 @@ export type SpinPlan = {
   crawl: boolean;
 };
 
-/** Rarer prizes spin longer, with a slower crawl at the end (section 5). */
+/**
+ * Rarer prizes spin longer, with a slower crawl at the end (section 5).
+ * Long enough to watch a good run of prizes go by, not just a blur.
+ */
 export function spinPlan(rarity: Outcome): SpinPlan {
   const long = rarity === 'legendary' ? 2 : rarity === 'epic' ? 1 : 0;
   return {
     windMs: 160,
-    spinMs: [3000, 3400, 3800][long],
+    spinMs: [5000, 5600, 6200][long],
     settleMs: 260,
-    tiles: [24, 26, 28][long],
+    tiles: [40, 44, 48][long],
     overshoot: 0.22,
     crawl: long > 0,
   };
@@ -189,7 +200,7 @@ export function reelPosition(t: number, p: SpinPlan): number {
     const u = (t - p.windMs) / p.spinMs;
     const quint = 1 - Math.pow(1 - u, 5);
     const cubic = 1 - Math.pow(1 - u, 3);
-    const eased = p.crawl ? quint : 0.35 * cubic + 0.65 * quint;
+    const eased = p.crawl ? quint : 0.5 * cubic + 0.5 * quint;
     const from = start - 0.25;
     return from + (stop + p.overshoot - from) * eased;
   }

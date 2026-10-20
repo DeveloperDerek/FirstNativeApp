@@ -1,9 +1,11 @@
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Reanimated, {
   interpolate,
+  useAnimatedReaction,
   useAnimatedStyle,
   useFrameCallback,
   useReducedMotion,
@@ -43,9 +45,11 @@ import {
   type PoolItem,
   type Prize,
   prizeName,
+  randomTile,
   RARITY_COLOR,
   RARITY_LABEL,
   REEL_START,
+  ROLL_CHANCES,
   reelPosition,
   rollErrorText,
   type SpinPlan,
@@ -55,10 +59,13 @@ import {
   tileFor,
 } from '@/roll/roll';
 
-// The daily roll screen (step-tracker-daily-roll.txt, section 5): tap the
-// machine, the reel spins and stops on the prize the server already
+// The daily roll screen (step-tracker-daily-roll.txt, section 5): pull
+// the lever down, the reel spins and stops on the prize the server already
 // picked, and the prize card pops out of the tray. Opened from the small
 // machine on Today.
+//
+// Dev builds only: /roll?preview=1 rolls a made-up prize on the phone, as
+// many times as you like, without the goal, the server or saving anything.
 
 const BG = '#1b1d2b';
 const INK = '#f4f1ff';
@@ -66,11 +73,19 @@ const MUTED = '#b9b6d6';
 const CARD = '#262a3d';
 const YELLOW = '#ffd23f';
 
-/** idle: waiting for the tap; asking: the server is picking; spinning; then the reveal. */
+/** How far down (0 to 1) the lever must be when let go for the reel to spin. */
+const PULL_ENOUGH = 0.6;
+
+/** The shortest gap between reel ticks: at full speed they'd blur into one buzz. */
+const TICK_MS = 50;
+
+/** idle: waiting for the lever; asking: the server is picking; spinning; then the reveal. */
 type Phase = 'idle' | 'asking' | 'spinning' | 'landed' | 'revealed';
 
 export default function RollScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ preview?: string }>();
+  const preview = __DEV__ && params.preview === '1';
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const still = useReducedMotion();
@@ -121,6 +136,7 @@ export default function RollScreen() {
       AccessibilityInfo.announceForAccessibility(
         p.item_id === null ? `You won ${p.coins} coins` : `You won ${name}, ${RARITY_LABEL[p.rarity]}`
       );
+      if (preview) return; // nothing is won for real
       if (p.item_id !== null) {
         if (userId) addOwnedItem(userId, p.item_id); // in the character editor straight away
         refreshOwned(); // a won map unlocks on Profile straight away
@@ -131,15 +147,17 @@ export default function RollScreen() {
       markRollSeen().catch(() => {});
       setRoll({ state: 'rolled', seen: true, ...p });
     },
-    [userId, balance, still, refreshOwned, refreshBalance, setRoll]
+    [preview, userId, balance, still, refreshOwned, refreshBalance, setRoll]
   );
 
   const landed = useCallback(
     (p: Prize) => {
       setPhase('landed');
-      Haptics.impactAsync(
-        isBigWin(p) ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Medium
-      ).catch(() => {});
+      // The win buzz; a big win gets a heavy thump after it too
+      buzz(Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
+      if (isBigWin(p)) {
+        setTimeout(() => buzz(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)), 180);
+      }
       if (still) return reveal(p);
       lights.set(LIGHTS.win);
       shake.set(
@@ -169,14 +187,31 @@ export default function RollScreen() {
     if (prizeRef.current) landedRef.current(prizeRef.current);
   }, []);
 
+  // A tick each time a tile crosses the line: quick at full speed,
+  // spreading out as the reel slows onto the prize
+  const lastTick = useRef(0);
+  const tick = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTick.current < TICK_MS) return;
+    lastTick.current = now;
+    buzz(Haptics.selectionAsync());
+  }, []);
+  useAnimatedReaction(
+    () => Math.round(position.get()),
+    (tile, before) => {
+      // Only forward, while spinning (not the wind-up, nor the reel reset for another go)
+      if (before !== null && tile > before && plan.get() !== null) scheduleOnRN(tick);
+    }
+  );
+
   const spinFrames = useFrameCallback(({ timestamp }) => {
-    const p = plan.value;
+    const p = plan.get();
     if (!p) return;
-    if (startedAt.value < 0) startedAt.value = timestamp;
-    const t = timestamp - startedAt.value;
-    position.value = reelPosition(t, p);
+    if (startedAt.get() < 0) startedAt.set(timestamp);
+    const t = timestamp - startedAt.get();
+    position.set(reelPosition(t, p));
     if (t >= spinTotalMs(p)) {
-      plan.value = null;
+      plan.set(null);
       scheduleOnRN(onSpinEnd);
     }
   }, false);
@@ -186,16 +221,16 @@ export default function RollScreen() {
     if (phase !== 'spinning') spinFrames.setActive(false);
   }, [phase, spinFrames]);
 
-  async function tap() {
+  /** The lever was pulled: ask the server, then spin. */
+  async function start() {
     if (phase !== 'idle') return;
     setPhase('asking');
     setError(null);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    if (!still) pull.set(withSequence(withTiming(1, { duration: 120 }), withTiming(0, { duration: 380 })));
+    buzz(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
 
     let p: Prize;
     try {
-      p = await rollDailyPrize();
+      p = preview ? previewPrize(pool) : await rollDailyPrize();
     } catch (e) {
       setError(rollErrorText(errorMessage(e)));
       setPhase('idle');
@@ -256,7 +291,7 @@ export default function RollScreen() {
     if (phase !== 'revealed' || still) return;
     cardIn.set(0);
     cardIn.set(withTiming(1, { duration: 560 }));
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    buzz(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy));
   }, [phase, still, cardIn]);
   const cardStyle = useAnimatedStyle(() => {
     const dy = machineTop.value + MACHINE.tray.y * k - cardMid.value;
@@ -276,11 +311,56 @@ export default function RollScreen() {
   }, [reveal]);
 
   // ---------------------------------------------------------------- what shows
-  const waiting = roll?.state === 'ready' || (roll?.state === 'rolled' && !roll.seen);
+  const waiting = preview || roll?.state === 'ready' || (roll?.state === 'rolled' && !roll.seen);
   const flash = prize && (phase === 'landed' || phase === 'revealed') ? RARITY_COLOR[prize.rarity] : null;
   const won = prize && phase === 'revealed' ? prize : null;
   const entry = won?.item_id ? findShopEntry(won.item_id) : undefined;
-  const canWear = entry?.kind === 'clothing' || entry?.kind === 'pet';
+  const canPull = phase === 'idle' && waiting;
+
+  // The gesture keeps the first callback it saw, so it starts the latest start() through a ref
+  const startRef = useRef(start);
+  useEffect(() => {
+    startRef.current = start;
+  });
+  const onPulled = useCallback(() => {
+    startRef.current();
+  }, []);
+
+  // The knob follows the finger down; let go far enough down and it
+  // springs back up as the reel goes, otherwise it just springs back
+  const travel = (MACHINE.lever.downY - MACHINE.lever.topY) * k;
+  const lever = usePanGesture({
+    enabled: canPull,
+    activeOffsetY: 4,
+    onUpdate: (e) => {
+      'worklet';
+      pull.set(Math.min(1, Math.max(0, e.translationY / travel)));
+    },
+    onFinalize: () => {
+      'worklet';
+      const far = pull.get() >= PULL_ENOUGH;
+      pull.set(withTiming(0, { duration: 380 }));
+      if (far) scheduleOnRN(onPulled);
+    },
+  });
+  // Screen readers can't drag: their double tap pulls it all the way
+  function pullForMe() {
+    if (!canPull) return;
+    if (!still) pull.set(withSequence(withTiming(1, { duration: 120 }), withTiming(0, { duration: 380 })));
+    start();
+  }
+
+  const canWear = !preview && (entry?.kind === 'clothing' || entry?.kind === 'pet');
+
+  // Preview: back to a fresh reel at rest
+  function again() {
+    setPrize(null);
+    prizeRef.current = null;
+    lights.set(LIGHTS.idle);
+    position.set(REEL_START);
+    setTiles(buildReel(pool));
+    setPhase('idle');
+  }
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + Spacing.two, paddingBottom: insets.bottom + Spacing.three }]}>
@@ -293,22 +373,23 @@ export default function RollScreen() {
           style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
           <ThemedText style={styles.closeText}>✕</ThemedText>
         </Pressable>
-        <ThemedText style={styles.title}>Daily Roll</ThemedText>
+        <ThemedText style={styles.title}>{preview ? 'Roll preview' : 'Daily Roll'}</ThemedText>
         <CoinBalance balance={shownBalance ?? balance} color={INK} />
       </View>
-      {today !== null && goal && (
+      {!preview && today !== null && goal && (
         <ThemedText type="small" style={styles.muted}>
           Goal reached! {today.toLocaleString()} / {goal.today.toLocaleString()} steps
         </ThemedText>
       )}
 
       <View onLayout={(e) => machineTop.set(e.nativeEvent.layout.y)}>
-        <Pressable
-          onPress={tap}
-          disabled={phase !== 'idle' || !waiting}
+        <View
+          accessible
           accessibilityRole="button"
-          accessibilityLabel="Roll the prize machine"
-          accessibilityState={{ disabled: phase !== 'idle' || !waiting }}>
+          accessibilityLabel="Pull the prize machine's lever"
+          accessibilityState={{ disabled: !canPull }}
+          accessibilityActions={[{ name: 'activate' }]}
+          onAccessibilityAction={pullForMe}>
           <Reanimated.View style={machineStyle}>
             <PrizeMachine
               k={k}
@@ -331,13 +412,27 @@ export default function RollScreen() {
               />
             )}
             {won && !still && <Bursts prize={won} k={k} />}
+            {/* Where a finger grabs the lever: the arm and knob, generously */}
+            <GestureDetector gesture={lever}>
+              <View
+                style={[
+                  styles.lever,
+                  {
+                    left: (MACHINE.w - 22) * k,
+                    top: (MACHINE.lever.topY - 12) * k,
+                    width: 22 * k,
+                    height: (MACHINE.lever.baseY - MACHINE.lever.topY + 24) * k,
+                  },
+                ]}
+              />
+            </GestureDetector>
           </Reanimated.View>
-        </Pressable>
+        </View>
       </View>
 
       {phase === 'idle' && waiting && (
         <Reanimated.View style={hintStyle}>
-          <ThemedText style={styles.hint}>Tap the machine to roll!</ThemedText>
+          <ThemedText style={styles.hint}>Pull the lever to roll!</ThemedText>
         </Reanimated.View>
       )}
       {!waiting && phase === 'idle' && (
@@ -374,7 +469,11 @@ export default function RollScreen() {
                 onPress={() => router.replace({ pathname: '/avatar', params: { wear: won.item_id! } })}
               />
             )}
-            <CardButton title="Done" primary={!canWear} onPress={() => router.back()} />
+            {preview ? (
+              <CardButton title="Roll again" primary onPress={again} />
+            ) : (
+              <CardButton title="Done" primary={!canWear} onPress={() => router.back()} />
+            )}
           </View>
         </Reanimated.View>
       )}
@@ -410,6 +509,24 @@ function CardButton({ title, primary, onPress }: { title: string; primary: boole
       <ThemedText style={[styles.buttonText, { color: primary ? '#3a2400' : INK }]}>{title}</ThemedText>
     </Pressable>
   );
+}
+
+/**
+ * A haptic that never breaks the roll. Dev builds say why one didn't play
+ * (most often: this build was made without expo-haptics).
+ */
+function buzz(haptic: Promise<void>) {
+  haptic.catch((e) => {
+    if (__DEV__) console.warn('Haptic failed:', errorMessage(e));
+  });
+}
+
+/** A made-up prize for the preview, at the real chances. */
+function previewPrize(pool: PoolItem[]): Prize {
+  const t = randomTile(pool, Math.random, ROLL_CHANCES);
+  return t.kind === 'coins'
+    ? { item_id: null, rarity: 'coins', coins: t.coins }
+    : { item_id: t.id, rarity: t.rarity, coins: 0 };
 }
 
 /** The wallet counting up to its new balance over 0.9 s. */
@@ -468,6 +585,9 @@ const styles = StyleSheet.create({
   error: {
     color: '#ff8a80',
     textAlign: 'center',
+  },
+  lever: {
+    position: 'absolute',
   },
   card: {
     alignSelf: 'stretch',

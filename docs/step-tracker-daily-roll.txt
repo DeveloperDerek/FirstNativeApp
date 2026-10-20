@@ -11,7 +11,9 @@ picks the prize, what changes in the economy and on each screen, what
 the database keeps, and the choices to make before building (section
 11). All choices (ROLL-1 to ROLL-16) were decided on 2026-10-18.
 ROLL-1 was changed on 2026-10-19: the capsule machine became a slot
-machine (section 5, "The roll screen"). ROLL-17 is still open.
+machine (section 5, "The roll screen"). ROLL-17 is decided (C).
+Paid spins, planned for later, are in section 12; their choices
+(ROLL-18 to ROLL-24) are still open.
 
 What this changes in other blueprints (and nothing else):
   - step-tracker-coins-items.txt, 2a ("Daily step reward, 150 coins
@@ -256,34 +258,42 @@ Builds on what the app already has:
   - Colours: Coins yellow, Common grey, Uncommon green, Rare blue,
     Epic purple, Legendary gold.
   - Before the tap the machine bobs gently, the bulbs chase slowly,
-    and "Tap the machine to roll!" blinks under it.
+    and "Pull the lever to roll!" blinks under it.
 
   Starting the roll
-  - There is no Roll button on this screen: the whole machine is the
-    button. Tapping it dips the machine a pixel and pulls the lever.
-  - It works with a screen reader ("Roll the prize machine",
-    a button) and with a keyboard (Enter or Space).
-  - One roll per screen: tapping again while it spins or while the
-    prize card is up does nothing.
+  - There is no Roll button on this screen: you pull the lever. The
+    knob follows your finger down; let go past 60% of the way and it
+    springs back up as the reel goes, otherwise it just springs back.
+    Tapping the machine does nothing.
+  - It works with a screen reader ("Pull the prize machine's lever",
+    a button): activating it pulls the lever all the way.
+  - One roll per screen: the lever doesn't move while it spins or
+    while the prize card is up.
 
-  The spin (times from the tap)
-    0 ms           Tap. The hint hides, the lever pulls down,
+  The spin (times from letting go of the lever)
+    0 ms           Let go. The hint hides, the lever springs back,
                    roll_daily_prize is called. Light haptic.
     0 - 160        Wind-up: the reel nudges back a quarter tile.
-    160 - ~1,400   Full speed. Bulbs chase fast; a soft tick each time
-                   a tile crosses the line (at most one every 45 ms).
-    ~1,400 - 3,000 Slows down (ease-out); the ticks space out.
-    3,000 - 3,250  Stops a fifth of a tile past the prize and settles
+    160 - ~2,000   Full speed. Bulbs chase fast; a soft tick each time
+                   a tile crosses the line (at most one every 45 ms),
+                   and a selection haptic with it (at most one every
+                   50 ms, so full speed is a steady buzz).
+    ~2,000 - 5,160 Slows down (ease-out); the ticks and haptics space
+                   out until the last tile clicks into place. About
+                   40 tiles go by in all.
+    5,160 - 5,420  Stops a fifth of a tile past the prize and settles
                    back onto it. The machine shakes; the payline and
-                   bulbs flash in the rarity colour. Medium haptic, or
-                   heavy for Epic, Legendary and 500 coins.
+                   bulbs flash in the rarity colour. A success haptic
+                   (a double buzz), plus a heavy one just after for
+                   Epic, Legendary and 500 coins.
     then           The reveal (below). mark_roll_seen.
   - Rarer prizes spin longer, with a slower crawl at the end: Epic
-    3.4 s, Legendary 3.8 s, everything else 3.0 s.
+    5.6 s (44 tiles), Legendary 6.2 s (48 tiles), everything else
+    5.0 s (40 tiles).
   - The spin only shows the result. The prize comes back from the
     server first (section 4), and the reel is built with that prize
-    at the stop, so it can't land on anything else. The lever pulls
-    and the light haptic fires at the tap; the reel starts its
+    at the stop, so it can't land on anything else. The light haptic
+    fires as the lever is let go; the reel starts its
     wind-up once the answer is back (usually a fraction of a
     second). Built: it doesn't spin while waiting.
   - The other tiles are things the player could win: items from
@@ -302,7 +312,7 @@ Builds on what the app already has:
   - Then the prize card pops out of the tray: it starts as a speck
     at the tray, flies down and grows to just past full size, then
     settles (about 0.56 s), with a puff of white sparkles at the
-    tray and a light haptic. It shows the prize, its rarity (or
+    tray and a heavy haptic. It shows the prize, its rarity (or
     "Coins") and its name (or "+250 coins").
   - Buttons on the card: "Wear it" and "Done" for an item ("Wear
     it" opens the character editor with the item picked); "Done"
@@ -491,7 +501,8 @@ Builds on what the app already has:
   - Not for sale. No buying rolls, no paying coins for an extra roll
     or a reroll, no premium machine (ROLL-9). Selling random prizes
     brings loot-box rules (store odds disclosure, some countries'
-    gambling laws) and is a poor fit for 13 and up.
+    gambling laws) and is a poor fit for 13 and up. Paid spins are
+    planned for later; section 12 is what they need first.
   - Not a way to get achievement items. They still come only from
     their achievement.
   - Not a duplicate-giver: there's nothing to trade or sell back.
@@ -650,22 +661,150 @@ Builds on what the app already has:
              Legendary 5): more exciting, but it suggests rare prizes
              are likelier than they are, which matters more because
              the odds aren't shown (ROLL-8) and players are 13 and up.
+          C. Fewer coin tiles than the real chances, the items among
+             themselves at the real chances: coins 10, Common 31,
+             Uncommon 19, Rare 6, Epic 3, Legendary 1 (coins about 14%
+             of the tiles instead of 40%). More of the items go by, and
+             a rare item doesn't look likelier next to a common one
+             than it is; every item rarity shows a bit more often than
+             its real chance (Legendary about 1.4% of tiles, not 1%).
           Recommended: A.
+          Decision: C (2026-10-19). The real chances (ROLL-6) are
+          unchanged; only the reel's other tiles changed.
+
+======================================================================
+12. PAID SPINS (PLANNED, NOT BUILT)
+======================================================================
+
+  Later, players may be able to buy an extra spin with real money.
+  That makes the machine a paid loot box, which brings rules the free
+  roll doesn't have. This section is what has to be true before it
+  ships. It needs ROLL-9 changed, and ROLL-8 changed for paid spins
+  (ROLL-18 to ROLL-24 below are its own choices). The rules change
+  quickly: a lawyer who works on games checks this before launch
+  (REG-D in step-tracker-decisions.txt). Last checked October 2026.
+
+  Why it can be legal
+  - Gambling is paying for a chance at a prize worth real money.
+    Coins and items are worth nothing outside the app, and that has
+    to stay true for good: never cashed out, never traded or gifted
+    between players, never sold anywhere. Trading is what made
+    "skins" a gambling problem in the US and Europe. No real-world
+    prizes (gift cards, merchandise) from a paid spin, ever.
+
+  The odds, before every paid spin
+  - Apple (App Store guideline 3.1.1) and Google Play require the
+    odds of each kind of prize to be shown before purchase. South
+    Korea and China require it by law; the US FTC treats hidden or
+    misleading odds as deceptive.
+  - The odds are per player: a rarity with nothing left to win is
+    skipped and its share goes to the others (ROLL-6). So the screen
+    shows that player's odds now, from the server (a new function
+    next to roll_outcome), not a fixed table. "Odds" sits by the
+    buy button, one tap away, and every percentage on it adds to
+    100.
+  - The reel shows the real chances on a paid spin (ROLL-17 option
+    A): a reel showing items more often than people win them could
+    count as a misleading display, which Korea's law names. The free
+    roll can keep option C (ROLL-23).
+
+  Who can buy
+  - Players are 13 and up (step-tracker-register.txt). In January
+    2025 the FTC's order against HoYoverse (Genshin Impact, $20M)
+    banned selling loot boxes to under-16s without a parent's
+    consent and required real-money prices. Brazil (2025) bans loot
+    boxes in games for children and teens. The UK's industry rules
+    need a parent's consent under 18. Australia (2024) rates games
+    with paid loot boxes M or higher.
+  - Paid spins are 18 and up (ROLL-19), checked on the server from
+    the birthday the app already has. Under 18 the buy button
+    doesn't show; the free roll is unchanged.
+  - The App Store and Google Play age-rating forms say the app has
+    random paid items.
+
+  Where
+  - Belgium treats paid loot boxes as illegal gambling: no paid
+    spins there (ROLL-20). The list of countries is a server
+    setting, changed without a new build, since more countries are
+    moving the same way. The free roll works everywhere.
+
+  Buying
+  - Through Apple's and Google's in-app purchases, never our own
+    payment page.
+  - The price in real money on the button. If spins are ever bought
+    with coins that were bought, the real-money price shows next to
+    the coin price too (EU consumer authorities, 2024; the FTC
+    order).
+  - No pressure: no countdowns on spins, no near-miss animations
+    (the reel stopping just short of a Legendary), no "buy 3 more"
+    rewards, no discounts that run out. These are what regulators
+    are going after now.
+  - No "collect the whole set" rewards for things only paid spins
+    give (Japan bans "complete gacha").
+  - A purchase history on Profile: each paid spin, the date, the
+    price and the prize. A spending limit the player can set
+    (ROLL-21).
+
+  On the server
+  - The prize is still picked and saved on the server at the pull
+    (ROLL-13), after the store's receipt is checked there.
+  - Each version of the odds is kept, and each paid spin records the
+    odds version it used, so we can show that the odds shown were
+    the odds used.
+  - A database test runs many outcomes and checks they match the
+    odds shown.
+  - Paid spins are their own table, apart from daily_rolls, so
+    refunds, age checks and reports stay simple. A refund from the
+    store takes the prize back (ROLL-22).
+
+  Paperwork
+  - Terms: coins and items have no cash value, can't be moved
+    between accounts, and what a refund does.
+  - Privacy policy: purchase data.
+  - Store listings: in-app purchases and the random-items notice.
+
+  The simpler choice
+  - Selling items directly ("this hat, $1.99", or a pack with a
+    stated item) has no chance in it, so almost none of the above
+    applies. Many apps for teens do this instead (ROLL-24).
+
+  Choices (STILL OPEN; also in step-tracker-decisions.txt)
+  ROLL-18 Paid spins at all, or direct sales only (ROLL-24).
+          Decision:
+  ROLL-19 Who can buy: 18 and up (recommended), or 16 and up with a
+          parent's consent (needs a consent flow).
+          Decision:
+  ROLL-20 Countries with no paid spins: Belgium to start
+          (recommended); others as the rules change.
+          Decision:
+  ROLL-21 A spending limit: one the player sets (recommended), a
+          fixed monthly cap, or none.
+          Decision:
+  ROLL-22 A refunded spin: the item or coins are taken back
+          (recommended), or kept.
+          Decision:
+  ROLL-23 The reel on the free roll: keep option C (ROLL-17), or the
+          real chances everywhere so the two spins look the same
+          (recommended).
+          Decision:
+  ROLL-24 Instead of paid spins: direct item sales, no chance.
           Decision:
 
 ======================================================================
-12. LATER (EACH ITS OWN CHOICE)
+13. LATER (EACH ITS OWN CHOICE)
 ======================================================================
 
   - Roll history on Profile: every prize and the day it came.
   - Seasonal items that are only in the roll for a few weeks.
   - Friends seeing coins wins too (ROLL-11 shows items only).
-  - Showing the odds in the app (ROLL-8 other).
+  - Showing the odds in the app (ROLL-8 other; required for paid
+    spins, section 12).
+  - Paid spins (section 12).
   - A first-ever roll that's always Rare or better, to make the
     first one memorable.
 
 ======================================================================
-13. TESTS
+14. TESTS
 ======================================================================
 
   Database (daily_roll.test.sql)
@@ -714,13 +853,13 @@ Builds on what the app already has:
   - Roll near midnight; change the phone date; airplane mode on tap.
 
 ======================================================================
-14. BUILD ORDER CHECKLIST
+15. BUILD ORDER CHECKLIST
 ======================================================================
 
     [x] ROLL-1 to ROLL-16 decided (2026-10-18), copied to
         step-tracker-decisions.txt
-    [ ] Decide ROLL-17 (reel tile mix); built as option A (the real
-        chances), REEL_CHANCES in src/roll/roll.ts
+    [x] Decide ROLL-17 (reel tile mix): option C, REEL_CHANCES in
+        src/roll/roll.ts (2026-10-19)
     [x] Art: slot machine (body, sign, bulbs, lever), coin spin
         frames (drawn from code, 2026-10-19)
     [x] Migration with the switch day empty; database tests

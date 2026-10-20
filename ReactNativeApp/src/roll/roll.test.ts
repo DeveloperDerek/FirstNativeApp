@@ -15,6 +15,7 @@ import {
   REEL_LENGTH,
   prizeName,
   randomTile,
+  ROLL_CHANCES,
   rarityOf,
   REEL_START,
   reelPosition,
@@ -83,11 +84,20 @@ test('reel tiles only show what could be won', () => {
   for (let i = 0; i < 50; i++) assert.equal(randomTile([], random2).kind, 'coins');
 });
 
-test('reel tiles follow the real chances (ROLL-17, option A until decided)', () => {
+const shares = (tiles: Tile[]) => (k: string) =>
+  (100 * tiles.filter((t) => (t.kind === 'coins' ? 'coins' : t.rarity) === k).length) / tiles.length;
+
+test('reel tiles: fewer coins, the items at their real chances among themselves (ROLL-17)', () => {
   const random = seeded(3);
-  const tiles = Array.from({ length: 20000 }, () => randomTile(POOL, random));
-  const share = (k: string) =>
-    (100 * tiles.filter((t) => (t.kind === 'coins' ? 'coins' : t.rarity) === k).length) / tiles.length;
+  const share = shares(Array.from({ length: 20000 }, () => randomTile(POOL, random)));
+  assert.ok(Math.abs(share('coins') - 100 / 7) < 1.5);
+  assert.ok(Math.abs(share('common') / share('legendary') - 31) < 8);
+  assert.ok(Math.abs(share('uncommon') / share('rare') - 19 / 6) < 0.5);
+});
+
+test('the real chances match the server: coins 40%', () => {
+  const random = seeded(4);
+  const share = shares(Array.from({ length: 20000 }, () => randomTile(POOL, random, ROLL_CHANCES)));
   assert.ok(Math.abs(share('coins') - 40) < 1.5);
   assert.ok(Math.abs(share('common') - 31) < 1.5);
   assert.ok(Math.abs(share('legendary') - 1) < 0.5);
@@ -113,8 +123,8 @@ test('the prize is at the stop, and its neighbours are never the same prize', ()
 test('the spin: rarer is longer, and it ends on the prize', () => {
   const common = spinPlan('common');
   const legendary = spinPlan('legendary');
-  assert.equal(spinTotalMs(common), 160 + 3000 + 260);
-  assert.equal(legendary.spinMs, 3800);
+  assert.equal(spinTotalMs(common), 160 + 5000 + 260);
+  assert.equal(legendary.spinMs, 6200);
   assert.ok(legendary.tiles > common.tiles);
 
   assert.equal(reelPosition(0, common), REEL_START);

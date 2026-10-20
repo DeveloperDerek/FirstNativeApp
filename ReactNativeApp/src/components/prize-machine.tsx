@@ -286,8 +286,10 @@ export function PrizeMachine({ k, tiles, position, pull, lights, clock, flash, h
         ]}>
         <Reanimated.View style={strip}>
           {tiles.map((t, i) => (
+            // Keyed by what it shows too: a tile swapped for the prize is
+            // drawn fresh (an icon whose item changed in place could stay blank)
             <ReelTile
-              key={i}
+              key={`${i}:${t.kind === 'coins' ? t.coins : t.id}`}
               tile={t}
               k={k}
               coinK={coinK}
@@ -339,7 +341,18 @@ function Payline({ k, color }: { k: number; color: string }) {
       pointerEvents="none"
       style={[
         styles.payline,
-        { left: 20 * k, top: 63 * k, width: 68 * k, height: 26 * k, borderWidth: k, borderColor: color, shadowColor: color },
+        {
+          left: 20 * k,
+          top: 63 * k,
+          width: 68 * k,
+          height: 26 * k,
+          borderWidth: k,
+          borderColor: color,
+          // The glow on both sides of the line. A box shadow is drawn from
+          // the box; a shadow on a see-through view is worked out from its
+          // pixels every frame (iOS warns about it)
+          boxShadow: `0 0 16px ${color}, inset 0 0 16px ${color}`,
+        },
         style,
       ]}
     />
@@ -583,9 +596,6 @@ const styles = StyleSheet.create({
   },
   payline: {
     position: 'absolute',
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
   },
   pop: {
     position: 'absolute',

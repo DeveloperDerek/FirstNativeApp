@@ -712,6 +712,12 @@ Contents
   ROLL-16  Coins: 100 (6 in 10), 250 (3 in 10), 500 (1 in 10).
            Change to:
 
+  ROLL-17  The reel's other tiles: fewer coins (coins 10, Common 31,
+           Uncommon 19, Rare 6, Epic 3, Legendary 1), the items among
+           themselves at the real chances. The real chances (ROLL-6)
+           are unchanged. Decided 2026-10-19 (option C).
+           Change to:
+
 ======================================================================
 17. STILL OPEN
 ======================================================================
@@ -732,12 +738,11 @@ Contents
           months (step-tracker-daily-roll.txt, section 6).
           Decision:
 
-  ROLL-17 How often each rarity shows on the slot machine's reel
-          (step-tracker-daily-roll.txt, section 11). The tiles are
-          only for show. A: the real chances (ROLL-6). B: more rare
-          tiles than the real chances, as in the preview; more
-          exciting, but it suggests rare prizes are likelier than
-          they are. Recommended: A.
+  ROLL-18 to ROLL-24  Paid spins, a later feature
+          (step-tracker-daily-roll.txt, section 12): paid spins or
+          direct sales only; 18 and up; no paid spins in Belgium; a
+          spending limit; refunds take the prize back; the free
+          roll's reel. Each needs a lawyer's check first (REG-D).
           Decision:
 
   REG-F  Existing accounts and the Terms (step-tracker-register.txt,

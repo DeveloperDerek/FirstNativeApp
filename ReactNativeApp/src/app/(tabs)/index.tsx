@@ -190,6 +190,17 @@ export default function TodayScreen() {
             Shop
           </ThemedText>
         </Pressable>
+        {/* Dev builds only: try the slot machine without reaching the goal */}
+        {__DEV__ && (
+          <Pressable
+            onPress={() => router.push({ pathname: '/roll', params: { preview: '1' } })}
+            accessibilityRole="button"
+            style={({ pressed }) => pressed && styles.pressed}>
+            <ThemedText type="smallBold" style={[styles.shopLink, { color: theme.skyInk }]}>
+              Roll preview
+            </ThemedText>
+          </Pressable>
+        )}
       </View>
       <View style={styles.hero}>
         <ThemedText type="code" style={[styles.caps, { color: theme.skyInk }]}>
