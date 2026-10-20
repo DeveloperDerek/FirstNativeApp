@@ -303,7 +303,7 @@ Needs the `achievements` migration on the Supabase project the build uses (RELEA
 
 ## 20. Today minimap (`step-tracker-minimap.txt`)
 
-- [ ] iPhone  - [ ] Android — **Solo, 0 steps:** only your head, at the left end; nothing walked on the dashed line.
+- [ ] iPhone  - [ ] Android — **Alone, 0 steps** (no friends, or sharing off): only your head, at the left end; nothing walked on the dashed line.
 - [ ] iPhone  - [ ] Android — **Long road:** in a group where someone has 23,000, the minimap ends at 25,000 and the 10,000 flag sits further left on it.
 - [ ] iPhone  - [ ] Android — **Crowded:** several people within 300 steps of each other: their heads stack upward (up to three rows); yours stays on the line, ringed, in front.
 - [ ] iPhone  - [ ] Android — **Moving the road:** scroll the road: the darker window on the minimap slides with it, smoothly. Tap the far end: the road scrolls there. Drag along it: the road follows your finger. Tap a head: the road centers on them. After any of these the road stops following your count.
@@ -334,7 +334,7 @@ packages were removed.
 - [ ] iPhone  - [ ] Android — **Walking scene:** tiles, road and landmarks line up as on the map; the character's feet are on the road.
 - [ ] iPhone  - [ ] Android — **Maps on sign-in:** sign in to an account that owns a map: it's usable in Profile straight away, without reopening the app.
 - [ ] iPhone  - [ ] Android — **Friends:** switch Today / Last 7 days / Activity: the ranking changes. Accept, decline and remove a friend: the lists and the tab badge update straight away. Pull to refresh updates everything.
-- [ ] iPhone  - [ ] Android — **Today:** switch between Solo, Friends and a group: the right people show. Join or leave a group elsewhere, then reopen Today or pull to refresh: the group list is current.
+- [ ] iPhone  - [ ] Android — **Today:** opens on Friends (no "Just me" choice); switch between Friends and a group: the right people show. Join or leave a group elsewhere, then reopen Today or pull to refresh: the group list is current.
 - [ ] iPhone  - [ ] Android — **Shop:** the balance and the refresh countdown are right on opening, after a purchase, and after a shop refresh.
 - [ ] iPhone  - [ ] Android — **Dates and times:** History, Activity day labels ("Yesterday", "Mon Oct 13"), achievement dates, the birthday on sign-up and quest times ("It begins at 3:00 PM") show as before, also just after midnight.
 

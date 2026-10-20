@@ -107,7 +107,7 @@ One strip, the full width of the screen, that never scrolls:
     [ the road (scrolls sideways) ]          <- stays put
     [ the road's distance markers ]
     [ THE MINIMAP ]      <- top of the list, 110 points tall
-    [ Who: Just me / Friends / groups ... ]
+    [ Who: Friends / groups ... ]   <- opens on Friends
 
   It scrolls up with the list and fades as it goes: gone once it has
   scrolled two thirds of the way off, back when you scroll to the top.
@@ -116,9 +116,10 @@ One strip, the full width of the screen, that never scrolls:
   scrolling through useRoadLink (StepTrack.tsx); RoadMinimap is the
   minimap wired to it.
 
-  It shows exactly when the road does: not when Friends or a group is
-  picked without sharing on (the road is hidden then too). The road
-  itself does not get any shorter.
+  It shows whenever the road does, which is always. Without sharing on,
+  the road (and the minimap) show just you. The road itself does not
+  get any shorter. (There used to be a "Just me" choice in Who; it was
+  removed 2026-10-19, and Today now opens on Friends.)
 
 ======================================================================
 4. HOW IT WORKS (the code)
@@ -188,7 +189,7 @@ One strip, the full width of the screen, that never scrolls:
 
   - The minimap is one element for screen readers, read as a summary:
     "Today's road. You're at 6,200 steps, 3,800 to the 10,000 flag,
-    2nd of 5." In solo, without the ranking.
+    2nd of 5." Alone on the road, without the ranking.
   - It is "adjustable": swiping up or down jumps the road to the next
     or previous milestone, so the map can be explored without dragging.
   - The icons, markers and labels inside are hidden from screen
@@ -209,14 +210,15 @@ One strip, the full width of the screen, that never scrolls:
   5. Touch: tap to jump, drag to scrub, icon taps.
   6. Accessibility summary and the adjustable actions.
   7. Check on every map in day, sunset and night (theme colors and
-     contrast), solo and with a big group.
+     contrast), alone and with a big group.
 
 ======================================================================
 7. HOW TO CHECK IT
 ======================================================================
 
   - npm test: the new minimap tests pass with the old ones.
-  - Solo, 0 steps: only your icon, at the left end; nothing filled.
+  - Alone (no friends, or sharing off), 0 steps: only your icon, at
+    the left end; nothing filled.
   - A group where someone has 23,000: the bar ends at 25,000 and the
     10,000 flag moves left on the bar (the bar is the whole road).
   - Several people within 300 steps of each other: their heads stack

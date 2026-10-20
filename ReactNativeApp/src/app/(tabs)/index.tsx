@@ -31,7 +31,7 @@ import { DEFAULT_GOAL, goalProgress } from '@/lib/goal';
 import { pickShown } from '@/track/scale';
 import { RoadMinimap, StepTrack, useRoadLink, type Walker } from '@/track/StepTrack';
 
-type Mode = { kind: 'solo' } | { kind: 'friends' } | { kind: 'group'; id: string; name: string };
+type Mode = { kind: 'friends' } | { kind: 'group'; id: string; name: string };
 
 const modeKey = (m: Mode) => (m.kind === 'group' ? `group:${m.id}` : m.kind);
 // The road scrolls, so up to about 30 characters stay manageable; past
@@ -48,7 +48,8 @@ export default function TodayScreen() {
   const myId = session?.user.id ?? '';
   const sharing = Boolean(profile?.sharing_consent_at);
 
-  const [mode, setMode] = useState<Mode>({ kind: 'solo' });
+  // Opens on Friends; the Who row switches to a group
+  const [mode, setMode] = useState<Mode>({ kind: 'friends' });
   const [groups, setGroups] = useState<Group[]>([]);
   // Leaderboard rows remember which mode they belong to, so switching
   // modes never shows the previous mode's people.
@@ -88,9 +89,7 @@ export default function TodayScreen() {
       const rows =
         mode.kind === 'friends'
           ? await friendsLeaderboard('today')
-          : mode.kind === 'group'
-            ? await groupLeaderboard(mode.id, 'today')
-            : [];
+          : await groupLeaderboard(mode.id, 'today');
       setBoard({ key: modeKey(mode), rows });
       setBoardError(null);
     } catch (e) {
@@ -140,22 +139,20 @@ export default function TodayScreen() {
   };
 
   let walkers: Walker[] = [me];
-  if (mode.kind !== 'solo' && board?.key === modeKey(mode)) {
+  if (sharing && board?.key === modeKey(mode)) {
     walkers = board.rows.map((r) =>
       // show my live phone count even if the upload lagged
       r.user_id === myId ? me : rowToWalker(r, myId)
     );
     if (!walkers.some((w) => w.isMe)) walkers.push(me);
   }
-  const socialLoading = mode.kind !== 'solo' && board?.key !== modeKey(mode) && !boardError;
+  const socialLoading = sharing && board?.key !== modeKey(mode) && !boardError;
   const ranked: LeaderboardRow[] = [...walkers]
     .sort((a, b) => b.steps - a.steps)
     .map((w) => ({ user_id: w.id, display_name: w.name, avatar: w.avatar, total_steps: w.steps }));
   const ink = { color: theme.ink };
   const selected = walkers.find((w) => w.id === selectedId) ?? null;
 
-  // The road (and its minimap) show unless comparing needs sharing turned on
-  const showTrack = mode.kind === 'solo' || sharing;
   const shown = pickShown(walkers, MAX_ON_TRACK);
 
   const header = (
@@ -199,18 +196,15 @@ export default function TodayScreen() {
     <View style={[styles.screen, { backgroundColor: theme.ground }]}>
       {/* Edge to edge: no padding around the map. It stays put while the list scrolls.
           The map's sky runs up behind the header to the top of the screen. */}
-      {!showTrack ? (
-        <View style={{ backgroundColor: theme.sky }}>{header}</View>
-      ) : (
-        <StepTrack
-          walkers={shown}
-          theme={theme}
-          onSelect={(w) => setSelectedId(w.id)}
-          header={header}
-          myGoal={dailyGoal}
-          link={road}
-        />
-      )}
+      {/* Without sharing, the road shows just you */}
+      <StepTrack
+        walkers={shown}
+        theme={theme}
+        onSelect={(w) => setSelectedId(w.id)}
+        header={header}
+        myGoal={dailyGoal}
+        link={road}
+      />
 
       <Reanimated.ScrollView
         style={styles.list}
@@ -222,19 +216,17 @@ export default function TodayScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + BottomTabInset + Spacing.three }}>
         {/* The whole road at a glance, first in the list: it scrolls away
             with it, fading as it goes */}
-        {showTrack && (
-          <RoadMinimap
-            link={road}
-            walkers={shown}
-            theme={theme}
-            myPlace={
-              ranked.length > 1
-                ? { place: ranked.findIndex((r) => r.user_id === myId) + 1, of: ranked.length }
-                : undefined
-            }
-            fadeWith={listY}
-          />
-        )}
+        <RoadMinimap
+          link={road}
+          walkers={shown}
+          theme={theme}
+          myPlace={
+            ranked.length > 1
+              ? { place: ranked.findIndex((r) => r.user_id === myId) + 1, of: ranked.length }
+              : undefined
+          }
+          fadeWith={listY}
+        />
         <View style={styles.content}>
           <View style={styles.inner}>
             {sharing && <QuestBanners />}
@@ -243,12 +235,6 @@ export default function TodayScreen() {
               Who
             </ThemedText>
             <View style={styles.wrap}>
-              <ThemedButton
-                theme={theme}
-                title="Just me"
-                selected={mode.kind === 'solo'}
-                onPress={() => setMode({ kind: 'solo' })}
-              />
               <ThemedButton
                 theme={theme}
                 title="Friends"
@@ -266,7 +252,7 @@ export default function TodayScreen() {
               ))}
             </View>
 
-            {mode.kind !== 'solo' && !sharing && (
+            {!sharing && (
               // Same rule as the Friends and Groups tabs: comparing needs sharing.
               <SharingRequired />
             )}
@@ -275,7 +261,7 @@ export default function TodayScreen() {
                 Loading…
               </ThemedText>
             )}
-            {boardError && mode.kind !== 'solo' && (
+            {boardError && (
               <ThemedView type="backgroundElement" style={styles.notice}>
                 <ThemedText type="small" themeColor="danger">
                   {boardError}
@@ -283,7 +269,7 @@ export default function TodayScreen() {
               </ThemedView>
             )}
 
-            {mode.kind !== 'solo' && board?.key === modeKey(mode) && (
+            {sharing && board?.key === modeKey(mode) && (
               <>
                 {walkers.length > MAX_ON_TRACK && (
                   <ThemedText type="small" style={ink}>
