@@ -5,8 +5,8 @@ The casino behind the Daily Roll ("Pixel Art 2.5D").
 Writes assets/roll/casino.png (and @2x, @3x): a 150 x 320 pixel-art hall
 at night, drawn at 3 points per art pixel so it covers any phone at
 450 x 960 points. The app centers it behind the screen and lets the edges
-crop. Only a ceiling and a floor, casino emerald with gold lights (the
-red machine stands out most against green): a beamed ceiling with
+crop. Only a ceiling and a floor, neutral charcoal with gold lights (it
+was casino emerald, which read too green): a beamed ceiling with
 spotlights in its coffers, a polished tiled floor that mirrors them,
 and the hall fading to dark where the two meet. No props; the machine
 (and its shadow, drawn by the app) is the only thing in the room.
@@ -19,7 +19,7 @@ dither, so light falls off in hard pixel bands rather than smooth
 gradients.
 
 Usage: python3 scripts/generate-roll-background.py [scheme] [out folder]
-(scheme is one of THEMES; emerald, into assets/roll/, by default)
+(scheme is one of THEMES; charcoal, into assets/roll/, by default)
 """
 import math
 import os
@@ -58,6 +58,13 @@ THEMES = {
         'ceil': '#0a2e25', 'beam': '#14493b', 'floor': '#06231d', 'seam': '#1a5946',
         'reflect': '#ffc860', 'accents': ['#1f2a12', '#3a3a16', '#5e5220', '#8a7228', '#b8963a'],
     },
+    'charcoal': {
+        'darks': ['#0a0a0b', '#111113', '#18181a', '#202023', '#29292c', '#333336', '#3e3e42',
+                  '#4a4a4f'],
+        'ceil': '#202023', 'beam': '#333336', 'floor': '#18181a', 'seam': '#3e3e42',
+        'reflect': '#ffc860', 'accents': ['#2c2a27', '#3a3733', '#4f4c47', '#6a665e', '#8a8478'],
+        'shine': ['#8a8478', '#6a665e', '#4f4c47'],
+    },
     'arcade': {
         'darks': ['#04061a', '#070b24', '#0a1030', '#0f173f', '#131d4d', '#16245c', '#1d3070',
                   '#263d88'],
@@ -65,7 +72,7 @@ THEMES = {
         'reflect': '#3de0ff', 'accents': ['#0c3a5a', '#11607e', '#1f8fae', '#34c2dc', '#8aefff'],
     },
 }
-THEME = THEMES[sys.argv[1] if len(sys.argv) > 1 else 'emerald']
+THEME = THEMES[sys.argv[1] if len(sys.argv) > 1 else 'charcoal']
 if len(sys.argv) > 2:
     OUT = sys.argv[2]
 PALETTE = [hexc(c) for c in THEME['darks'] + THEME['accents'] + GOLD]

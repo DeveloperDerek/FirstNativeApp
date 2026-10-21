@@ -65,7 +65,7 @@ import { useRollSounds } from '@/roll/sounds';
 // picked, and the prize card pops out of the tray. Opened from the small
 // machine on Today.
 
-const BG = '#06231d'; // under the casino picture, the same emerald
+const BG = '#18181a'; // under the casino picture, the same charcoal
 const INK = '#f4f1ff';
 const MUTED = '#b9b6d6';
 const CARD = '#25263d';
