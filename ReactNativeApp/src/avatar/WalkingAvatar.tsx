@@ -83,19 +83,19 @@ export function WalkingAvatar({
     const armL = box(0, HANDS.top, LEFT_ARM, HANDS.bottom);
     const armR = box(RIGHT_ARM, HANDS.top, SPRITE_W, HANDS.bottom);
     // The upper body with the lower arms cut out
-    const torso = Skia.Path.Make();
-    [upper, armL, armR].forEach((r) => torso.addRect(r));
-    torso.setFillType(FillType.EvenOdd);
-    const eyes = Skia.Path.Make();
-    EYES.forEach((x) => eyes.addRect(box(x - 1, 13, x + 3, 18)));
+    const torsoB = Skia.PathBuilder.Make();
+    [upper, armL, armR].forEach((r) => torsoB.addRect(r));
+    torsoB.setFillType(FillType.EvenOdd);
+    const eyesB = Skia.PathBuilder.Make();
+    EYES.forEach((x) => eyesB.addRect(box(x - 1, 13, x + 3, 18)));
     return {
       upper,
-      torso,
+      torso: torsoB.detach(),
       armL,
       armR,
       legL: box(0, LOWER_LEGS, MIDDLE, H_ROWS),
       legR: box(MIDDLE, LOWER_LEGS, SPRITE_W, H_ROWS),
-      eyes,
+      eyes: eyesB.detach(),
     };
   }, [s]);
 
