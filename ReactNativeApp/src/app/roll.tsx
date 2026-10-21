@@ -73,10 +73,10 @@ const YELLOW = '#ffc928';
 
 /** While it waits the machine bounces: up this many art pixels, easing off
  *  at the top and falling back faster, then a short rest on the floor. */
-const BOUNCE_PX = 4;
-const BOUNCE_UP_MS = 360;
-const BOUNCE_DOWN_MS = 300;
-const BOUNCE_REST_MS = 160;
+const BOUNCE_PX = 2;
+const BOUNCE_UP_MS = 420;
+const BOUNCE_DOWN_MS = 360;
+const BOUNCE_REST_MS = 320;
 
 /** How far down (0 to 1) the lever must be when let go for the reel to spin. */
 const PULL_ENOUGH = 0.6;
