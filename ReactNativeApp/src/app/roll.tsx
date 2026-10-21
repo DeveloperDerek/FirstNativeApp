@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, BackHandler, Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, BackHandler, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Reanimated, {
   Easing,
@@ -65,17 +65,11 @@ import { useRollSounds } from '@/roll/sounds';
 // picked, and the prize card pops out of the tray. Opened from the small
 // machine on Today.
 
-const BG = '#18181a'; // under the casino picture, the same charcoal
+const BG = '#18181a'; // flat charcoal behind the machine
 const INK = '#f4f1ff';
 const MUTED = '#b9b6d6';
 const CARD = '#25263d';
 const YELLOW = '#ffc928';
-
-/** The casino behind the machine (scripts/generate-roll-background.py), at
- *  3 points per art pixel so it stays crisp; centered, the edges crop. */
-const CASINO = require('@/assets/roll/casino.png');
-const CASINO_W = 450;
-const CASINO_H = 960;
 
 /** How far down (0 to 1) the lever must be when let go for the reel to spin. */
 const PULL_ENOUGH = 0.6;
@@ -120,7 +114,7 @@ export default function RollScreen() {
   // ---------------------------------------------------------------- opening
   // The page is clipped to a box that grows from the small machine's spot
   // to the whole screen, while the big machine inside grows from the small
-  // machine's size: the machine expands out and the casino fills the screen.
+  // machine's size: the machine expands out and fills the screen.
   // Closing runs it backwards. No spot (opened some other way): from the middle.
   const origin = parseOrigin(from) ?? {
     x: width / 2 - (MACHINE.w * k) / 8,
@@ -445,10 +439,6 @@ export default function RollScreen() {
             { width, height, paddingTop: insets.top + Spacing.two, paddingBottom: insets.bottom + Spacing.three },
             pageStyle,
           ]}>
-          <Image
-            source={CASINO}
-            style={[styles.casino, { left: (width - CASINO_W) / 2, top: (height - CASINO_H) / 2 }]}
-          />
           <View style={styles.head}>
             <Pressable
               onPress={close}
@@ -658,11 +648,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.three,
     gap: Spacing.three,
-  },
-  casino: {
-    position: 'absolute',
-    width: CASINO_W,
-    height: CASINO_H,
   },
   shadow: {
     position: 'absolute',
