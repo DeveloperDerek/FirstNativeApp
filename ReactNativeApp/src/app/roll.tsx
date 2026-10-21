@@ -65,7 +65,7 @@ import { useRollSounds } from '@/roll/sounds';
 // picked, and the prize card pops out of the tray. Opened from the small
 // machine on Today.
 
-const BG = '#18181a'; // flat charcoal behind the machine
+const BG = '#55555c'; // flat mid grey behind the machine, dark enough for the white text
 const INK = '#f4f1ff';
 const MUTED = '#b9b6d6';
 const CARD = '#25263d';
@@ -601,11 +601,17 @@ function CardButton({ title, primary, onPress }: { title: string; primary: boole
   );
 }
 
-/** The shadow's rows, in machine pixels: [left, width], 2 pixels tall each. */
-const SHADOW_ROWS = [
+/** The shadow's rows, in machine pixels: [left, width], 2 pixels tall each.
+ *  A soft edge with a darker core inside it, so it reads on the grey. */
+const SHADOW_EDGE = [
   [14, 84],
   [6, 100],
   [14, 84],
+] as const;
+const SHADOW_CORE = [
+  [26, 60],
+  [16, 80],
+  [26, 60],
 ] as const;
 
 /**
@@ -618,7 +624,7 @@ function MachineShadow({ k, bob, shake }: { k: number; bob: SharedValue<number>;
     const up = Math.min(1, Math.max(0, -bob.value / (BOUNCE_PX * k))); // 0 on the floor, 1 at the top of a bounce
     // Higher up, the shadow shrinks and fades
     return {
-      opacity: 0.7 - 0.4 * up,
+      opacity: 1 - 0.35 * up,
       transform: [{ translateX: shake.value }, { scaleX: 1 - 0.3 * up }, { scaleY: 1 - 0.2 * up }],
     };
   });
@@ -626,8 +632,11 @@ function MachineShadow({ k, bob, shake }: { k: number; bob: SharedValue<number>;
     <Reanimated.View
       pointerEvents="none"
       style={[styles.shadow, { top: 144 * k, width: MACHINE.w * k, height: 6 * k }, style]}>
-      {SHADOW_ROWS.map(([x, w], i) => (
-        <View key={i} style={[styles.shadowRow, { left: x * k, top: i * 2 * k, width: w * k, height: 2 * k }]} />
+      {SHADOW_EDGE.map(([x, w], i) => (
+        <View key={`e${i}`} style={[styles.shadowEdge, { left: x * k, top: i * 2 * k, width: w * k, height: 2 * k }]} />
+      ))}
+      {SHADOW_CORE.map(([x, w], i) => (
+        <View key={`c${i}`} style={[styles.shadowCore, { left: x * k, top: i * 2 * k, width: w * k, height: 2 * k }]} />
       ))}
     </Reanimated.View>
   );
@@ -667,9 +676,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
   },
-  shadowRow: {
+  shadowEdge: {
     position: 'absolute',
-    backgroundColor: '#05020a',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
+  shadowCore: {
+    position: 'absolute',
+    backgroundColor: '#000000',
   },
   head: {
     alignSelf: 'stretch',
