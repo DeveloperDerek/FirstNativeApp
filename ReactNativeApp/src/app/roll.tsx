@@ -1,8 +1,9 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, BackHandler, Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Reanimated, {
+  Easing,
   interpolate,
   type SharedValue,
   useAnimatedReaction,
@@ -85,6 +86,16 @@ const COINS_OUT_MS = 600;
 /** The shortest gap between reel ticks: at full speed they'd blur into one buzz. */
 const TICK_MS = 50;
 
+/** The screen grows out of Today's small machine, and shrinks back into it on close. */
+const OPEN_MS = 420;
+const CLOSE_MS = 280;
+
+/** Where Today's small machine was on screen, from its "x,y,w,h" param. */
+function parseOrigin(from: string | undefined) {
+  const [x, y, w, h] = (from ?? '').split(',').map(Number);
+  return [x, y, w, h].every(Number.isFinite) && w > 0 && h > 0 ? { x, y, w, h } : null;
+}
+
 /** idle: waiting for the lever; asking: the server is picking; spinning; then the reveal. */
 type Phase = 'idle' | 'asking' | 'spinning' | 'landed' | 'revealed';
 
@@ -93,6 +104,7 @@ export default function RollScreen() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const still = useReducedMotion();
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const { session, profile } = useAuth();
   const userId = session?.user.id;
   const { roll, setRoll, today, goal } = useSteps();
@@ -104,6 +116,65 @@ export default function RollScreen() {
   const k = Math.max(2, Math.min(3, Math.floor((Math.min(width, 480) - 2 * Spacing.four) / MACHINE.w)));
   const clock = useMachineClock();
   const play = useRollSounds();
+
+  // ---------------------------------------------------------------- opening
+  // The page is clipped to a box that grows from the small machine's spot
+  // to the whole screen, while the big machine inside grows from the small
+  // machine's size: the machine expands out and the casino fills the screen.
+  // Closing runs it backwards. No spot (opened some other way): from the middle.
+  const origin = parseOrigin(from) ?? {
+    x: width / 2 - (MACHINE.w * k) / 8,
+    y: height / 2 - (MACHINE.h * k) / 8,
+    w: (MACHINE.w * k) / 4,
+    h: (MACHINE.h * k) / 4,
+  };
+  const startScale = Math.min(1, origin.w / (MACHINE.w * k));
+  const open = useSharedValue(still ? 1 : 0);
+  useEffect(() => {
+    if (!still) open.set(withTiming(1, { duration: OPEN_MS, easing: Easing.out(Easing.back(1.1)) }));
+  }, [still, open]);
+  const closing = useRef(false);
+  const close = useCallback(() => {
+    if (closing.current) return;
+    closing.current = true;
+    if (still) return router.back();
+    open.set(
+      withTiming(0, { duration: CLOSE_MS, easing: Easing.in(Easing.cubic) }, (done) => {
+        if (done) scheduleOnRN(router.back);
+      })
+    );
+  }, [still, open, router]);
+  // Android's back button closes it the same way
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      close();
+      return true;
+    });
+    return () => sub.remove();
+  }, [close]);
+  const backdropStyle = useAnimatedStyle(() => ({ opacity: interpolate(open.value, [0, 1], [0, 1], 'clamp') }));
+  const clipStyle = useAnimatedStyle(() => {
+    const t = open.value;
+    return {
+      left: interpolate(t, [0, 1], [origin.x, 0]),
+      top: interpolate(t, [0, 1], [origin.y, 0]),
+      width: interpolate(t, [0, 1], [origin.w, width]),
+      height: interpolate(t, [0, 1], [origin.h, height]),
+      borderRadius: interpolate(t, [0, 1], [14, 0], 'clamp'),
+    };
+  });
+  // The full-size page, kept centered in the box while it grows
+  const pageStyle = useAnimatedStyle(() => {
+    const t = open.value;
+    const w = interpolate(t, [0, 1], [origin.w, width]);
+    const h = interpolate(t, [0, 1], [origin.h, height]);
+    return {
+      left: (w - width) / 2,
+      top: (h - height) / 2,
+      opacity: interpolate(t, [0, 0.15], [0, 1], 'clamp'),
+      transform: [{ scale: interpolate(t, [0, 1], [startScale, 1]) }],
+    };
+  });
 
   const [pool, setPool] = useState<PoolItem[]>([]);
   const [tiles, setTiles] = useState<Tile[]>(() => buildReel([]));
@@ -365,125 +436,135 @@ export default function RollScreen() {
   const canWear = entry?.kind === 'clothing' || entry?.kind === 'pet';
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top + Spacing.two, paddingBottom: insets.bottom + Spacing.three }]}>
-      <Image
-        source={CASINO}
-        style={[styles.casino, { left: (width - CASINO_W) / 2, top: (height - CASINO_H) / 2 }]}
-      />
-      <View style={styles.head}>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-          hitSlop={8}
-          style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
-          <ThemedText style={styles.closeText}>✕</ThemedText>
-        </Pressable>
-        <ThemedText style={styles.title}>Daily Roll</ThemedText>
-        <CoinBalance balance={shownBalance ?? balance} color={INK} />
-      </View>
-      {today !== null && goal && (
-        <ThemedText type="small" style={styles.muted}>
-          Goal reached! {today.toLocaleString()} / {goal.today.toLocaleString()} steps
-        </ThemedText>
-      )}
-
-      <View onLayout={(e) => machineTop.set(e.nativeEvent.layout.y)}>
-        <MachineShadow k={k} bob={bob} shake={shake} />
-        <View
-          accessible
-          accessibilityRole="button"
-          accessibilityLabel="Pull the prize machine's lever"
-          accessibilityState={{ disabled: !canPull }}
-          accessibilityActions={[{ name: 'activate' }]}
-          onAccessibilityAction={pullForMe}>
-          <Reanimated.View style={machineStyle}>
-            <PrizeMachine
-              k={k}
-              tiles={tiles}
-              position={position}
-              pull={pull}
-              lights={lights}
-              clock={clock}
-              flash={flash}
-              hiddenTile={popping || coinsOut ? stop : -1}
-              wearer={wearer}
-            />
-            {popping && prize && (
-              <PrizePop
-                k={k}
-                tile={tileFor(prize)}
-                color={RARITY_COLOR[prize.rarity]}
-                wearer={wearer}
-                clock={clock}
-                onDone={popDone}
-              />
-            )}
-            {coinsOut && !still && (
-              <Burst k={k} kind="coins" count={coinsOut.coins === 500 ? 26 : coinsOut.coins === 250 ? 14 : 7} />
-            )}
-            {won && !still && <Bursts prize={won} k={k} />}
-            {/* Where a finger grabs the lever: the arm and knob, generously */}
-            <GestureDetector gesture={lever}>
-              <View
-                style={[
-                  styles.lever,
-                  {
-                    left: (MACHINE.w - 22) * k,
-                    top: (MACHINE.lever.topY - 12) * k,
-                    width: 22 * k,
-                    height: (MACHINE.lever.baseY - MACHINE.lever.topY + 24) * k,
-                  },
-                ]}
-              />
-            </GestureDetector>
-          </Reanimated.View>
-        </View>
-      </View>
-
-      {phase === 'idle' && waiting && (
-        <Reanimated.View style={hintStyle}>
-          <ThemedText style={styles.hint}>Pull the lever to roll!</ThemedText>
-        </Reanimated.View>
-      )}
-      {!waiting && phase === 'idle' && (
-        <ThemedText type="small" style={styles.muted}>
-          {roll?.state === 'rolled' ? 'You’ve rolled today. Come back tomorrow.' : 'Reach today’s goal to roll.'}
-        </ThemedText>
-      )}
-      {error && (
-        <ThemedText type="small" style={styles.error}>
-          {error}
-        </ThemedText>
-      )}
-
-      {won && (
+    <View style={StyleSheet.absoluteFill}>
+      <Reanimated.View style={[styles.backdrop, backdropStyle]} />
+      <Reanimated.View style={[styles.clip, clipStyle]}>
         <Reanimated.View
-          onLayout={(e) => cardMid.set(e.nativeEvent.layout.y + e.nativeEvent.layout.height / 2)}
-          style={[styles.card, { borderColor: RARITY_COLOR[won.rarity] }, cardStyle]}>
-          <View style={styles.cardRow}>
-            <View style={[styles.cardIcon, { backgroundColor: RARITY_COLOR[won.rarity] + '38' }]}>
-              <PrizeArt tile={tileFor(won)} wearer={wearer} coinK={2} clock={clock} />
-            </View>
-            <View style={styles.cardText}>
-              <ThemedText style={[styles.tag, { color: RARITY_COLOR[won.rarity] }]}>
-                {RARITY_LABEL[won.rarity]}
-              </ThemedText>
-              <ThemedText style={styles.name}>{prizeName(won, boardItemName)}</ThemedText>
+          style={[
+            styles.screen,
+            { width, height, paddingTop: insets.top + Spacing.two, paddingBottom: insets.bottom + Spacing.three },
+            pageStyle,
+          ]}>
+          <Image
+            source={CASINO}
+            style={[styles.casino, { left: (width - CASINO_W) / 2, top: (height - CASINO_H) / 2 }]}
+          />
+          <View style={styles.head}>
+            <Pressable
+              onPress={close}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              hitSlop={8}
+              style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
+              <ThemedText style={styles.closeText}>✕</ThemedText>
+            </Pressable>
+            <ThemedText style={styles.title}>Daily Roll</ThemedText>
+            <CoinBalance balance={shownBalance ?? balance} color={INK} />
+          </View>
+          {today !== null && goal && (
+            <ThemedText type="small" style={styles.muted}>
+              Goal reached! {today.toLocaleString()} / {goal.today.toLocaleString()} steps
+            </ThemedText>
+          )}
+
+          <View onLayout={(e) => machineTop.set(e.nativeEvent.layout.y)}>
+            <MachineShadow k={k} bob={bob} shake={shake} />
+            <View
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel="Pull the prize machine's lever"
+              accessibilityState={{ disabled: !canPull }}
+              accessibilityActions={[{ name: 'activate' }]}
+              onAccessibilityAction={pullForMe}>
+              <Reanimated.View style={machineStyle}>
+                <PrizeMachine
+                  k={k}
+                  tiles={tiles}
+                  position={position}
+                  pull={pull}
+                  lights={lights}
+                  clock={clock}
+                  flash={flash}
+                  hiddenTile={popping || coinsOut ? stop : -1}
+                  wearer={wearer}
+                />
+                {popping && prize && (
+                  <PrizePop
+                    k={k}
+                    tile={tileFor(prize)}
+                    color={RARITY_COLOR[prize.rarity]}
+                    wearer={wearer}
+                    clock={clock}
+                    onDone={popDone}
+                  />
+                )}
+                {coinsOut && !still && (
+                  <Burst k={k} kind="coins" count={coinsOut.coins === 500 ? 26 : coinsOut.coins === 250 ? 14 : 7} />
+                )}
+                {won && !still && <Bursts prize={won} k={k} />}
+                {/* Where a finger grabs the lever: the arm and knob, generously */}
+                <GestureDetector gesture={lever}>
+                  <View
+                    style={[
+                      styles.lever,
+                      {
+                        left: (MACHINE.w - 22) * k,
+                        top: (MACHINE.lever.topY - 12) * k,
+                        width: 22 * k,
+                        height: (MACHINE.lever.baseY - MACHINE.lever.topY + 24) * k,
+                      },
+                    ]}
+                  />
+                </GestureDetector>
+              </Reanimated.View>
             </View>
           </View>
-          <View style={styles.buttons}>
-            {canWear && won.item_id && (
-              <CardButton
-                title="Wear it"
-                primary
-                onPress={() => router.replace({ pathname: '/avatar', params: { wear: won.item_id! } })}
-              />
-            )}
-            <CardButton title="Done" primary={!canWear} onPress={() => router.back()} />
-          </View>
+
+          {phase === 'idle' && waiting && (
+            <Reanimated.View style={hintStyle}>
+              <ThemedText style={styles.hint}>Pull the lever to roll!</ThemedText>
+            </Reanimated.View>
+          )}
+          {!waiting && phase === 'idle' && (
+            <ThemedText type="small" style={styles.muted}>
+              {roll?.state === 'rolled' ? 'You’ve rolled today. Come back tomorrow.' : 'Reach today’s goal to roll.'}
+            </ThemedText>
+          )}
+          {error && (
+            <ThemedText type="small" style={styles.error}>
+              {error}
+            </ThemedText>
+          )}
+
+          {won && (
+            <Reanimated.View
+              onLayout={(e) => cardMid.set(e.nativeEvent.layout.y + e.nativeEvent.layout.height / 2)}
+              style={[styles.card, { borderColor: RARITY_COLOR[won.rarity] }, cardStyle]}>
+              <View style={styles.cardRow}>
+                <View style={[styles.cardIcon, { backgroundColor: RARITY_COLOR[won.rarity] + '38' }]}>
+                  <PrizeArt tile={tileFor(won)} wearer={wearer} coinK={2} clock={clock} />
+                </View>
+                <View style={styles.cardText}>
+                  <ThemedText style={[styles.tag, { color: RARITY_COLOR[won.rarity] }]}>
+                    {RARITY_LABEL[won.rarity]}
+                  </ThemedText>
+                  <ThemedText style={styles.name}>{prizeName(won, boardItemName)}</ThemedText>
+                </View>
+              </View>
+              <View style={styles.buttons}>
+                {canWear && won.item_id && (
+                  <CardButton
+                    title="Wear it"
+                    primary
+                    onPress={() => router.replace({ pathname: '/avatar', params: { wear: won.item_id! } })}
+                  />
+                )}
+                <CardButton title="Done" primary={!canWear} onPress={close} />
+              </View>
+            </Reanimated.View>
+          )}
         </Reanimated.View>
-      )}
+      </Reanimated.View>
     </View>
   );
 }
@@ -562,8 +643,17 @@ function countUp(from: number, to: number, set: (n: number | null) => void) {
 }
 
 const styles = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  clip: {
+    position: 'absolute',
+    overflow: 'hidden',
+    backgroundColor: BG,
+  },
   screen: {
-    flex: 1,
+    position: 'absolute',
     backgroundColor: BG,
     alignItems: 'center',
     paddingHorizontal: Spacing.three,

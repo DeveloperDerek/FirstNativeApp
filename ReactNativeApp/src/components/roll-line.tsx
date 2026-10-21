@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { listRollPool } from '@/api/roll';
@@ -37,6 +37,7 @@ export function RollLine({
   color: string;
 }) {
   const router = useRouter();
+  const machine = useRef<ComponentRef<typeof View>>(null);
   const ink = { color };
   const percent = `${Math.round(progress * 100)}% of ${goal.toLocaleString()} goal`;
 
@@ -54,16 +55,26 @@ export function RollLine({
   }
   // Waiting, or rolled but closed before the prize showed
   const unseen = roll.state === 'rolled';
+  // The roll screen grows out of the small machine, so it's told where that is
+  function openRoll() {
+    const node = machine.current;
+    if (!node) return router.push('/roll');
+    node.measureInWindow((x: number, y: number, w: number, h: number) =>
+      router.push({ pathname: '/roll', params: { from: `${x},${y},${w},${h}` } })
+    );
+  }
   return (
     <Pressable
-      onPress={() => router.push('/roll')}
+      onPress={openRoll}
       accessibilityRole="button"
       accessibilityLabel={unseen ? 'Your daily roll prize, opens the prize machine' : 'Daily roll ready, opens the prize machine'}
       style={({ pressed }) => [styles.ready, pressed && styles.pressed]}>
       <ThemedText style={styles.readyText}>
         Goal reached! <ThemedText style={styles.cta}>{unseen ? 'Tap to see your prize' : 'Tap to roll'}</ThemedText>
       </ThemedText>
-      <WaitingMachine wearer={wearer} />
+      <View ref={machine} collapsable={false}>
+        <WaitingMachine wearer={wearer} />
+      </View>
     </Pressable>
   );
 }

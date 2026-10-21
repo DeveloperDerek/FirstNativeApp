@@ -87,7 +87,8 @@ function RootNavigator() {
           <Stack.Screen name="consent" options={{ presentation: 'modal' }} />
           <Stack.Screen name="avatar" options={{ presentation: 'modal' }} />
           <Stack.Screen name="shop" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="roll" options={{ presentation: 'modal' }} />
+          {/* Draws its own opening: it grows out of Today's small machine */}
+          <Stack.Screen name="roll" options={{ presentation: 'transparentModal', animation: 'none' }} />
           <Stack.Screen name="propose-quest" options={{ presentation: 'modal' }} />
           <Stack.Screen name="change-password" options={{ presentation: 'modal' }} />
           <Stack.Screen name="birthday-correction" options={{ presentation: 'modal' }} />
