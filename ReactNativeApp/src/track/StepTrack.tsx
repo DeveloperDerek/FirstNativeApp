@@ -1,6 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import {
-  Animated,
   Image,
   Pressable,
   ScrollView,
@@ -9,10 +8,12 @@ import {
   View,
 } from 'react-native';
 import Reanimated, {
+  Easing,
   type SharedValue,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 
 import { Avatar, HEADROOM, PixelSprite } from '@/avatar/Avatar';
@@ -131,21 +132,22 @@ function WalkerSprite({
   // between screen pixels, where it is drawn blurry
   const snapped = Math.round(x);
   // Walk to the new spot whenever the step count changes
-  const [anim] = useState(() => new Animated.Value(snapped));
+  const walkX = useSharedValue(snapped);
   useEffect(() => {
-    Animated.timing(anim, { toValue: snapped, duration: 600, useNativeDriver: true }).start();
-  }, [anim, snapped]);
+    walkX.set(withTiming(snapped, { duration: 600, easing: Easing.inOut(Easing.ease) }));
+  }, [walkX, snapped]);
+  const walkStyle = useAnimatedStyle(() => ({ transform: [{ translateX: walkX.value }] }));
 
   const name = walker.isMe ? 'You' : walker.name;
   return (
-    <Animated.View
+    <Reanimated.View
       style={[
         styles.walker,
         {
           bottom: ROAD_BASE + lane * LANE_OFFSET,
           zIndex: 100 - lane, // nearer lanes drawn on top
-          transform: [{ translateX: anim }],
         },
+        walkStyle,
       ]}>
       {/* Their shadow on the road, starting at their feet */}
       {shadow && (
@@ -184,7 +186,7 @@ function WalkerSprite({
           light={scenery?.avatarMatrix}
         />
       </Pressable>
-    </Animated.View>
+    </Reanimated.View>
   );
 }
 
