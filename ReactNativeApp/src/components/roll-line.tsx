@@ -128,7 +128,7 @@ function TodaysPrize({ prize, wearer, color }: { prize: Prize; wearer: AvatarCon
 
 const styles = StyleSheet.create({
   ready: {
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
