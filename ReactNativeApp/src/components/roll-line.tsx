@@ -13,9 +13,9 @@ import { buildReel, type Prize, prizeName, type RollState, type Tile } from '@/r
 
 // The goal line under Today's step count (step-tracker-daily-roll.txt,
 // section 5). Reaching the goal gives the daily roll, not 150 coins: the
-// line says the roll is coming, offers the small machine when it's
-// waiting (tapping it opens the roll screen, it doesn't roll), and then
-// shows the prize.
+// line says the roll is coming, and then shows the prize. While the roll
+// waits, RollReady offers the small machine just above the groups
+// (tapping it opens the roll screen, it doesn't roll).
 
 export function RollLine({
   roll,
@@ -36,24 +36,28 @@ export function RollLine({
   /** Text on the map's sky */
   color: string;
 }) {
-  const router = useRouter();
-  const machine = useRef<ComponentRef<typeof View>>(null);
   const ink = { color };
   const percent = `${Math.round(progress * 100)}% of ${goal.toLocaleString()} goal`;
 
-  if (roll === null || roll.state === 'locked') {
-    // No roll to show (not reached, not loaded yet, or not sharing: no roll without it)
-    return (
-      <ThemedText type="small" style={ink}>
-        {percent}
-        {sharing && (reached && roll === null ? ' · Goal reached!' : ' · Daily roll at goal')}
-      </ThemedText>
-    );
-  }
-  if (roll.state === 'rolled' && roll.seen) {
+  if (roll?.state === 'rolled' && roll.seen) {
     return <TodaysPrize prize={roll} wearer={wearer} color={color} />;
   }
-  // Waiting, or rolled but closed before the prize showed
+  // No prize yet: not reached, not loaded yet, not sharing (no roll without
+  // it), or waiting (the pill above the groups offers it)
+  return (
+    <ThemedText type="small" style={ink}>
+      {percent}
+      {sharing && (reached ? ' · Goal reached!' : ' · Daily roll at goal')}
+    </ThemedText>
+  );
+}
+
+/** "Goal reached! Tap to roll" with the small machine, while the roll waits
+ *  (or was rolled but closed before the prize showed); nothing otherwise. */
+export function RollReady({ roll, wearer }: { roll: RollState; wearer: AvatarConfig }) {
+  const router = useRouter();
+  const machine = useRef<ComponentRef<typeof View>>(null);
+  if (roll === null || roll.state === 'locked' || (roll.state === 'rolled' && roll.seen)) return null;
   const unseen = roll.state === 'rolled';
   // The roll screen grows out of the small machine, so it's told where that is
   function openRoll() {
@@ -124,6 +128,7 @@ function TodaysPrize({ prize, wearer, color }: { prize: Prize; wearer: AvatarCon
 
 const styles = StyleSheet.create({
   ready: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,

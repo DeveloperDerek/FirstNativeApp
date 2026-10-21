@@ -18,7 +18,7 @@ import { Leaderboard, rowToWalker } from '@/components/leaderboard';
 import { PlayerCard } from '@/components/player-card';
 import { StreakLine } from '@/components/streak-line';
 import { QuestBanners } from '@/components/quest-banners';
-import { RollLine } from '@/components/roll-line';
+import { RollLine, RollReady } from '@/components/roll-line';
 import { SharingRequired } from '@/components/sharing-required';
 import { ThemedButton } from '@/components/themed-button';
 import { ThemedText } from '@/components/themed-text';
@@ -262,6 +262,8 @@ export default function TodayScreen() {
         <View style={styles.content}>
           <View style={styles.inner}>
             {sharing && <QuestBanners />}
+
+            <RollReady roll={roll} wearer={profile?.avatar ?? DEFAULT_AVATAR} />
 
             {/* Hold a button, then drag it sideways to move it */}
             <DraggableRow
