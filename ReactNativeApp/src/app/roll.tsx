@@ -71,12 +71,10 @@ const MUTED = '#b9b6d6';
 const CARD = '#25263d';
 const YELLOW = '#ffc928';
 
-/** While it waits the machine bounces: up this many art pixels, easing off
- *  at the top and falling back faster, then a short rest on the floor. */
+/** While it waits the machine floats up this many art pixels and back,
+ *  easing in and out with no stop, each way this long. */
 const BOUNCE_PX = 2;
-const BOUNCE_UP_MS = 420;
-const BOUNCE_DOWN_MS = 360;
-const BOUNCE_REST_MS = 320;
+const BOUNCE_MS = 650;
 
 /** How far down (0 to 1) the lever must be when let go for the reel to spin. */
 const PULL_ENOUGH = 0.6;
@@ -342,12 +340,9 @@ export default function RollScreen() {
     bob.set(
       phase === 'idle' && !still
         ? withRepeat(
-            withSequence(
-              withTiming(-BOUNCE_PX * k, { duration: BOUNCE_UP_MS, easing: Easing.out(Easing.quad) }),
-              withTiming(0, { duration: BOUNCE_DOWN_MS, easing: Easing.in(Easing.quad) }),
-              withTiming(0, { duration: BOUNCE_REST_MS })
-            ),
-            -1
+            withTiming(-BOUNCE_PX * k, { duration: BOUNCE_MS, easing: Easing.inOut(Easing.sin) }),
+            -1,
+            true
           )
         : withTiming(0)
     );
