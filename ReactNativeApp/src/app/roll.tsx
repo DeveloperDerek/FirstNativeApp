@@ -71,6 +71,13 @@ const MUTED = '#b9b6d6';
 const CARD = '#25263d';
 const YELLOW = '#ffc928';
 
+/** While it waits the machine bounces: up this many art pixels, easing off
+ *  at the top and falling back faster, then a short rest on the floor. */
+const BOUNCE_PX = 4;
+const BOUNCE_UP_MS = 360;
+const BOUNCE_DOWN_MS = 300;
+const BOUNCE_REST_MS = 160;
+
 /** How far down (0 to 1) the lever must be when let go for the reel to spin. */
 const PULL_ENOUGH = 0.6;
 
@@ -184,7 +191,7 @@ export default function RollScreen() {
   const lights = useSharedValue<number>(LIGHTS.idle);
   const plan = useSharedValue<SpinPlan | null>(null);
   const startedAt = useSharedValue(-1);
-  // The machine bobs while it waits, and shakes when it stops
+  // The machine bounces while it waits, and shakes when it stops
   const bob = useSharedValue(0);
   const shake = useSharedValue(0);
 
@@ -332,7 +339,18 @@ export default function RollScreen() {
 
   // ---------------------------------------------------------------- motion
   useEffect(() => {
-    bob.set(phase === 'idle' && !still ? withRepeat(withTiming(-k, { duration: 800 }), -1, true) : withTiming(0));
+    bob.set(
+      phase === 'idle' && !still
+        ? withRepeat(
+            withSequence(
+              withTiming(-BOUNCE_PX * k, { duration: BOUNCE_UP_MS, easing: Easing.out(Easing.quad) }),
+              withTiming(0, { duration: BOUNCE_DOWN_MS, easing: Easing.in(Easing.quad) }),
+              withTiming(0, { duration: BOUNCE_REST_MS })
+            ),
+            -1
+          )
+        : withTiming(0)
+    );
   }, [bob, phase, still, k]);
   const machineStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: bob.value }, { translateX: shake.value }],
@@ -602,10 +620,11 @@ const SHADOW_ROWS = [
  */
 function MachineShadow({ k, bob, shake }: { k: number; bob: SharedValue<number>; shake: SharedValue<number> }) {
   const style = useAnimatedStyle(() => {
-    const up = Math.min(1, Math.max(0, -bob.value / k)); // 0 resting, 1 at the top of a bob
+    const up = Math.min(1, Math.max(0, -bob.value / (BOUNCE_PX * k))); // 0 on the floor, 1 at the top of a bounce
+    // Higher up, the shadow shrinks and fades
     return {
-      opacity: 0.7 - 0.25 * up,
-      transform: [{ translateX: shake.value }, { scaleX: 1 - 0.1 * up }],
+      opacity: 0.7 - 0.4 * up,
+      transform: [{ translateX: shake.value }, { scaleX: 1 - 0.3 * up }, { scaleY: 1 - 0.2 * up }],
     };
   });
   return (
