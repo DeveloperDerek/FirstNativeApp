@@ -17,6 +17,7 @@ import type { AvatarConfig } from '@/avatar/types';
 import { CoinTile, MiniMachine, useMachineClock } from '@/components/prize-machine';
 import { ThemedText } from '@/components/themed-text';
 import { GameFont, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import * as haptics from '@/lib/haptics';
 import { boardItemName, findShopEntry } from '@/lib/shop-entries';
 import { buildReel, type Prize, prizeName, type RollState, type Tile } from '@/roll/roll';
@@ -75,6 +76,8 @@ export function RollReady({ roll, wearer }: { roll: RollState; wearer: AvatarCon
   const router = useRouter();
   const machine = useRef<ComponentRef<typeof View>>(null);
   const still = useReducedMotion();
+  // The same card as Today's ranking board below it
+  const theme = useTheme();
   const busy = useRef(false);
   const scale = useSharedValue(1);
   const tilt = useSharedValue(0);
@@ -124,9 +127,9 @@ export function RollReady({ roll, wearer }: { roll: RollState; wearer: AvatarCon
       onPress={openRoll}
       accessibilityRole="button"
       accessibilityLabel={unseen ? 'Your daily roll prize, opens the prize machine' : 'Daily roll ready, opens the prize machine'}
-      style={({ pressed }) => [styles.ready, pressed && styles.pressed]}>
-      <ThemedText style={styles.readyText}>
-        Goal reached! <ThemedText style={styles.cta}>{unseen ? 'Tap to see your prize' : 'Tap to roll'}</ThemedText>
+      style={({ pressed }) => [styles.ready, { backgroundColor: theme.backgroundElement }, pressed && styles.pressed]}>
+      <ThemedText style={[styles.readyText, { color: theme.text }]}>
+        Goal reached! <ThemedText style={[styles.cta, { color: theme.accent }]}>{unseen ? 'Tap to see your prize' : 'Tap to roll'}</ThemedText>
       </ThemedText>
       <View ref={machine} collapsable={false}>
         <Reanimated.View style={windup}>
@@ -190,17 +193,12 @@ const styles = StyleSheet.create({
     paddingLeft: Spacing.three,
     paddingRight: Spacing.two,
     paddingVertical: Spacing.one,
-    borderRadius: 14,
-    backgroundColor: '#5b2a86',
-    borderWidth: 2,
-    borderColor: '#ff5fa2',
+    borderRadius: Spacing.three,
   },
   readyText: {
-    color: '#ffffff',
     fontSize: 15,
   },
   cta: {
-    color: '#ffd23f',
     fontFamily: GameFont.bold,
     fontSize: 15,
   },
