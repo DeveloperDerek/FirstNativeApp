@@ -65,7 +65,7 @@ import { useRollSounds } from '@/roll/sounds';
 // picked, and the prize card pops out of the tray. Opened from the small
 // machine on Today.
 
-const BG = '#55555c'; // flat mid grey behind the machine, dark enough for the white text
+const BG = '#1c2150'; // flat midnight indigo behind the machine
 const INK = '#f4f1ff';
 const MUTED = '#b9b6d6';
 const CARD = '#25263d';
@@ -602,7 +602,7 @@ function CardButton({ title, primary, onPress }: { title: string; primary: boole
 }
 
 /** The shadow's rows, in machine pixels: [left, width], 2 pixels tall each.
- *  A soft edge with a darker core inside it, so it reads on the grey. */
+ *  A soft edge with a darker core inside it, so it reads on the indigo. */
 const SHADOW_EDGE = [
   [14, 84],
   [6, 100],
